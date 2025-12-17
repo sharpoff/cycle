@@ -1,4 +1,5 @@
 #include "cycle/engine.h"
+#include "cycle/filesystem.h"
 #include "cycle/input.h"
 #include "cycle/game/game.h"
 #include "cycle/physics/physics.h"
@@ -6,6 +7,8 @@
 
 int main()
 {
+    filesystem::setCurrentPath(filesystem::getExecutablePath().parent_path());
+
     Engine::Init("Application", 1280, 720);
 
     while (Engine::IsRunning()) {

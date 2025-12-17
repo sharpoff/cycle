@@ -10,6 +10,8 @@ namespace Renderer
 
     void Draw();
 
+    void UpdateDynamicData();
+
     uint32_t CalculateMipLevels(uint32_t width, uint32_t height);
     Image   *LoadImageFromFile(const char *file, ImageUsageFlags imageUsage);
 
@@ -41,6 +43,9 @@ namespace Renderer
 
     inline GlobalData     globalData;
     inline Vector<Vertex> vertices;
+
+    inline mat4 projection = mat4(1.0f);
+    inline mat4 view = mat4(1.0f);
 
     inline PipelineLayout *geometryPipelineLayout;
     inline RenderPipeline *geometryPipeline;

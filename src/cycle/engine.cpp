@@ -31,6 +31,8 @@ namespace Engine
         Input::Init();
         Physics::Init();
         Game::Init();
+
+        running = true;
     }
 
     void Shutdown()

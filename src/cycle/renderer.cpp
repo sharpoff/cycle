@@ -3,6 +3,8 @@
 #include "cycle/filesystem.h"
 
 #include "cycle/graphics/render_device.h"
+#include "glm/ext/matrix_clip_space.hpp"
+#include "glm/ext/matrix_transform.hpp"
 #include "stb_image.h"
 
 namespace Renderer
@@ -62,8 +64,8 @@ namespace Renderer
                 .colorAttachmentFormats = {IMAGE_FORMAT_B8G8R8A8_SRGB},
                 .depthAttachmentFormat = IMAGE_FORMAT_D32_SFLOAT,
                 .pipelineLayout = geometryPipelineLayout,
-                .vertexCode = filesystem::readBinaryFile("shaders/bin/triangle.vert.spv"),
-                .fragmentCode = filesystem::readBinaryFile("shaders/bin/triangle.frag.spv"),
+                .vertexCode = filesystem::readBinaryFile("resources/shaders/bin/triangle.vert.spv"),
+                .fragmentCode = filesystem::readBinaryFile("resources/shaders/bin/triangle.frag.spv"),
             };
 
             geometryPipeline = device.CreateRenderPipeline(createInfo);
@@ -113,7 +115,7 @@ namespace Renderer
 
         // load image
         {
-            testImage = LoadImageFromFile("assets/textures/checkerboard.png", IMAGE_USAGE_SAMPLED | IMAGE_USAGE_TRANSFER_DST);
+            testImage = LoadImageFromFile("resources/textures/checkerboard.png", IMAGE_USAGE_SAMPLED | IMAGE_USAGE_TRANSFER_DST);
         }
 
         // write descriptor set
@@ -124,15 +126,78 @@ namespace Renderer
             device.WriteDescriptor(2, globalDataBuffer, DESCRIPTOR_TYPE_UNIFORM_BUFFER);
             device.UpdateDescriptors(geometryPipeline->layout, set);
         }
+
+
+        projection = glm::perspective(60.0f, windowSize.x / float(windowSize.y), 0.01f, 100.0f);
+        view = glm::lookAt(vec3(0.0f, 0.0f, 3.0f), vec3(0.0f), vec3(0.0f, 1.0f, 0.0f));
     }
 
     void Shutdown()
     {
+        device.DeviceWaitIdle();
+
+        device.DestroyImage(&colorTarget);
+        device.DestroyImage(&depthTarget);
+        device.DestroyImage(&testImage);
+
+        device.DestroyBuffer(&vertexBuffer);
+        device.DestroyBuffer(&globalDataBuffer);
+
+        device.DestroySampler(&linearSampler);
+        device.DestroySampler(&nearestSampler);
+
+        device.DestroyPipelineLayout(&geometryPipelineLayout);
+        device.DestroyPipeline(&geometryPipeline);
+
         device.Shutdown();
     }
 
     void Draw()
     {
+        CommandBuffer *cmd = device.BeginCommandBuffer();
+        if (cmd == nullptr) {
+            return;
+        }
+
+        UpdateDynamicData();
+
+        AttachmentResource swapchainAttachment = {
+            .image = device.GetSwapchainImage(),
+            .load = false,
+            .store = true,
+        };
+
+        AttachmentResource depthAttachment = {
+            .image = depthTarget,
+            .load = false,
+            .store = true,
+        };
+
+        Vector<AttachmentResource> colorAttachments = {swapchainAttachment};
+
+        RenderingInfo renderInfo = {};
+        renderInfo.colorAttachments = colorAttachments;
+        renderInfo.depthAttachment = &depthAttachment;
+
+        device.BeginRendering(cmd, renderInfo);
+
+        device.BindPipeline(cmd, geometryPipeline);
+        device.Draw(cmd, vertices.size(), 1, 0, 0);
+
+        device.EndRendering(cmd);
+
+        device.EndCommandBuffer(cmd);
+        device.SubmitCommandBuffer(cmd);
+
+        device.DestroyCommandBuffer(&cmd);
+    }
+
+    void UpdateDynamicData()
+    {
+        if (void *mapped = device.GetMappedData(globalDataBuffer); mapped != nullptr) {
+            globalData.viewProjection = projection * view;
+            memcpy(mapped, &globalData, sizeof(GlobalData));
+        }
     }
 
     uint32_t CalculateMipLevels(uint32_t width, uint32_t height)
