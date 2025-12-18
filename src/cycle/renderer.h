@@ -1,20 +1,11 @@
 #pragma once
 
+#include "cycle/camera.h"
 #include "cycle/graphics/graphics_types.h"
 #include "cycle/graphics/render_device.h"
 
-namespace Renderer
+class Renderer
 {
-    void Init(SDL_Window *window);
-    void Shutdown();
-
-    void Draw();
-
-    void UpdateDynamicData();
-
-    uint32_t CalculateMipLevels(uint32_t width, uint32_t height);
-    Image   *LoadImageFromFile(const char *file, ImageUsageFlags imageUsage);
-
     struct Vertex
     {
         vec3  position;
@@ -28,25 +19,40 @@ namespace Renderer
         mat4 viewProjection;
     };
 
-    inline RenderDevice device;
+public:
+    Renderer() = default;
+    ~Renderer() = default;
+
+    void init(SDL_Window *window);
+    void shutdown();
+
+    void draw();
+
+    void setCamera(Camera *camera) { this->camera = camera; }
+
+    void updateDynamicData();
+
+    uint32_t calculateMipLevels(uint32_t width, uint32_t height);
+    Image   *loadImageFromFile(const char *file, ImageUsageFlags imageUsage);
+
+private:
+    RenderDevice device;
+    Camera *camera;
 
     // Resources
-    inline Image *colorTarget;
-    inline Image *depthTarget;
-    inline Image *testImage;
+    Image *colorTarget;
+    Image *depthTarget;
+    Image *testImage;
 
-    inline Buffer *vertexBuffer;
-    inline Buffer *globalDataBuffer;
+    Buffer *vertexBuffer;
+    Buffer *globalDataBuffer;
 
-    inline Sampler *linearSampler;
-    inline Sampler *nearestSampler;
+    Sampler *linearSampler;
+    Sampler *nearestSampler;
 
-    inline GlobalData     globalData;
-    inline Vector<Vertex> vertices;
+    GlobalData     globalData;
+    Vector<Vertex> vertices;
 
-    inline mat4 projection = mat4(1.0f);
-    inline mat4 view = mat4(1.0f);
-
-    inline PipelineLayout *geometryPipelineLayout;
-    inline RenderPipeline *geometryPipeline;
-} // namespace Renderer
+    PipelineLayout *geometryPipelineLayout;
+    RenderPipeline *geometryPipeline;
+};

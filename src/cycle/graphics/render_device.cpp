@@ -43,15 +43,15 @@ VkBool32 VKAPI_PTR vulkanDebugCallback(
 }
 #endif
 
-void RenderDevice::Init(SDL_Window *window)
+void RenderDevice::init(SDL_Window *window)
 {
     this->window = window;
 
-    CreateInstance();
+    createInstance();
 
     SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface);
 
-    CreateDevice();
+    createDevice();
 
     VkSampleCountFlags supportedSampleCount = std::min(deviceProperties.limits.framebufferColorSampleCounts, deviceProperties.limits.framebufferDepthSampleCounts);
     if (supportedSampleCount & VK_SAMPLE_COUNT_64_BIT)
@@ -65,9 +65,9 @@ void RenderDevice::Init(SDL_Window *window)
     if (supportedSampleCount & VK_SAMPLE_COUNT_4_BIT)
         maxSampleCount = VK_SAMPLE_COUNT_4_BIT;
 
-    CreateAllocator();
+    createAllocator();
 
-    CreateSwapchain();
+    createSwapchain();
 
     // create command pool
     VkCommandPoolCreateInfo commandPoolCI = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
@@ -122,7 +122,7 @@ void RenderDevice::Init(SDL_Window *window)
     VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
 }
 
-void RenderDevice::Shutdown()
+void RenderDevice::shutdown()
 {
     vkDeviceWaitIdle(device);
 
@@ -158,7 +158,7 @@ void RenderDevice::Shutdown()
     vkDestroyInstance(instance, nullptr);
 }
 
-Buffer *RenderDevice::CreateBuffer(const BufferCreateInfo &createInfo)
+Buffer *RenderDevice::createBuffer(const BufferCreateInfo &createInfo)
 {
     assert(createInfo.size > 0);
 
@@ -186,7 +186,7 @@ Buffer *RenderDevice::CreateBuffer(const BufferCreateInfo &createInfo)
     return buffer;
 }
 
-Image *RenderDevice::CreateImage(const ImageCreateInfo &createInfo)
+Image *RenderDevice::createImage(const ImageCreateInfo &createInfo)
 {
     assert(createInfo.width != 0 && createInfo.height != 0);
 
@@ -238,7 +238,7 @@ Image *RenderDevice::CreateImage(const ImageCreateInfo &createInfo)
     return image;
 }
 
-Sampler *RenderDevice::CreateSampler(const SamplerCreateInfo &createInfo)
+Sampler *RenderDevice::createSampler(const SamplerCreateInfo &createInfo)
 {
     VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     samplerCreateInfo.minFilter = vulkan::getFilter(createInfo.minFilter);
@@ -269,7 +269,7 @@ Sampler *RenderDevice::CreateSampler(const SamplerCreateInfo &createInfo)
     return sampler;
 }
 
-PipelineLayout *RenderDevice::CreatePipelineLayout(const PipelineLayoutCreateInfo &createInfo)
+PipelineLayout *RenderDevice::createPipelineLayout(const PipelineLayoutCreateInfo &createInfo)
 {
     Vector<VkDescriptorSetLayout> descriptorSetLayouts;
     Vector<VkDescriptorSet> descriptorSets;
@@ -318,7 +318,7 @@ PipelineLayout *RenderDevice::CreatePipelineLayout(const PipelineLayoutCreateInf
     return pipelineLayout;
 }
 
-RenderPipeline *RenderDevice::CreateRenderPipeline(const RenderPipelineCreateInfo &createInfo)
+RenderPipeline *RenderDevice::createRenderPipeline(const RenderPipelineCreateInfo &createInfo)
 {
     Vector<VkPipelineShaderStageCreateInfo> stages;
 
@@ -408,7 +408,7 @@ RenderPipeline *RenderDevice::CreateRenderPipeline(const RenderPipelineCreateInf
     VkPipelineTessellationStateCreateInfo tessellationState = {VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO};
     tessellationState.patchControlPoints = createInfo.patchControlPoints;
 
-    vec2 windowSize = GetWindowSize();
+    vec2 windowSize = getWindowSize();
     uint32_t width = (uint32_t)windowSize.x;
     uint32_t height = (uint32_t)windowSize.y;
 
@@ -541,7 +541,7 @@ RenderPipeline *RenderDevice::CreateRenderPipeline(const RenderPipelineCreateInf
     return renderPipeline;
 }
 
-ComputePipeline *RenderDevice::CreateComputePipeline(const ComputePipelineCreateInfo &createInfo)
+ComputePipeline *RenderDevice::createComputePipeline(const ComputePipelineCreateInfo &createInfo)
 {
     VkPipelineShaderStageCreateInfo computeStage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
     VkShaderModule computeModule = VK_NULL_HANDLE;
@@ -570,7 +570,7 @@ ComputePipeline *RenderDevice::CreateComputePipeline(const ComputePipelineCreate
     return computePipeline;
 }
 
-void RenderDevice::DestroyBuffer(Buffer **buffer)
+void RenderDevice::destroyBuffer(Buffer **buffer)
 {
     if (buffer) {
         if ((*buffer)->buffer != VK_NULL_HANDLE)
@@ -581,7 +581,7 @@ void RenderDevice::DestroyBuffer(Buffer **buffer)
     }
 }
 
-void RenderDevice::DestroyImage(Image **image)
+void RenderDevice::destroyImage(Image **image)
 {
     if (image) {
         if ((*image)->view != VK_NULL_HANDLE)
@@ -595,7 +595,7 @@ void RenderDevice::DestroyImage(Image **image)
     }
 }
 
-void RenderDevice::DestroySampler(Sampler **sampler)
+void RenderDevice::destroySampler(Sampler **sampler)
 {
     if (sampler) {
         if ((*sampler)->sampler != VK_NULL_HANDLE)
@@ -606,7 +606,7 @@ void RenderDevice::DestroySampler(Sampler **sampler)
     }
 }
 
-void RenderDevice::DestroyPipelineLayout(PipelineLayout **layout)
+void RenderDevice::destroyPipelineLayout(PipelineLayout **layout)
 {
     if (layout) {
         for (auto &descriptorSetLayout : (*layout)->descriptorSetLayouts)
@@ -620,7 +620,7 @@ void RenderDevice::DestroyPipelineLayout(PipelineLayout **layout)
     }
 }
 
-void RenderDevice::DestroyPipeline(RenderPipeline **pipeline)
+void RenderDevice::destroyPipeline(RenderPipeline **pipeline)
 {
     if (pipeline) {
         if ((*pipeline)->pipeline != VK_NULL_HANDLE)
@@ -631,7 +631,7 @@ void RenderDevice::DestroyPipeline(RenderPipeline **pipeline)
     }
 }
 
-void RenderDevice::DestroyPipeline(ComputePipeline **pipeline)
+void RenderDevice::destroyPipeline(ComputePipeline **pipeline)
 {
     if (pipeline) {
         if ((*pipeline)->pipeline != VK_NULL_HANDLE)
@@ -642,7 +642,7 @@ void RenderDevice::DestroyPipeline(ComputePipeline **pipeline)
     }
 }
 
-void RenderDevice::DestroyCommandBuffer(CommandBuffer **cmd)
+void RenderDevice::destroyCommandBuffer(CommandBuffer **cmd)
 {
     if (cmd) {
         delete *cmd;
@@ -650,7 +650,7 @@ void RenderDevice::DestroyCommandBuffer(CommandBuffer **cmd)
     }
 }
 
-void RenderDevice::UploadBufferData(Buffer *buffer, void *data, size_t size)
+void RenderDevice::uploadBufferData(Buffer *buffer, void *data, size_t size)
 {
     assert(data && size > 0);
 
@@ -659,22 +659,22 @@ void RenderDevice::UploadBufferData(Buffer *buffer, void *data, size_t size)
         .usage = BUFFER_USAGE_TRANSFER_SRC,
     };
 
-    Buffer *staging = CreateBuffer(createInfo);
+    Buffer *staging = createBuffer(createInfo);
     memcpy(staging->allocation.info.pMappedData, data, size);
 
     VK_CHECK(vmaFlushAllocation(allocator, staging->allocation.handle, 0, VK_WHOLE_SIZE));
 
-    VkCommandBuffer copyCmd = CreateCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
     VkBufferCopy copyRegion = {0, 0, size};
     vkCmdCopyBuffer(copyCmd, staging->buffer, buffer->buffer, 1, &copyRegion);
 
-    FlushCommandBuffer(copyCmd, graphicsQueue, commandPool, true);
+    flushCommandBuffer(copyCmd, graphicsQueue, commandPool, true);
 
-    DestroyBuffer(&staging);
+    destroyBuffer(&staging);
 }
 
-void RenderDevice::UploadImageData(Image *image, void *data, size_t size)
+void RenderDevice::uploadImageData(Image *image, void *data, size_t size)
 {
     assert(data && size > 0);
 
@@ -683,12 +683,12 @@ void RenderDevice::UploadImageData(Image *image, void *data, size_t size)
         .usage = BUFFER_USAGE_TRANSFER_SRC,
     };
 
-    Buffer *staging = CreateBuffer(createInfo);
+    Buffer *staging = createBuffer(createInfo);
     memcpy(staging->allocation.info.pMappedData, data, size);
 
     VK_CHECK(vmaFlushAllocation(allocator, staging->allocation.handle, 0, VK_WHOLE_SIZE));
 
-    VkCommandBuffer copyCmd = CreateCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
     // transition image to transfer
     VkImageMemoryBarrier transferBarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
@@ -735,17 +735,17 @@ void RenderDevice::UploadImageData(Image *image, void *data, size_t size)
         1, &fragmentBarrier // image memory barriers
     );
 
-    FlushCommandBuffer(copyCmd, graphicsQueue, commandPool, true);
+    flushCommandBuffer(copyCmd, graphicsQueue, commandPool, true);
 
-    DestroyBuffer(&staging);
+    destroyBuffer(&staging);
 }
 
-void *RenderDevice::GetMappedData(Buffer *buffer)
+void *RenderDevice::getMappedData(Buffer *buffer)
 {
     return buffer->allocation.info.pMappedData;
 }
 
-CommandBuffer *RenderDevice::BeginCommandBuffer()
+CommandBuffer *RenderDevice::beginCommandBuffer()
 {
     CommandBuffer *commandBuffer = new CommandBuffer();
 
@@ -754,7 +754,7 @@ CommandBuffer *RenderDevice::BeginCommandBuffer()
 
     VkResult result = vkAcquireNextImageKHR(device, swapchain, ~0ull, acquireSemaphores[currentFrame], nullptr, &imageIndex);
     if (resizeRequested || result == VK_ERROR_OUT_OF_DATE_KHR) {
-        RecreateSwapchain();
+        recreateSwapchain();
         return nullptr;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         LOGE("%s", "Failed to acquire swapchain image.");
@@ -771,13 +771,13 @@ CommandBuffer *RenderDevice::BeginCommandBuffer()
     return commandBuffer;
 }
 
-void RenderDevice::EndCommandBuffer(CommandBuffer *commandBuffer)
+void RenderDevice::endCommandBuffer(CommandBuffer *commandBuffer)
 {
     assert(commandBuffer);
     VK_CHECK(vkEndCommandBuffer(commandBuffer->cmd));
 }
 
-void RenderDevice::SubmitCommandBuffer(CommandBuffer *commandBuffer)
+void RenderDevice::submitCommandBuffer(CommandBuffer *commandBuffer)
 {
     assert(commandBuffer);
 
@@ -804,25 +804,25 @@ void RenderDevice::SubmitCommandBuffer(CommandBuffer *commandBuffer)
 
     VkResult result =  vkQueuePresentKHR(graphicsQueue, &presentInfo);
     if (resizeRequested || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        RecreateSwapchain();
+        recreateSwapchain();
     }
 
     currentFrame = (currentFrame + 1) % FRAMES_IN_FLIGHT;
 }
 
-void RenderDevice::Draw(CommandBuffer *commandBuffer, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
+void RenderDevice::draw(CommandBuffer *commandBuffer, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 {
     assert(commandBuffer);
     vkCmdDraw(commandBuffer->cmd, vertexCount, instanceCount, firstVertex, firstInstance);
 }
 
-void RenderDevice::DrawIndexed(CommandBuffer *commandBuffer, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
+void RenderDevice::drawIndexed(CommandBuffer *commandBuffer, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
 {
     assert(commandBuffer);
     vkCmdDrawIndexed(commandBuffer->cmd, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
 }
 
-void RenderDevice::BindPipeline(CommandBuffer *commandBuffer, RenderPipeline *pipeline)
+void RenderDevice::bindPipeline(CommandBuffer *commandBuffer, RenderPipeline *pipeline)
 {
     assert(commandBuffer && pipeline && pipeline->layout);
     PipelineLayout *pipelineLayout = pipeline->layout;
@@ -832,7 +832,7 @@ void RenderDevice::BindPipeline(CommandBuffer *commandBuffer, RenderPipeline *pi
         vkCmdBindDescriptorSets(commandBuffer->cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout->layout, 0, pipelineLayout->descriptorSets.size(), pipelineLayout->descriptorSets.data(), 0, nullptr);
 }
 
-void RenderDevice::BindPipeline(CommandBuffer *commandBuffer, ComputePipeline *pipeline)
+void RenderDevice::bindPipeline(CommandBuffer *commandBuffer, ComputePipeline *pipeline)
 {
     assert(commandBuffer && pipeline && pipeline->layout);
     PipelineLayout *pipelineLayout = pipeline->layout;
@@ -842,7 +842,7 @@ void RenderDevice::BindPipeline(CommandBuffer *commandBuffer, ComputePipeline *p
         vkCmdBindDescriptorSets(commandBuffer->cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout->layout, 0, pipelineLayout->descriptorSets.size(), pipelineLayout->descriptorSets.data(), 0, nullptr);
 }
 
-void RenderDevice::BindVertexBuffer(CommandBuffer *commandBuffer, Buffer *vertexBuffer)
+void RenderDevice::bindVertexBuffer(CommandBuffer *commandBuffer, Buffer *vertexBuffer)
 {
     assert(commandBuffer && vertexBuffer);
 
@@ -850,9 +850,9 @@ void RenderDevice::BindVertexBuffer(CommandBuffer *commandBuffer, Buffer *vertex
     vkCmdBindVertexBuffers(commandBuffer->cmd, 0, 1, &vertexBuffer->buffer, &offset);
 }
 
-void RenderDevice::BeginRendering(CommandBuffer *commandBuffer, const RenderingInfo &renderInfo)
+void RenderDevice::beginRendering(CommandBuffer *commandBuffer, const RenderingInfo &renderInfo)
 {
-    vec2 windowSize = GetWindowSize();
+    vec2 windowSize = getWindowSize();
     uint32_t width = (uint32_t)windowSize.x;
     uint32_t height = (uint32_t)windowSize.y;
 
@@ -930,13 +930,13 @@ void RenderDevice::BeginRendering(CommandBuffer *commandBuffer, const RenderingI
 
     vkCmdBeginRendering(commandBuffer->cmd, &vulkanRenderingInfo);
 
-    SetViewport(commandBuffer, 0.0f, 0.0f, width, height);
-    SetScissor(commandBuffer, 0.0f, 0.0f, width, height);
+    setViewport(commandBuffer, 0.0f, 0.0f, width, height);
+    setScissor(commandBuffer, 0.0f, 0.0f, width, height);
 
     commandBuffer->renderInfos.push(renderInfo);
 }
 
-void RenderDevice::EndRendering(CommandBuffer *commandBuffer)
+void RenderDevice::endRendering(CommandBuffer *commandBuffer)
 {
     vkCmdEndRendering(commandBuffer->cmd);
 
@@ -974,7 +974,7 @@ void RenderDevice::EndRendering(CommandBuffer *commandBuffer)
     commandBuffer->renderInfos.pop();
 }
 
-void RenderDevice::SetViewport(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+void RenderDevice::setViewport(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
     VkViewport viewport = {};
     viewport.x = x;
@@ -984,7 +984,7 @@ void RenderDevice::SetViewport(CommandBuffer *commandBuffer, uint32_t x, uint32_
     vkCmdSetViewport(commandBuffer->cmd, 0, 1, &viewport);
 }
 
-void RenderDevice::SetScissor(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+void RenderDevice::setScissor(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
     VkRect2D scissor = {};
     scissor.offset.x = x;
@@ -994,41 +994,41 @@ void RenderDevice::SetScissor(CommandBuffer *commandBuffer, uint32_t x, uint32_t
     vkCmdSetScissor(commandBuffer->cmd, 0, 1, &scissor);
 }
 
-void RenderDevice::WriteDescriptor(uint32_t binding, Buffer *buffer, DescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::writeDescriptor(uint32_t binding, Buffer *buffer, DescriptorType type, uint32_t dstArrayElement)
 {
     descriptorSetWriter.write(binding, buffer->buffer, buffer->size, vulkan::getDescriptorType(type), dstArrayElement);
 }
 
-void RenderDevice::WriteDescriptor(uint32_t binding, Image *image, Sampler *sampler, DescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::writeDescriptor(uint32_t binding, Image *image, Sampler *sampler, DescriptorType type, uint32_t dstArrayElement)
 {
     descriptorSetWriter.write(binding, image->view, sampler->sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, vulkan::getDescriptorType(type), dstArrayElement);
 }
 
-void RenderDevice::UpdateDescriptors(PipelineLayout *layout, uint32_t set)
+void RenderDevice::updateDescriptors(PipelineLayout *layout, uint32_t set)
 {
     assert(set >= 0 && set < layout->descriptorSets.size()); // bounds check
     descriptorSetWriter.update(device, layout->descriptorSets[set]);
     descriptorSetWriter.clear();
 }
 
-void RenderDevice::DeviceWaitIdle()
+void RenderDevice::waitIdle()
 {
     vkDeviceWaitIdle(device);
 }
 
-vec2 RenderDevice::GetWindowSize()
+vec2 RenderDevice::getWindowSize()
 {
     int width, height;
     SDL_GetWindowSize(window, &width, &height);
     return vec2(width, height);
 }
 
-Image *RenderDevice::GetSwapchainImage()
+Image *RenderDevice::getSwapchainImage()
 {
     return swapchainImages[imageIndex];
 }
 
-void RenderDevice::CreateInstance()
+void RenderDevice::createInstance()
 {
     VK_CHECK(volkInitialize());
 
@@ -1083,7 +1083,7 @@ void RenderDevice::CreateInstance()
 #endif
 }
 
-void RenderDevice::CreateDevice()
+void RenderDevice::createDevice()
 {
     uint32_t physicalDeviceCount = 0;
     VK_CHECK(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, nullptr));
@@ -1174,7 +1174,7 @@ void RenderDevice::CreateDevice()
     vkGetDeviceQueue(device, computeQueueIndex, 0, &computeQueue);
 }
 
-void RenderDevice::CreateAllocator()
+void RenderDevice::createAllocator()
 {
     VmaVulkanFunctions vmaFunctions = {};
     vmaFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
@@ -1213,12 +1213,12 @@ void RenderDevice::CreateAllocator()
     VK_CHECK(vmaCreateAllocator(&createInfo, &allocator));
 }
 
-void RenderDevice::CreateSwapchain()
+void RenderDevice::createSwapchain()
 {
     VkSurfaceCapabilitiesKHR capabilities;
     VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &capabilities));
 
-    vec2 windowSize = GetWindowSize();
+    vec2 windowSize = getWindowSize();
     swapchainExtent.width = std::clamp(static_cast<uint32_t>(windowSize.x), capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
     swapchainExtent.height = std::clamp(static_cast<uint32_t>(windowSize.y), capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 
@@ -1322,11 +1322,18 @@ void RenderDevice::CreateSwapchain()
     }
 }
 
-void RenderDevice::RecreateSwapchain()
+void RenderDevice::recreateSwapchain()
 {
+    for (Image *image : swapchainImages) {
+        vkDestroyImageView(device, image->view, nullptr);
+        delete image;
+    }
+    vkDestroySwapchainKHR(device, swapchain, nullptr);
+
+    createSwapchain();
 }
 
-VkCommandBuffer RenderDevice::CreateCommandBuffer(VkCommandBufferLevel level, bool start)
+VkCommandBuffer RenderDevice::createCommandBuffer(VkCommandBufferLevel level, bool start)
 {
     VkCommandBufferAllocateInfo bufferAllocInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
     bufferAllocInfo.commandPool = commandPool;
@@ -1344,7 +1351,7 @@ VkCommandBuffer RenderDevice::CreateCommandBuffer(VkCommandBufferLevel level, bo
     return commandBuffer;
 }
 
-void RenderDevice::FlushCommandBuffer(VkCommandBuffer cmd, VkQueue queue, VkCommandPool pool, bool free)
+void RenderDevice::flushCommandBuffer(VkCommandBuffer cmd, VkQueue queue, VkCommandPool pool, bool free)
 {
     if (cmd == VK_NULL_HANDLE)
         return;

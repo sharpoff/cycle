@@ -2,18 +2,37 @@
 
 #include "SDL3/SDL_video.h"
 
-namespace Engine
+#include "cycle/game.h"
+#include "cycle/input/input.h"
+#include "cycle/physics.h"
+#include "cycle/renderer.h"
+
+class Engine
 {
-    void Init(const char *title, uint32_t width, uint32_t height);
-    void Shutdown();
+public:
+    Engine() = default;
+    ~Engine() = default;
 
-    void Update();
+    void init(const char *title, uint32_t width, uint32_t height);
+    void shutdown();
 
-    bool IsRunning();
-    SDL_Window *GetWindow();
+    void run();
 
-    inline double deltaTime = 0.0f;
-    inline bool running = false;
+    bool        isRunning();
+    SDL_Window *getWindow();
 
-    inline SDL_Window *window;
-}
+private:
+    void processEvents();
+
+    double deltaTime = 0.0f;
+    bool   minimized = false;
+    bool running = false;
+
+    Renderer renderer;
+    Camera   camera;
+    Physics  physics;
+    Input    input;
+    Game     game;
+
+    SDL_Window *window;
+};

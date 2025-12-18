@@ -21,60 +21,60 @@ public:
     RenderDevice() = default;
     ~RenderDevice() = default;
 
-    void Init(SDL_Window *window);
-    void Shutdown();
+    void init(SDL_Window *window);
+    void shutdown();
 
-    Buffer          *CreateBuffer(const BufferCreateInfo &createInfo);
-    Image           *CreateImage(const ImageCreateInfo &createInfo);
-    Sampler         *CreateSampler(const SamplerCreateInfo &createInfo);
-    PipelineLayout  *CreatePipelineLayout(const PipelineLayoutCreateInfo &createInfo);
-    RenderPipeline  *CreateRenderPipeline(const RenderPipelineCreateInfo &createInfo);
-    ComputePipeline *CreateComputePipeline(const ComputePipelineCreateInfo &createInfo);
+    Buffer          *createBuffer(const BufferCreateInfo &createInfo);
+    Image           *createImage(const ImageCreateInfo &createInfo);
+    Sampler         *createSampler(const SamplerCreateInfo &createInfo);
+    PipelineLayout  *createPipelineLayout(const PipelineLayoutCreateInfo &createInfo);
+    RenderPipeline  *createRenderPipeline(const RenderPipelineCreateInfo &createInfo);
+    ComputePipeline *createComputePipeline(const ComputePipelineCreateInfo &createInfo);
 
-    void DestroyBuffer(Buffer **buffer);
-    void DestroyImage(Image **image);
-    void DestroySampler(Sampler **sampler);
-    void DestroyPipelineLayout(PipelineLayout **layout);
-    void DestroyPipeline(RenderPipeline **pipeline);
-    void DestroyPipeline(ComputePipeline **pipeline);
-    void DestroyCommandBuffer(CommandBuffer **cmd);
+    void destroyBuffer(Buffer **buffer);
+    void destroyImage(Image **image);
+    void destroySampler(Sampler **sampler);
+    void destroyPipelineLayout(PipelineLayout **layout);
+    void destroyPipeline(RenderPipeline **pipeline);
+    void destroyPipeline(ComputePipeline **pipeline);
+    void destroyCommandBuffer(CommandBuffer **cmd);
 
-    void  UploadBufferData(Buffer *buffer, void *data, size_t size);
-    void  UploadImageData(Image *image, void *data, size_t size);
-    void *GetMappedData(Buffer *buffer);
+    void  uploadBufferData(Buffer *buffer, void *data, size_t size);
+    void  uploadImageData(Image *image, void *data, size_t size);
+    void *getMappedData(Buffer *buffer);
 
-    CommandBuffer *BeginCommandBuffer();
-    void           EndCommandBuffer(CommandBuffer *commandBuffer);
-    void           SubmitCommandBuffer(CommandBuffer *commandBuffer);
-    void           Draw(CommandBuffer *commandBuffer, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
-    void           DrawIndexed(CommandBuffer *commandBuffer, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
-    void           BindPipeline(CommandBuffer *commandBuffer, RenderPipeline *pipeline);
-    void           BindPipeline(CommandBuffer *commandBuffer, ComputePipeline *pipeline);
-    void           BindVertexBuffer(CommandBuffer *commandBuffer, Buffer *vertexBuffer);
-    void           BeginRendering(CommandBuffer *commandBuffer, const RenderingInfo &renderInfo);
-    void           EndRendering(CommandBuffer *commandBuffer);
-    void           SetViewport(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
-    void           SetScissor(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+    CommandBuffer *beginCommandBuffer();
+    void           endCommandBuffer(CommandBuffer *commandBuffer);
+    void           submitCommandBuffer(CommandBuffer *commandBuffer);
+    void           draw(CommandBuffer *commandBuffer, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
+    void           drawIndexed(CommandBuffer *commandBuffer, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
+    void           bindPipeline(CommandBuffer *commandBuffer, RenderPipeline *pipeline);
+    void           bindPipeline(CommandBuffer *commandBuffer, ComputePipeline *pipeline);
+    void           bindVertexBuffer(CommandBuffer *commandBuffer, Buffer *vertexBuffer);
+    void           beginRendering(CommandBuffer *commandBuffer, const RenderingInfo &renderInfo);
+    void           endRendering(CommandBuffer *commandBuffer);
+    void           setViewport(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+    void           setScissor(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 
-    void WriteDescriptor(uint32_t binding, Buffer *buffer, DescriptorType type, uint32_t dstArrayElement = 0);
-    void WriteDescriptor(uint32_t binding, Image *image, Sampler *sampler, DescriptorType type, uint32_t dstArrayElement = 0);
-    void UpdateDescriptors(PipelineLayout *layout, uint32_t set);
+    void writeDescriptor(uint32_t binding, Buffer *buffer, DescriptorType type, uint32_t dstArrayElement = 0);
+    void writeDescriptor(uint32_t binding, Image *image, Sampler *sampler, DescriptorType type, uint32_t dstArrayElement = 0);
+    void updateDescriptors(PipelineLayout *layout, uint32_t set);
 
-    void DeviceWaitIdle();
+    void waitIdle();
 
-    vec2   GetWindowSize();
-    Image *GetSwapchainImage();
+    vec2   getWindowSize();
+    Image *getSwapchainImage();
 
 private:
-    void CreateInstance();
-    void CreateDevice();
-    void CreateAllocator();
-    void CreateSwapchain();
+    void createInstance();
+    void createDevice();
+    void createAllocator();
+    void createSwapchain();
 
-    void RecreateSwapchain();
+    void recreateSwapchain();
 
-    VkCommandBuffer CreateCommandBuffer(VkCommandBufferLevel level, bool start);
-    void            FlushCommandBuffer(VkCommandBuffer cmd, VkQueue queue, VkCommandPool pool, bool free);
+    VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, bool start);
+    void            flushCommandBuffer(VkCommandBuffer cmd, VkQueue queue, VkCommandPool pool, bool free);
 
     VkInstance instance = VK_NULL_HANDLE;
 
