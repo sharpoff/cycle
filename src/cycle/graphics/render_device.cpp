@@ -8,6 +8,7 @@
 #include "SDL3/SDL_vulkan.h"
 
 #include <algorithm>
+#include <vulkan/vulkan_core.h>
 
 void RenderDevice::init(SDL_Window *window)
 {
@@ -227,7 +228,7 @@ bool RenderDevice::createImage(Image &image, const ImageCreateInfo &createInfo, 
 
     if (!debugName.empty()) {
         vulkan::setDebugName(device, (uint64_t)image.image, VK_OBJECT_TYPE_IMAGE, debugName + " (VkImage)");
-        vulkan::setDebugName(device, (uint64_t)image.view, VK_OBJECT_TYPE_IMAGE, debugName + " (VkImageView)");
+        vulkan::setDebugName(device, (uint64_t)image.view, VK_OBJECT_TYPE_IMAGE_VIEW, debugName + " (VkImageView)");
     }
 
     return true;
@@ -970,6 +971,13 @@ void RenderDevice::createDevice()
     // get queues
     vkGetDeviceQueue(device, graphicsQueueIndex, 0, &graphicsQueue);
     vkGetDeviceQueue(device, computeQueueIndex, 0, &computeQueue);
+
+    if (graphicsQueueIndex == computeQueueIndex) {
+        vulkan::setDebugName(device, (uint64_t)graphicsQueue, VK_OBJECT_TYPE_QUEUE, "graphics/compute queue");
+    } else {
+        vulkan::setDebugName(device, (uint64_t)graphicsQueue, VK_OBJECT_TYPE_QUEUE, "graphics queue");
+        vulkan::setDebugName(device, (uint64_t)computeQueue, VK_OBJECT_TYPE_QUEUE, "compute queue");
+    }
 }
 
 void RenderDevice::createAllocator()
@@ -1113,7 +1121,7 @@ void RenderDevice::createSwapchain()
         image.height = swapchainExtent.height;
 
         VK_CHECK(vkCreateImageView(device, &imageViewCreateInfo, nullptr, &image.view));
-        vulkan::setDebugName(device, (uint64_t)image.view, VK_OBJECT_TYPE_IMAGE_VIEW, "swapchain image view [" + std::to_string(i) + "]");
+        // vulkan::setDebugName(device, (uint64_t)image.view, VK_OBJECT_TYPE_IMAGE_VIEW, "swapchain image view [" + std::to_string(i) + "]");
     }
 }
 

@@ -1,9 +1,11 @@
 #include "cycle/graphics/command_encoder.h"
 
+#include "cycle/graphics/graphics_types.h"
 #include "cycle/graphics/vulkan_helpers.h"
 #include "cycle/math.h"
 
 #include <assert.h>
+#include <vulkan/vulkan_core.h>
 
 void CommandEncoder::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 {
@@ -44,7 +46,7 @@ void CommandEncoder::beginRendering(const RenderingInfo &renderInfo)
 {
     VkRenderingAttachmentInfo depthInfo = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
 
-    Vector<VkImageMemoryBarrier> imageMemoryBarriers;
+    Vector<VkImageMemoryBarrier> barriers;
     VkPipelineStageFlags srcPipelineStage = 0;
     VkPipelineStageFlags dstPipelineStage = 0;
 
@@ -57,7 +59,7 @@ void CommandEncoder::beginRendering(const RenderingInfo &renderInfo)
         depthInfo.imageView = attachment.image->view;
         depthInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 
-        VkImageMemoryBarrier &barrier = imageMemoryBarriers.emplace_back();
+        VkImageMemoryBarrier &barrier = barriers.emplace_back();
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.srcAccessMask = 0;
         barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -83,7 +85,7 @@ void CommandEncoder::beginRendering(const RenderingInfo &renderInfo)
         info.imageView = attachment.image->view;
         info.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-        VkImageMemoryBarrier &barrier = imageMemoryBarriers.emplace_back();
+        VkImageMemoryBarrier &barrier = barriers.emplace_back();
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.srcAccessMask = 0;
         barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -103,7 +105,7 @@ void CommandEncoder::beginRendering(const RenderingInfo &renderInfo)
         0,
         0, nullptr, // memory barriers
         0, nullptr, // buffer memory barriers
-        imageMemoryBarriers.size(), imageMemoryBarriers.data() // image memory barriers
+        barriers.size(), barriers.data() // image memory barriers
     );
 
     uint32_t width = renderInfo.renderAreaExtent.x;
@@ -130,13 +132,21 @@ void CommandEncoder::endRendering()
 {
     vkCmdEndRendering(cmd);
 
-    auto &colorAttachments = renderInfos.front().colorAttachments;
+    RenderingInfo &renderInfo = renderInfos.front();
+
+    Vector<VkImageMemoryBarrier> barriers;
+    VkPipelineStageFlags srcPipelineStage = 0;
+    VkPipelineStageFlags dstPipelineStage = 0;
+
+    Vector<AttachmentInfo> &colorAttachments = renderInfo.colorAttachments;
     for (auto &attachment : colorAttachments) {
+        // XXX: probably some color images would like some barriers too. add layout tracking for other images
         if (!attachment.image->isSwapchain) { // find swapchain image
             continue;
         }
 
-        VkImageMemoryBarrier swapchainBarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        VkImageMemoryBarrier &swapchainBarrier = barriers.emplace_back();
+        swapchainBarrier.sType = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         swapchainBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         swapchainBarrier.dstAccessMask = 0;
         swapchainBarrier.oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
@@ -150,16 +160,41 @@ void CommandEncoder::endRendering()
         swapchainBarrier.subresourceRange.layerCount = 1;
         swapchainBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
+        srcPipelineStage |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dstPipelineStage |= VK_PIPELINE_STAGE_NONE;
+
+        break; // swapchain image should only be one
+    }
+
+    if (renderInfo.depthAttachment) {
+        const AttachmentInfo &attachment = *renderInfo.depthAttachment;
+
+        // guard write after write
+        // XXX: probably should also guard read/write and other accesses with READ/WRITE bits?
+        VkImageMemoryBarrier &barrier = barriers.emplace_back();
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = attachment.image->image;
+        barrier.subresourceRange = vulkan::getImageSubresourceRange(*attachment.image);
+        srcPipelineStage |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        dstPipelineStage |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    }
+
+    if (!barriers.empty()) {
         vkCmdPipelineBarrier(cmd,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_NONE, // stages
+            srcPipelineStage, dstPipelineStage, // stages
             0,
             0, nullptr, // memory barriers
             0, nullptr, // buffer memory barriers
-            1, &swapchainBarrier // image memory barriers
+            barriers.size(), barriers.data() // image memory barriers
         );
-
-        break;
     }
+
 
     renderInfos.pop();
 }

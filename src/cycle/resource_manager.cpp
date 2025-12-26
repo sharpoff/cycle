@@ -71,7 +71,8 @@ void ResourceManager::uploadMeshBuffers(Mesh &mesh)
     {
         const BufferCreateInfo createInfo = {
             .size = mesh.vertices.size() * sizeof(Vertex),
-            .usage = BUFFER_USAGE_STORAGE | BUFFER_USAGE_DEVICE_ADDRESS | BUFFER_USAGE_TRANSFER_DST,
+            // .usage = BUFFER_USAGE_STORAGE | BUFFER_USAGE_DEVICE_ADDRESS | BUFFER_USAGE_TRANSFER_DST,
+            .usage = BUFFER_USAGE_VERTEX | BUFFER_USAGE_TRANSFER_DST,
         };
         renderDevice->createBuffer(mesh.vertexBuffer, createInfo);
 

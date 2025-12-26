@@ -92,17 +92,6 @@ void Renderer::loadResources()
         }
     }
 
-    // vertex buffer
-    // {
-    //     const BufferCreateInfo createInfo = {
-    //         .size = vertices.size() * sizeof(Vertex),
-    //         .usage = BUFFER_USAGE_VERTEX | BUFFER_USAGE_TRANSFER_DST,
-    //     };
-    //     device.createBuffer(vertexBuffer, createInfo);
-
-    //     device.uploadBufferData(vertexBuffer, vertices.data(), createInfo.size);
-    // }
-
     // create pipelines
     {
         const Vector<DescriptorSetLayoutBinding> bindings0 = {
