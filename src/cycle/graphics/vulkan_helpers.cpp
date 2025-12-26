@@ -46,35 +46,31 @@ namespace vulkan
         return VK_IMAGE_VIEW_TYPE_MAX_ENUM;
     }
 
-    VkImageSubresourceRange getImageSubresourceRange(Image *image)
+    VkImageSubresourceRange getImageSubresourceRange(Image &image)
     {
-        assert(image);
-
         VkImageSubresourceRange subresourceRange = {};
-        if (isBitSet(image->usage, IMAGE_USAGE_DEPTH_ATTACHMENT)) {
+        if (isBitSet(image.usage, IMAGE_USAGE_DEPTH_ATTACHMENT)) {
             subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        } else if (isBitSet(image->usage, IMAGE_USAGE_STENCIL_ATTACHMENT)) {
+        } else if (isBitSet(image.usage, IMAGE_USAGE_STENCIL_ATTACHMENT)) {
             subresourceRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
         } else {
             subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         }
 
-        subresourceRange.levelCount = image->levelCount;
+        subresourceRange.levelCount = image.levelCount;
         subresourceRange.baseMipLevel = 0;
         subresourceRange.baseArrayLayer = 0;
-        subresourceRange.layerCount = image->layerCount;
+        subresourceRange.layerCount = image.layerCount;
 
         return subresourceRange;
     }
 
-    VkImageSubresourceLayers getImageSubresourceLayers(Image *image)
+    VkImageSubresourceLayers getImageSubresourceLayers(Image &image)
     {
-        assert(image);
-
         VkImageSubresourceLayers subresourceRange = {};
-        if (isBitSet(image->usage, IMAGE_USAGE_DEPTH_ATTACHMENT)) {
+        if (isBitSet(image.usage, IMAGE_USAGE_DEPTH_ATTACHMENT)) {
             subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        } else if (isBitSet(image->usage, IMAGE_USAGE_STENCIL_ATTACHMENT)) {
+        } else if (isBitSet(image.usage, IMAGE_USAGE_STENCIL_ATTACHMENT)) {
             subresourceRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
         } else {
             subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -82,7 +78,7 @@ namespace vulkan
 
         subresourceRange.mipLevel = 0;
         subresourceRange.baseArrayLayer = 0;
-        subresourceRange.layerCount = image->layerCount;
+        subresourceRange.layerCount = image.layerCount;
 
         return subresourceRange;
     }
@@ -499,14 +495,15 @@ namespace vulkan
         return result;
     }
 
-    void setDebugName(VkDevice device, VkSemaphore semaphore, const char *name)
+    void setDebugName(VkDevice device, uint64_t objectHandle, VkObjectType objectType, String name)
     {
-#ifdef ENABLE_VULKAN_DEBUG
-        VkDebugUtilsObjectNameInfoEXT objectNameInfo = {
-            VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT};
-        objectNameInfo.objectHandle = (uint64_t)semaphore;
-        objectNameInfo.objectType = VK_OBJECT_TYPE_SEMAPHORE;
-        objectNameInfo.pObjectName = name;
+#ifndef NDEBUG
+        if (objectHandle == 0) return;
+
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo = {VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT};
+        objectNameInfo.objectHandle = objectHandle;
+        objectNameInfo.objectType = objectType;
+        objectNameInfo.pObjectName = name.c_str();
 
         vkSetDebugUtilsObjectNameEXT(device, &objectNameInfo);
 #endif
@@ -514,7 +511,7 @@ namespace vulkan
 
     void beginDebugLabel(VkCommandBuffer cmd, const char *name, float color[4])
     {
-#ifdef ENABLE_VULKAN_DEBUG
+#ifndef NDEBUG
         VkDebugUtilsLabelEXT label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
         label.pLabelName = name;
         label.color[0] = color[0];
@@ -528,7 +525,7 @@ namespace vulkan
 
     void endDebugLabel(VkCommandBuffer cmd)
     {
-#ifdef ENABLE_VULKAN_DEBUG
+#ifndef NDEBUG
         vkCmdEndDebugUtilsLabelEXT(cmd);
 #endif
     }

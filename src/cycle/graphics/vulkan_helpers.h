@@ -18,8 +18,8 @@ namespace vulkan
 {
     VkImageType              getImageType(ImageType type);
     VkImageViewType          getImageViewType(ImageType type);
-    VkImageSubresourceRange  getImageSubresourceRange(Image *image);
-    VkImageSubresourceLayers getImageSubresourceLayers(Image *image);
+    VkImageSubresourceRange  getImageSubresourceRange(Image &image);
+    VkImageSubresourceLayers getImageSubresourceLayers(Image &image);
     VkImageUsageFlags        getImageUsageFlags(ImageUsageFlags usage);
     VkFormat                 getFormat(ImageFormat format);
     VkFormat                 getFormat(VertexFormat format);
@@ -39,7 +39,7 @@ namespace vulkan
     VkDescriptorType         getDescriptorType(DescriptorType type);
     VkShaderStageFlags       getShaderStageFlags(ShaderStageFlags stage);
 
-    void setDebugName(VkDevice device, VkSemaphore semaphore, const char *name);
+    void setDebugName(VkDevice device, uint64_t objectHandle, VkObjectType objectType, String name);
     void beginDebugLabel(VkCommandBuffer cmd, const char *name, float color[4]);
     void endDebugLabel(VkCommandBuffer cmd);
 } // namespace vulkan

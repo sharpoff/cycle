@@ -28,3 +28,19 @@ using glm::quat;
 using glm::vec2;
 using glm::vec3;
 using glm::vec4;
+
+namespace math
+{
+    inline mat4 perspective(float fov, float aspectRatio, float near, float far)
+    {
+        // https://www.vincentparizet.com/blog/posts/vulkan_perspective_matrix/
+        float f = 1.0f / tan(fov * 0.5f);
+
+        return mat4(
+            f / aspectRatio, 0, 0, 0,
+            0, -f, 0, 0,
+            0, 0, near / (far - near), -1,
+            0, 0, far * near / (far - near), 0
+        );
+    }
+} // namespace math

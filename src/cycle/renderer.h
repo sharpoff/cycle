@@ -6,53 +6,49 @@
 
 class Renderer
 {
-    struct Vertex
-    {
-        vec3  position;
-        float uv_x;
-        vec3  color;
-        float uv_y;
-    };
-
-    struct GlobalData
+    struct SceneInfo
     {
         mat4 viewProjection;
     };
 
-public:
-    Renderer() = default;
-    ~Renderer() = default;
+    struct MeshDrawInfo
+    {
+        // mat4 worldMatrix = mat4(1.0f);
+        uint64_t vertexBufferAddress;
+        // uint64_t indexBufferAddress;
+    };
 
+public:
     void init(SDL_Window *window);
     void shutdown();
+    void loadResources();
 
     void draw();
 
     void setCamera(Camera *camera) { this->camera = camera; }
 
-    void updateDynamicData();
-
-    uint32_t calculateMipLevels(uint32_t width, uint32_t height);
-    Image   *loadImageFromFile(const char *file, ImageUsageFlags imageUsage);
+    RenderDevice &getRenderDevice() { return device; }
 
 private:
+    void createAttachmentImages();
+    void destroyAttachmentImages();
+
+    void     updateDynamicData();
+    uint32_t calculateMipLevels(uint32_t width, uint32_t height);
+
     RenderDevice device;
-    Camera *camera;
+    Camera      *camera;
 
-    // Resources
-    Image *colorTarget;
-    Image *depthTarget;
-    Image *testImage;
+    Image colorImage;
+    Image depthImage;
 
-    Buffer *vertexBuffer;
-    Buffer *globalDataBuffer;
+    Buffer sceneInfoBuffer;
 
-    Sampler *linearSampler;
-    Sampler *nearestSampler;
+    Sampler linearSampler;
+    Sampler nearestSampler;
 
-    GlobalData     globalData;
-    Vector<Vertex> vertices;
+    PipelineLayout geometryPipelineLayout;
+    RenderPipeline geometryPipeline;
 
-    PipelineLayout *geometryPipelineLayout;
-    RenderPipeline *geometryPipeline;
+    Buffer vertexBuffer;
 };

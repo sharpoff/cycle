@@ -8,12 +8,6 @@
 class Input
 {
 public:
-    Input() = default;
-    ~Input() = default;
-
-    void init();
-    void shutdown();
-
     void processEvent(SDL_Event *event);
 
     bool isMouseButtonDown(const MouseButton &button);

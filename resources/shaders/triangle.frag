@@ -6,7 +6,7 @@ layout(location = 1) in vec2 inUV;
 
 layout(location = 0) out vec4 fragColor;
 
-layout (binding = 0) uniform sampler2D texture2Ds[];
+layout (binding = 1) uniform sampler2D texture2Ds[];
 #define getTexture2D(id, uv) texture(texture2Ds[nonuniformEXT(id)], uv)
 
 void main()

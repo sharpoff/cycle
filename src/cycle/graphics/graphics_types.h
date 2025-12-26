@@ -8,6 +8,7 @@
 #include <vk_mem_alloc.h>
 // clang-format on
 
+#include "cycle/math.h"
 #include "cycle/types.h"
 
 //========================
@@ -25,6 +26,14 @@ enum CompareOp : uint8_t
     COMPARE_OP_GREATER_OR_EQUAL,
     COMPARE_OP_ALWAYS,
 };
+
+enum QueueFlagBits : uint8_t
+{
+    QUEUE_GRAPHICS = 1,
+    QUEUE_COMPUTE = 1 << 1,
+    QUEUE_TRANSFER = 1 << 2,
+};
+using QueueFlags = uint32_t;
 
 struct Allocation
 {
@@ -92,21 +101,20 @@ struct ImageCreateInfo
 
 struct Image
 {
-    uint32_t         width = 0;
-    uint32_t         height = 0;
-    uint32_t         layerCount = 1;
-    uint32_t         levelCount = 1;
-    uint8_t          sampleCount = 1;
-    ImageType        type = IMAGE_TYPE_2D;
-    ImageUsageFlags  usage = IMAGE_USAGE_COLOR_ATTACHMENT;
-    ImageFormat      format = IMAGE_FORMAT_R8G8B8A8_SRGB;
-    bool             isSwapchain = false;
+    uint32_t        width = 0;
+    uint32_t        height = 0;
+    uint32_t        layerCount = 1;
+    uint32_t        levelCount = 1;
+    uint8_t         sampleCount = 1;
+    ImageType       type = IMAGE_TYPE_2D;
+    ImageUsageFlags usage = IMAGE_USAGE_COLOR_ATTACHMENT;
+    ImageFormat     format = IMAGE_FORMAT_R8G8B8A8_SRGB;
+    bool            isSwapchain = false;
 
-    VkImage          image;
-    VkImageView      view;
-    Allocation allocation;
+    VkImage     image;
+    VkImageView view;
+    Allocation  allocation;
 };
-
 
 //========================
 //         Buffer
@@ -136,11 +144,10 @@ struct Buffer
     uint64_t         size;
     BufferUsageFlags usage;
 
-    VkBuffer         buffer = VK_NULL_HANDLE;
-    Allocation allocation;
-    VkDeviceAddress  address;
+    VkBuffer        buffer = VK_NULL_HANDLE;
+    Allocation      allocation;
+    VkDeviceAddress address;
 };
-
 
 //========================
 //        Sampler
@@ -192,7 +199,6 @@ struct Sampler
 
     VkSampler sampler;
 };
-
 
 //========================
 //   Pipeline settings
@@ -338,9 +344,9 @@ struct PipelineLayout
 {
     // XXX: this is probably not very efficient, because we can use similar descriptor set for multiple pipelines, not only one
     Vector<VkDescriptorSetLayout> descriptorSetLayouts;
-    Vector<VkPushConstantRange> pushConstantRanges;
-    Vector<VkDescriptorSet> descriptorSets;
-    VkPipelineLayout layout;
+    Vector<VkPushConstantRange>   pushConstantRanges;
+    Vector<VkDescriptorSet>       descriptorSets;
+    VkPipelineLayout              layout;
 };
 
 //========================
@@ -418,7 +424,7 @@ struct RenderPipelineCreateInfo
 struct RenderPipeline
 {
     PipelineLayout *layout = nullptr;
-    VkPipeline pipeline;
+    VkPipeline     pipeline;
 };
 
 //========================
@@ -434,14 +440,14 @@ struct ComputePipelineCreateInfo
 struct ComputePipeline
 {
     PipelineLayout *layout = nullptr;
-    VkPipeline pipeline;
+    VkPipeline      pipeline;
 };
 
 //========================
 //       Rendering
 //========================
 
-struct AttachmentResource
+struct AttachmentInfo
 {
     Image *image = nullptr;
     bool   load = false;
@@ -450,16 +456,18 @@ struct AttachmentResource
 
 struct RenderingInfo
 {
-    Vector<AttachmentResource> colorAttachments;
-    AttachmentResource        *depthAttachment;
+    vec2                   renderAreaExtent;
+    Vector<AttachmentInfo> colorAttachments;
+    AttachmentInfo        *depthAttachment;
 };
 
 //========================
 //    Command buffer
 //========================
 
-struct CommandBuffer
-{
-    VkCommandBuffer cmd;
-    Queue<RenderingInfo> renderInfos;
-};
+// struct CommandBufferSubmitInfo
+// {
+//     QueueFlagBits queueFlag;
+//     bool end = false;
+//     bool free = false;
+// };

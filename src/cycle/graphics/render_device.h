@@ -2,68 +2,53 @@
 
 #include "SDL3/SDL_video.h"
 
+#include "cycle/graphics/command_encoder.h"
 #include "cycle/math.h"
 
 #include "cycle/graphics/descriptor_set_writer.h"
 #include "cycle/graphics/graphics_types.h"
 
-#ifndef NDEBUG
-#define ENABLE_VULKAN_DEBUG
-#endif
-
-#define VULKAN_API_VERSION VK_API_VERSION_1_4
+#define VULKAN_API_VERSION VK_API_VERSION_1_3
 
 #define FRAMES_IN_FLIGHT 2
 
 class RenderDevice
 {
 public:
-    RenderDevice() = default;
-    ~RenderDevice() = default;
-
     void init(SDL_Window *window);
     void shutdown();
 
-    Buffer          *createBuffer(const BufferCreateInfo &createInfo);
-    Image           *createImage(const ImageCreateInfo &createInfo);
-    Sampler         *createSampler(const SamplerCreateInfo &createInfo);
-    PipelineLayout  *createPipelineLayout(const PipelineLayoutCreateInfo &createInfo);
-    RenderPipeline  *createRenderPipeline(const RenderPipelineCreateInfo &createInfo);
-    ComputePipeline *createComputePipeline(const ComputePipelineCreateInfo &createInfo);
+    bool createBuffer(Buffer &buffer, const BufferCreateInfo &createInfo, String debugName = "");
+    bool createImage(Image &image, const ImageCreateInfo &createInfo, String debugName = "");
+    bool createSampler(Sampler &sampler, const SamplerCreateInfo &createInfo, String debugName = "");
+    bool createPipelineLayout(PipelineLayout &pipelineLayout, const PipelineLayoutCreateInfo &createInfo, String debugName = "");
+    bool createRenderPipeline(RenderPipeline &renderPipeline, const RenderPipelineCreateInfo &createInfo, String debugName = "");
+    bool createComputePipeline(ComputePipeline &computePipeline, const ComputePipelineCreateInfo &createInfo, String debugName = "");
 
-    void destroyBuffer(Buffer **buffer);
-    void destroyImage(Image **image);
-    void destroySampler(Sampler **sampler);
-    void destroyPipelineLayout(PipelineLayout **layout);
-    void destroyPipeline(RenderPipeline **pipeline);
-    void destroyPipeline(ComputePipeline **pipeline);
-    void destroyCommandBuffer(CommandBuffer **cmd);
+    void destroyBuffer(Buffer &buffer);
+    void destroyImage(Image &image);
+    void destroySampler(Sampler &sampler);
+    void destroyPipelineLayout(PipelineLayout &layout);
+    void destroyRenderPipeline(RenderPipeline &pipeline);
+    void destroyComputePipeline(ComputePipeline &pipeline);
 
-    void  uploadBufferData(Buffer *buffer, void *data, size_t size);
-    void  uploadImageData(Image *image, void *data, size_t size);
-    void *getMappedData(Buffer *buffer);
+    void uploadBufferData(Buffer &buffer, void *data, uint64_t size, Buffer *stagingBuffer = nullptr);
+    void uploadImageData(Image &image, void *data, uint64_t size);
 
-    CommandBuffer *beginCommandBuffer();
-    void           endCommandBuffer(CommandBuffer *commandBuffer);
-    void           submitCommandBuffer(CommandBuffer *commandBuffer);
-    void           draw(CommandBuffer *commandBuffer, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
-    void           drawIndexed(CommandBuffer *commandBuffer, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
-    void           bindPipeline(CommandBuffer *commandBuffer, RenderPipeline *pipeline);
-    void           bindPipeline(CommandBuffer *commandBuffer, ComputePipeline *pipeline);
-    void           bindVertexBuffer(CommandBuffer *commandBuffer, Buffer *vertexBuffer);
-    void           beginRendering(CommandBuffer *commandBuffer, const RenderingInfo &renderInfo);
-    void           endRendering(CommandBuffer *commandBuffer);
-    void           setViewport(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
-    void           setScissor(CommandBuffer *commandBuffer, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+    bool beginCommandEncoding(CommandEncoder &encoder);
+    void endCommandEncoding(CommandEncoder &encoder);
+    bool swapchainPresent();
 
-    void writeDescriptor(uint32_t binding, Buffer *buffer, DescriptorType type, uint32_t dstArrayElement = 0);
-    void writeDescriptor(uint32_t binding, Image *image, Sampler *sampler, DescriptorType type, uint32_t dstArrayElement = 0);
-    void updateDescriptors(PipelineLayout *layout, uint32_t set);
+    void immediateSubmit(Func<void(VkCommandBuffer cmd)> &&function);
+
+    void writeDescriptor(uint32_t binding, Buffer &buffer, DescriptorType type, uint32_t dstArrayElement = 0);
+    void writeDescriptor(uint32_t binding, Image &image, Sampler &sampler, DescriptorType type, uint32_t dstArrayElement = 0);
+    void updateDescriptors(PipelineLayout &layout, uint32_t set);
 
     void waitIdle();
 
     vec2   getWindowSize();
-    Image *getSwapchainImage();
+    Image &getSwapchainImage();
 
 private:
     void createInstance();
@@ -73,17 +58,10 @@ private:
 
     void recreateSwapchain();
 
-    VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, bool start);
-    void            flushCommandBuffer(VkCommandBuffer cmd, VkQueue queue, VkCommandPool pool, bool free);
-
     VkInstance instance = VK_NULL_HANDLE;
 
     SDL_Window  *window = nullptr;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
-
-#ifdef ENABLE_VULKAN_DEBUG
-    VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
-#endif
 
     uint32_t graphicsQueueIndex = UINT32_MAX;
     uint32_t computeQueueIndex = UINT32_MAX;
@@ -99,7 +77,7 @@ private:
     VmaAllocator allocator = VK_NULL_HANDLE;
 
     VkSwapchainKHR     swapchain = VK_NULL_HANDLE;
-    Vector<Image *>    swapchainImages;
+    Vector<Image>    swapchainImages;
     VkExtent2D         swapchainExtent = {};
     VkPresentModeKHR   presentMode;
     VkSurfaceFormatKHR surfaceFormat;
@@ -109,6 +87,11 @@ private:
     Array<VkSemaphore, FRAMES_IN_FLIGHT>     acquireSemaphores;
     Array<VkFence, FRAMES_IN_FLIGHT>         finishRenderFences;
     Vector<VkSemaphore>                      submitSemaphores;
+
+    // For immediateSubmit()
+    VkCommandPool   immediateCommandPool;
+    VkCommandBuffer immediateCommandBuffer;
+    VkFence         immediateFence;
 
     VkDescriptorPool    descriptorPool;
     DescriptorSetWriter descriptorSetWriter;

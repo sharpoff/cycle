@@ -29,7 +29,7 @@ target_link_libraries(engine
     GPUOpen::VulkanMemoryAllocator
 )
 
-set(SHADERS_DIR "shaders")
+set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders")
 
 #============= compile shaders =============
 file(GLOB_RECURSE GLSL_SOURCE_FILES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.tesc" "${SHADERS_DIR}/*.tese" "${SHADERS_DIR}/*.comp")

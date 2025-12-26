@@ -1,19 +1,8 @@
 #include "cycle/input/input.h"
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_mouse.h"
-#include "cycle/globals.h"
 #include "cycle/input/keyboard.h"
 #include "cycle/input/mouse.h"
-
-void Input::init()
-{
-    g_input = this;
-}
-
-void Input::shutdown()
-{
-    g_input = nullptr;
-}
 
 void Input::processEvent(SDL_Event *event)
 {

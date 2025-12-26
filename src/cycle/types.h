@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <vector>
 #include <list>
 #include <unordered_map>
@@ -35,3 +36,6 @@ using Queue = std::queue<T>;
 
 template <typename T>
 using Deque = std::deque<T>;
+
+template <typename Signature>
+using Func = std::function<Signature>;

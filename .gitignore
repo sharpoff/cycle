@@ -2,3 +2,4 @@ build/
 .cache/
 .vim/
 .vscode/
+resources/shaders/bin/
