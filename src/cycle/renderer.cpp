@@ -6,6 +6,9 @@
 #include "cycle/id_types.h"
 
 #include "cycle/globals.h"
+#include "cycle/resource_manager.h"
+
+#include "imgui.h"
 
 void Renderer::init(SDL_Window *window)
 {
@@ -191,6 +194,11 @@ void Renderer::draw()
             cmdEncoder.drawIndexed(mesh->indices.size(), 1, 0, 0, 0);
         }
     }
+
+    // render imgui
+    cmdEncoder.beginImGuiFrame();
+    ImGui::ShowDemoWindow();
+    cmdEncoder.endImGuiFrame();
 
     cmdEncoder.endRendering();
     device.endCommandEncoding(cmdEncoder);

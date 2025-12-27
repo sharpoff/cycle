@@ -6,9 +6,8 @@
 #include "cycle/graphics/vulkan_helpers.h"
 
 #include "SDL3/SDL_vulkan.h"
-
-#include <algorithm>
-#include <vulkan/vulkan_core.h>
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_vulkan.h"
 
 void RenderDevice::init(SDL_Window *window)
 {
@@ -112,11 +111,15 @@ void RenderDevice::init(SDL_Window *window)
     descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
     VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
     vulkan::setDebugName(device, (uint64_t)descriptorPool, VK_OBJECT_TYPE_DESCRIPTOR_POOL, "main VkDescriptorPool");
+
+    setupImGui();
 }
 
 void RenderDevice::shutdown()
 {
     vkDeviceWaitIdle(device);
+
+    shutdownImGui();
 
     for (Image &image : swapchainImages) {
         vkDestroyImageView(device, image.view, nullptr);
@@ -1025,8 +1028,8 @@ void RenderDevice::createSwapchain()
     VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &capabilities));
 
     vec2 windowSize = getWindowSize();
-    swapchainExtent.width = std::clamp(static_cast<uint32_t>(windowSize.x), capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-    swapchainExtent.height = std::clamp(static_cast<uint32_t>(windowSize.y), capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+    swapchainExtent.width = glm::clamp(static_cast<uint32_t>(windowSize.x), capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+    swapchainExtent.height = glm::clamp(static_cast<uint32_t>(windowSize.y), capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 
     // Find best surface format
     {
@@ -1146,4 +1149,49 @@ void RenderDevice::recreateSwapchain()
     }
 
     createSwapchain();
+}
+
+void RenderDevice::setupImGui()
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.IniFilename = "resources/config/imgui.ini";
+
+    VkFormat colorFormat = VK_FORMAT_B8G8R8A8_SRGB;
+
+    VkPipelineRenderingCreateInfoKHR renderingCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR};
+    renderingCreateInfo.colorAttachmentCount = 1;
+    renderingCreateInfo.pColorAttachmentFormats = &colorFormat;
+    renderingCreateInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+
+    ImGui_ImplSDL3_InitForVulkan(window);
+    ImGui_ImplVulkan_InitInfo initInfo = {};
+    initInfo.ApiVersion = VULKAN_API_VERSION;
+    initInfo.Instance = instance;
+    initInfo.PhysicalDevice = physicalDevice;
+    initInfo.Device = device;
+    initInfo.QueueFamily = graphicsQueueIndex;
+    initInfo.Queue = graphicsQueue;
+    initInfo.PipelineCache = nullptr;
+    initInfo.DescriptorPool = descriptorPool;
+    initInfo.MinImageCount = FRAMES_IN_FLIGHT;
+    initInfo.ImageCount = FRAMES_IN_FLIGHT;
+    initInfo.Allocator = nullptr;
+    initInfo.CheckVkResultFn = nullptr;
+    initInfo.UseDynamicRendering = true;
+    initInfo.PipelineInfoMain.PipelineRenderingCreateInfo = renderingCreateInfo;
+    initInfo.PipelineInfoMain.RenderPass = nullptr;
+    initInfo.PipelineInfoMain.Subpass = 0;
+    initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    ImGui_ImplVulkan_Init(&initInfo);
+}
+
+void RenderDevice::shutdownImGui()
+{
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
 }

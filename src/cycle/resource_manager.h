@@ -17,7 +17,7 @@ public:
     void init(RenderDevice *renderDevice);
     void destroyAllResources();
 
-    ModelID loadModelFromFile(String name, String filename);
+    ModelID   loadModelFromFile(String name, String filename);
     TextureID loadTextureFromFile(String name, String filename);
 
     void uploadMeshBuffers(Mesh &mesh);

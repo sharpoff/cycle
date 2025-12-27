@@ -87,7 +87,9 @@ namespace gltf
 
                 if (primitive.material->has_pbr_metallic_roughness) {
                     if (primitive.material->pbr_metallic_roughness.base_color_texture.texture) {
-                        const char *uri = primitive.material->pbr_metallic_roughness.base_color_texture.texture->image->uri;
+                        cgltf_image *gltfImage = primitive.material->pbr_metallic_roughness.base_color_texture.texture->image;
+                        const char *uri = gltfImage->uri;
+
                         material.baseColorTexture = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
                     }
                 }

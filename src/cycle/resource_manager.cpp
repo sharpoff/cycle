@@ -49,6 +49,7 @@ TextureID ResourceManager::loadTextureFromFile(String name, String filename)
     uint32_t width, height, channels;
     unsigned char *pixels = stbi_load(filename.c_str(), (int *)&width, (int *)&height, (int *)&channels, STBI_rgb_alpha);
     if (!pixels) {
+        stbi_image_free(pixels);
         LOGE("Failed to load a texture from path '%s'", filename.c_str());
         return TextureID::Invalid;
     }

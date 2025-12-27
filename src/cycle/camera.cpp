@@ -17,6 +17,7 @@ void Camera::rotate(vec3 rotation)
 {
     if (rotation.x != 0.0f || rotation.y != 0.0f || rotation.z != 0.0f) {
         this->rotation += rotation;
+        this->rotation.x = glm::clamp(this->rotation.x, glm::radians(-89.9f), glm::radians(89.9f));
         updateView();
     }
 }

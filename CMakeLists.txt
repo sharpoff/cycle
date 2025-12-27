@@ -11,7 +11,7 @@ file(GLOB_RECURSE CYCLE_SOURCES "src/*.cpp")
 file(GLOB_RECURSE CYCLE_HEADERS "src/*.h")
 
 file(GLOB_RECURSE EXTERNAL_HEADERS "external/stb/*.h" "external/imgui/*.h" "external/cgltf/*.h")
-file(GLOB_RECURSE EXTERNAL_SOURCE "external/imgui/*.cpp")
+file(GLOB_RECURSE EXTERNAL_SOURCES "external/imgui/*.cpp")
 
 add_executable(engine
     ${CYCLE_SOURCES}

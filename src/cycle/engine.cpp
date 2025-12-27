@@ -10,6 +10,7 @@
 #include <chrono>
 
 #include <SDL3/SDL.h>
+#include "imgui_impl_sdl3.h"
 
 void Engine::init(const char *title, uint32_t width, uint32_t height)
 {
@@ -81,6 +82,8 @@ void Engine::processEvents()
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+        ImGui_ImplSDL3_ProcessEvent(&event);
+
         if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
             running = false;
         }
@@ -106,6 +109,9 @@ void Engine::processEvents()
     }
 
     // camera movement
+    if (input.isKeyDown(KeyboardKey::LSHIFT)) {
+        movementSpeed *= 5;
+    }
     if (input.isKeyDown(KeyboardKey::A)) {
         camTranslation.x -= movementSpeed;
     }

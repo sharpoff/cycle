@@ -4,8 +4,8 @@
 #include "cycle/graphics/vulkan_helpers.h"
 #include "cycle/math.h"
 
-#include <assert.h>
-#include <vulkan/vulkan_core.h>
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_vulkan.h"
 
 void CommandEncoder::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 {
@@ -224,4 +224,17 @@ void CommandEncoder::setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t
 void CommandEncoder::pushConstants(PipelineLayout &pipelineLayout, ShaderStageFlags shaderStage, void *data, uint32_t size, uint32_t offset)
 {
     vkCmdPushConstants(cmd, pipelineLayout.layout, vulkan::getShaderStageFlags(shaderStage), offset, size, data);
+}
+
+void CommandEncoder::beginImGuiFrame()
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+}
+
+void CommandEncoder::endImGuiFrame()
+{
+    ImGui::Render();
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 }

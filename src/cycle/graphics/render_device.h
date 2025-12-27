@@ -58,6 +58,9 @@ private:
 
     void recreateSwapchain();
 
+    void setupImGui();
+    void shutdownImGui();
+
     VkInstance instance = VK_NULL_HANDLE;
 
     SDL_Window  *window = nullptr;
