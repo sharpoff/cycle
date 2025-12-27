@@ -223,5 +223,5 @@ void CommandEncoder::setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t
 
 void CommandEncoder::pushConstants(PipelineLayout &pipelineLayout, ShaderStageFlags shaderStage, void *data, uint32_t size, uint32_t offset)
 {
-    vkCmdPushConstants(cmd, pipelineLayout.layout, vulkan::getShaderStageFlags(shaderStage), 0, size, &data);
+    vkCmdPushConstants(cmd, pipelineLayout.layout, vulkan::getShaderStageFlags(shaderStage), offset, size, data);
 }

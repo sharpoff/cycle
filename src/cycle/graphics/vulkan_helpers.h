@@ -39,6 +39,9 @@ namespace vulkan
     VkDescriptorType         getDescriptorType(DescriptorType type);
     VkShaderStageFlags       getShaderStageFlags(ShaderStageFlags stage);
 
+    const char *toString(VkPresentModeKHR presentMode);
+    const char *toString(VkFormat format);
+
     void setDebugName(VkDevice device, uint64_t objectHandle, VkObjectType objectType, String name);
     void beginDebugLabel(VkCommandBuffer cmd, const char *name, float color[4]);
     void endDebugLabel(VkCommandBuffer cmd);

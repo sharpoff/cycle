@@ -1070,6 +1070,8 @@ void RenderDevice::createSwapchain()
             presentMode = VK_PRESENT_MODE_FIFO_KHR;
     }
 
+    LOGI("Selected present mode: %s", vulkan::toString(presentMode));
+
     VkSwapchainCreateInfoKHR swapchainCI{};
     swapchainCI.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapchainCI.surface = surface;

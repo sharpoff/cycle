@@ -3,6 +3,7 @@
 #include "cycle/id_types.h"
 
 #include "cycle/gltf_loader.h"
+#include "cycle/logger.h"
 #include "stb_image.h"
 
 void ResourceManager::init(RenderDevice *renderDevice)
@@ -39,6 +40,7 @@ ModelID ResourceManager::loadModelFromFile(String name, String filename)
         return addModel(name, model);
     }
 
+    LOGW("Failed to load a model from path '%s'", filename.c_str());
     return ModelID::Invalid;
 }
 
@@ -46,8 +48,10 @@ TextureID ResourceManager::loadTextureFromFile(String name, String filename)
 {
     uint32_t width, height, channels;
     unsigned char *pixels = stbi_load(filename.c_str(), (int *)&width, (int *)&height, (int *)&channels, STBI_rgb_alpha);
-    if (!pixels)
+    if (!pixels) {
+        LOGE("Failed to load a texture from path '%s'", filename.c_str());
         return TextureID::Invalid;
+    }
 
     const ImageCreateInfo createInfo = {
         .width = width,
@@ -71,8 +75,7 @@ void ResourceManager::uploadMeshBuffers(Mesh &mesh)
     {
         const BufferCreateInfo createInfo = {
             .size = mesh.vertices.size() * sizeof(Vertex),
-            // .usage = BUFFER_USAGE_STORAGE | BUFFER_USAGE_DEVICE_ADDRESS | BUFFER_USAGE_TRANSFER_DST,
-            .usage = BUFFER_USAGE_VERTEX | BUFFER_USAGE_TRANSFER_DST,
+            .usage = BUFFER_USAGE_DEVICE_ADDRESS | BUFFER_USAGE_TRANSFER_DST,
         };
         renderDevice->createBuffer(mesh.vertexBuffer, createInfo);
 
@@ -83,7 +86,7 @@ void ResourceManager::uploadMeshBuffers(Mesh &mesh)
     {
         const BufferCreateInfo createInfo = {
             .size = mesh.indices.size() * sizeof(uint32_t),
-            .usage = BUFFER_USAGE_INDEX | BUFFER_USAGE_DEVICE_ADDRESS | BUFFER_USAGE_TRANSFER_DST,
+            .usage = BUFFER_USAGE_INDEX | BUFFER_USAGE_TRANSFER_DST,
         };
         renderDevice->createBuffer(mesh.indexBuffer, createInfo);
 

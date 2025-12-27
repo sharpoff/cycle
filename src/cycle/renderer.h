@@ -13,9 +13,8 @@ class Renderer
 
     struct MeshDrawInfo
     {
-        // mat4 worldMatrix = mat4(1.0f);
+        mat4 worldMatrix = mat4(1.0f);
         uint64_t vertexBufferAddress;
-        // uint64_t indexBufferAddress;
     };
 
 public:
@@ -49,6 +48,4 @@ private:
 
     PipelineLayout geometryPipelineLayout;
     RenderPipeline geometryPipeline;
-
-    Buffer vertexBuffer;
 };

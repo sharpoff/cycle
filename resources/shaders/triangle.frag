@@ -11,5 +11,6 @@ layout (binding = 1) uniform sampler2D texture2Ds[];
 
 void main()
 {
-    fragColor = vec4(getTexture2D(0, inUV).rgb, 1.0);
+    // fragColor = vec4(getTexture2D(0, inUV).rgb, 1.0);
+    fragColor = vec4(inColor, 1.0);
 }

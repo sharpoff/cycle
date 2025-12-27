@@ -10,5 +10,5 @@ struct Vertex
     float uv_y;
     vec3  color;
 
-    // float _pad0;
+    float _pad0;
 };

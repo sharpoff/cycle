@@ -28,7 +28,7 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
 
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-    mat4 projection = math::perspective(glm::radians(60.0f), float(width) / height, 0.01f, 100.0f);
+    mat4 projection = math::perspective(glm::radians(60.0f), float(width) / height, 0.01f, 1000.0f);
     camera.setProjection(projection);
     camera.setPosition(vec3(0.0f, 0.0f, 1.0f));
 

@@ -6,10 +6,11 @@
 #include "cycle/types/mesh.h"
 
 #include "cycle/resource_manager.h"
+#include <filesystem>
 
 namespace gltf
 {
-    static void processNode(ResourceManager *resourceManager, Model &model, cgltf_data *data, cgltf_node *gltfNode);
+    static void processNode(ResourceManager *resourceManager, Model &model, cgltf_data *data, cgltf_node *gltfNode, String baseDir);
 
     bool loadModel(ResourceManager *resourceManager, Model &model, const String &filename)
     {
@@ -21,16 +22,22 @@ namespace gltf
         if (cgltf_load_buffers(&options, data, filename.c_str()) != cgltf_result_success)
             return false;
 
-        auto root = data->scene;
+        cgltf_scene *root = data->scene;
+        if (!root) {
+            cgltf_free(data);
+            return false;
+        }
+
+        String baseDir = std::filesystem::path(filename).parent_path();
 
         for (size_t i = 0; i < root->nodes_count; i++)
-            processNode(resourceManager, model, data, root->nodes[i]);
+            processNode(resourceManager, model, data, root->nodes[i], baseDir);
 
         cgltf_free(data);
         return true;
     }
 
-    static void processNode(ResourceManager *resourceManager, Model &model, cgltf_data *data, cgltf_node *gltfNode)
+    static void processNode(ResourceManager *resourceManager, Model &model, cgltf_data *data, cgltf_node *gltfNode, String baseDir)
     {
         for (size_t i = 0; i < gltfNode->mesh->primitives_count; i++) {
             Mesh mesh = {};
@@ -81,7 +88,7 @@ namespace gltf
                 if (primitive.material->has_pbr_metallic_roughness) {
                     if (primitive.material->pbr_metallic_roughness.base_color_texture.texture) {
                         const char *uri = primitive.material->pbr_metallic_roughness.base_color_texture.texture->image->uri;
-                        material.baseColorTexture = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), uri);
+                        material.baseColorTexture = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
                     }
                 }
 
@@ -96,7 +103,7 @@ namespace gltf
         }
 
         for (size_t i = 0; i < gltfNode->children_count; i++) {
-            processNode(resourceManager, model, data, gltfNode->children[i]);
+            processNode(resourceManager, model, data, gltfNode->children[i], baseDir);
         }
     }
 } // namespace gltf

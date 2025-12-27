@@ -22,7 +22,6 @@ void Renderer::shutdown()
     resourceManager->destroyAllResources();
 
     device.destroyBuffer(sceneInfoBuffer);
-    device.destroyBuffer(vertexBuffer);
 
     device.destroySampler(linearSampler);
     device.destroySampler(nearestSampler);
@@ -48,7 +47,7 @@ void Renderer::loadResources()
         assert(created);
     }
 
-    // create samplers
+    // create common samplers
     {
         { // linear
             SamplerCreateInfo samplerCreateInfo = {};
@@ -71,27 +70,6 @@ void Renderer::loadResources()
         }
     }
 
-    ResourceManager *resourceManager = g_engine->getResourceManager();
-    assert(resourceManager);
-
-    // load image
-    {
-        auto id = resourceManager->loadTextureFromFile("checkerboard", "resources/textures/checkerboard.png");
-        if (id == TextureID::Invalid) {
-            LOGE("%s", "Failed to load a texture!");
-            exit(-1);
-        }
-    }
-
-    // load model
-    {
-        auto id = resourceManager->loadModelFromFile("monkey", "resources/models/monkey.gltf"); 
-        if (id == ModelID::Invalid) {
-            LOGE("%s", "Failed to load a model!");
-            exit(-1);
-        }
-    }
-
     // create pipelines
     {
         const Vector<DescriptorSetLayoutBinding> bindings0 = {
@@ -103,26 +81,16 @@ void Renderer::loadResources()
             {bindings0}, // set 0
         };
 
-        // const Vector<PushConstantRange> pushConstantRanges = {
-        //     {SHADER_STAGE_VERTEX, 0, sizeof(MeshDrawInfo)}
-        // };
+        const Vector<PushConstantRange> pushConstantRanges = {
+            {SHADER_STAGE_VERTEX, 0, sizeof(MeshDrawInfo)}
+        };
 
         PipelineLayoutCreateInfo layoutCreateInfo = {};
         layoutCreateInfo.descriptorSetLayouts = descriptorSetLayouts;
-        // layoutCreateInfo.pushConstantRanges = pushConstantRanges;
+        layoutCreateInfo.pushConstantRanges = pushConstantRanges;
         device.createPipelineLayout(geometryPipelineLayout, layoutCreateInfo);
 
         const RenderPipelineCreateInfo createInfo = {
-            .vertexBindings = {
-                {0, sizeof(Vertex), VERTEX_INPUT_RATE_VERTEX}
-            },
-            .vertexAttributes = {
-                {0, 0, VERTEX_FORMAT_R32G32B32_SFLOAT,  offsetof(Vertex, position)},
-                {1, 0, VERTEX_FORMAT_R32_SFLOAT,        offsetof(Vertex, uv_x)},
-                {2, 0, VERTEX_FORMAT_R32G32B32_SFLOAT,  offsetof(Vertex, normal)},
-                {3, 0, VERTEX_FORMAT_R32_SFLOAT,        offsetof(Vertex, uv_y)},
-                {4, 0, VERTEX_FORMAT_R32G32B32_SFLOAT,  offsetof(Vertex, color)},
-            },
             .cullMode = CULL_MODE_BACK,
             .frontFace = FRONT_FACE_COUNTER_CLOCKWISE,
             .depthCompareOp = COMPARE_OP_GREATER,
@@ -136,12 +104,34 @@ void Renderer::loadResources()
         device.createRenderPipeline(geometryPipeline, createInfo);
     }
 
+    ResourceManager *resourceManager = g_engine->getResourceManager();
+    assert(resourceManager);
+
+    // load image
+    {
+        auto id = resourceManager->loadTextureFromFile("checkerboard", "resources/textures/checkerboard.png");
+        if (id != TextureID::Invalid) {
+        }
+    }
+
+    // load models
+    {
+        ModelID id = ModelID::Invalid;
+        id = resourceManager->loadModelFromFile("monkey", "resources/models/monkey.gltf"); 
+
+        id = resourceManager->loadModelFromFile("sponza", "resources/models/sponza/Sponza.gltf");
+        Model *sponzaModel = resourceManager->getModelByID(id);
+        if (sponzaModel) {
+            sponzaModel->worldMatrix = glm::scale(vec3(0.01f));
+        }
+    }
+
     // write descriptor set
     {
         device.writeDescriptor(0, sceneInfoBuffer, DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 
         if (Image *texture = resourceManager->getTextureByName("checkerboard"); texture != nullptr) {
-            device.writeDescriptor(1, *texture, linearSampler, DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+            device.writeDescriptor(1, *texture, linearSampler, DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0);
         }
 
         uint32_t set = 0;
@@ -183,7 +173,7 @@ void Renderer::draw()
     assert(resourceManager);
 
     cmdEncoder.bindPipeline(geometryPipeline);
-    if (Model *model = resourceManager->getModelByName("monkey"); model != nullptr) {
+    if (Model *model = resourceManager->getModelByName("sponza"); model != nullptr) {
         for (MeshID meshID : model->meshes) {
             if (meshID == MeshID::Invalid)
                 continue;
@@ -192,22 +182,15 @@ void Renderer::draw()
             if (!mesh)
                 continue;
 
-            // MeshDrawInfo push = {};
-            // push.vertexBufferAddress = mesh->vertexBuffer.address;
-            // push.indexBufferAddress = mesh->indexBuffer.address;
+            MeshDrawInfo push = {};
+            push.worldMatrix = model->worldMatrix * mesh->worldMatrix;
+            push.vertexBufferAddress = mesh->vertexBuffer.address;
+            cmdEncoder.pushConstants(geometryPipelineLayout, SHADER_STAGE_VERTEX, &push, sizeof(push));
 
-            // cmdEncoder.pushConstants(geometryPipelineLayout, SHADER_STAGE_VERTEX, &push, sizeof(push));
-            cmdEncoder.bindVertexBuffer(mesh->vertexBuffer);
             cmdEncoder.bindIndexBuffer(mesh->indexBuffer);
-
             cmdEncoder.drawIndexed(mesh->indices.size(), 1, 0, 0, 0);
         }
     }
-
-    // cmdEncoder.bindPipeline(geometryPipeline);
-
-    // cmdEncoder.bindVertexBuffer(vertexBuffer);
-    // cmdEncoder.draw(vertices.size(), 1, 0, 0);
 
     cmdEncoder.endRendering();
     device.endCommandEncoding(cmdEncoder);
@@ -261,7 +244,7 @@ void Renderer::destroyAttachmentImages()
 
 void Renderer::updateDynamicData()
 {
-    assert(camera);
+    assert(camera && "Camera is not set!");
     if (void *mapped = sceneInfoBuffer.allocation.info.pMappedData; mapped != nullptr) {
         SceneInfo sceneInfo = {};
         sceneInfo.viewProjection = camera->getProjection() * camera->getView();
