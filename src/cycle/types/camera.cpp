@@ -1,4 +1,4 @@
-#include "cycle/camera.h"
+#include "cycle/types/camera.h"
 
 Camera::Camera()
 {

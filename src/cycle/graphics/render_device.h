@@ -3,7 +3,6 @@
 #include "SDL3/SDL_video.h"
 
 #include "cycle/graphics/command_encoder.h"
-#include "cycle/math.h"
 
 #include "cycle/graphics/descriptor_set_writer.h"
 #include "cycle/graphics/graphics_types.h"
@@ -47,14 +46,16 @@ public:
 
     void waitIdle();
 
-    vec2   getWindowSize();
-    Image &getSwapchainImage();
+    uint32_t getSwapchainWidth() { return swapchainExtent.width; };
+    uint32_t getSwapchainHeight() { return swapchainExtent.height; };
+    Image &getSwapchainImage() { return swapchainImages[imageIndex]; };
 
 private:
     void createInstance();
     void createDevice();
     void createAllocator();
     void createSwapchain();
+    void createSyncObjects();
 
     void recreateSwapchain();
 

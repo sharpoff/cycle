@@ -10,6 +10,7 @@
 #include <chrono>
 
 #include <SDL3/SDL.h>
+#include "imgui.h"
 #include "imgui_impl_sdl3.h"
 
 void Engine::init(const char *title, uint32_t width, uint32_t height)
@@ -98,11 +99,19 @@ void Engine::processEvents()
 
         input.processEvent(&event);
 
+        ImGuiIO &io = ImGui::GetIO();
+        if (io.WantCaptureMouse)
+            continue; // skip mouse handling
+
         if (input.isMouseButtonDown(MouseButton::LEFT) && input.isMouseMoving()) {
-            vec2  relPos = input.getMouseRelativePosition();
+            vec2 relPos = input.getMouseRelativePosition();
             camera.rotate(vec3(-glm::radians(relPos.y) * rotationSpeed, glm::radians(relPos.x) * rotationSpeed, 0.0f));
         }
     }
+
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.WantCaptureKeyboard)
+        return; // skip keyboard handling
 
     if (input.isKeyDown(KeyboardKey::ESCAPE)) {
         running = false;

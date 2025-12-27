@@ -1,6 +1,6 @@
 #include "cycle/resource_manager.h"
 #include "cycle/graphics/render_device.h"
-#include "cycle/id_types.h"
+#include "cycle/types/id.h"
 
 #include "cycle/gltf_loader.h"
 #include "cycle/logger.h"

@@ -6,8 +6,10 @@
 #include "cycle/graphics/vulkan_helpers.h"
 
 #include "SDL3/SDL_vulkan.h"
+#include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_vulkan.h"
+#include <vulkan/vulkan_core.h>
 
 void RenderDevice::init(SDL_Window *window)
 {
@@ -34,6 +36,10 @@ void RenderDevice::init(SDL_Window *window)
     createAllocator();
 
     createSwapchain();
+
+    LOGI("Selected present mode: %s", vulkan::toString(presentMode));
+
+    createSyncObjects();
 
     // create command pool
     VkCommandPoolCreateInfo commandPoolCreateInfo = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
@@ -74,25 +80,6 @@ void RenderDevice::init(SDL_Window *window)
         fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
         VK_CHECK(vkCreateFence(device, &fenceCreateInfo, nullptr, &immediateFence));
         vulkan::setDebugName(device, (uint64_t)immediateFence, VK_OBJECT_TYPE_FENCE, "immediate VkFence");
-    }
-
-    // create syncronizaiton objects
-    submitSemaphores.resize(swapchainImages.size());
-    for (size_t i = 0; i < submitSemaphores.size(); i++) {
-        VkSemaphoreCreateInfo semaphoreCreateInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-        VK_CHECK(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &submitSemaphores[i]));
-        vulkan::setDebugName(device, (uint64_t)submitSemaphores[i], VK_OBJECT_TYPE_SEMAPHORE, "submit VkSemaphore [" + std::to_string(i) + "]");
-    }
-
-    for (unsigned int i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        VkSemaphoreCreateInfo semaphoreCreateInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-        VK_CHECK(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &acquireSemaphores[i]));
-        vulkan::setDebugName(device, (uint64_t)acquireSemaphores[i], VK_OBJECT_TYPE_SEMAPHORE, "acquire VkSemaphore [" + std::to_string(i) + "]");
-
-        VkFenceCreateInfo fenceCreateInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-        fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        VK_CHECK(vkCreateFence(device, &fenceCreateInfo, nullptr, &finishRenderFences[i]));
-        vulkan::setDebugName(device, (uint64_t)finishRenderFences[i], VK_OBJECT_TYPE_FENCE, "finish render VkFence [" + std::to_string(i) + "]");
     }
 
     // descriptors
@@ -422,23 +409,19 @@ bool RenderDevice::createRenderPipeline(RenderPipeline &renderPipeline, const Re
     VkPipelineTessellationStateCreateInfo tessellationState = {VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO};
     tessellationState.patchControlPoints = createInfo.patchControlPoints;
 
-    vec2 windowSize = getWindowSize();
-    uint32_t width = (uint32_t)windowSize.x;
-    uint32_t height = (uint32_t)windowSize.y;
-
     VkViewport viewport;
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = width;
-    viewport.height = height;
+    viewport.width = getSwapchainWidth();
+    viewport.height = getSwapchainHeight();
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor;
     scissor.offset.x = 0;
     scissor.offset.y = 0;
-    scissor.extent.width = width;
-    scissor.extent.height = height;
+    scissor.extent.width = getSwapchainWidth();
+    scissor.extent.height = getSwapchainHeight();
 
     VkPipelineViewportStateCreateInfo viewportState = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
     viewportState.viewportCount = 1;
@@ -833,18 +816,6 @@ void RenderDevice::waitIdle()
     vkDeviceWaitIdle(device);
 }
 
-vec2 RenderDevice::getWindowSize()
-{
-    int width, height;
-    SDL_GetWindowSize(window, &width, &height);
-    return vec2(width, height);
-}
-
-Image &RenderDevice::getSwapchainImage()
-{
-    return swapchainImages[imageIndex];
-}
-
 void RenderDevice::createInstance()
 {
     VK_CHECK(volkInitialize());
@@ -1027,9 +998,12 @@ void RenderDevice::createSwapchain()
     VkSurfaceCapabilitiesKHR capabilities;
     VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &capabilities));
 
-    vec2 windowSize = getWindowSize();
-    swapchainExtent.width = glm::clamp(static_cast<uint32_t>(windowSize.x), capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-    swapchainExtent.height = glm::clamp(static_cast<uint32_t>(windowSize.y), capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+    uint32_t width = 0;
+    uint32_t height = 0;
+    SDL_GetWindowSize(window, (int*)&width, (int*)&height);
+
+    swapchainExtent.width = glm::clamp(static_cast<uint32_t>(width), capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+    swapchainExtent.height = glm::clamp(static_cast<uint32_t>(height), capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 
     // Find best surface format
     {
@@ -1072,8 +1046,6 @@ void RenderDevice::createSwapchain()
         if (!found) // fallback
             presentMode = VK_PRESENT_MODE_FIFO_KHR;
     }
-
-    LOGI("Selected present mode: %s", vulkan::toString(presentMode));
 
     VkSwapchainCreateInfoKHR swapchainCI{};
     swapchainCI.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -1130,6 +1102,27 @@ void RenderDevice::createSwapchain()
     }
 }
 
+void RenderDevice::createSyncObjects()
+{
+    submitSemaphores.resize(swapchainImages.size());
+    for (size_t i = 0; i < submitSemaphores.size(); i++) {
+        VkSemaphoreCreateInfo semaphoreCreateInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+        VK_CHECK(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &submitSemaphores[i]));
+        vulkan::setDebugName(device, (uint64_t)submitSemaphores[i], VK_OBJECT_TYPE_SEMAPHORE, "submit VkSemaphore [" + std::to_string(i) + "]");
+    }
+
+    for (unsigned int i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        VkSemaphoreCreateInfo semaphoreCreateInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+        VK_CHECK(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &acquireSemaphores[i]));
+        vulkan::setDebugName(device, (uint64_t)acquireSemaphores[i], VK_OBJECT_TYPE_SEMAPHORE, "acquire VkSemaphore [" + std::to_string(i) + "]");
+
+        VkFenceCreateInfo fenceCreateInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+        fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        VK_CHECK(vkCreateFence(device, &fenceCreateInfo, nullptr, &finishRenderFences[i]));
+        vulkan::setDebugName(device, (uint64_t)finishRenderFences[i], VK_OBJECT_TYPE_FENCE, "finish render VkFence [" + std::to_string(i) + "]");
+    }
+}
+
 void RenderDevice::recreateSwapchain()
 {
     waitIdle();
@@ -1137,25 +1130,28 @@ void RenderDevice::recreateSwapchain()
     for (Image &image : swapchainImages) {
         vkDestroyImageView(device, image.view, nullptr);
     }
+    swapchainImages.clear();
     vkDestroySwapchainKHR(device, swapchain, nullptr);
 
+    for (VkSemaphore &semaphore : submitSemaphores) {
+        vkDestroySemaphore(device, semaphore, nullptr);
+    }
     submitSemaphores.clear();
-    submitSemaphores.resize(swapchainImages.size());
-    for (size_t i = 0; i < submitSemaphores.size(); i++) {
-        vkDestroySemaphore(device, submitSemaphores[i], nullptr);
 
-        VkSemaphoreCreateInfo semaphoreCreateInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-        VK_CHECK(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &submitSemaphores[i]));
+    for (unsigned int i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        vkDestroySemaphore(device, acquireSemaphores[i], nullptr);
+        vkDestroyFence(device, finishRenderFences[i], nullptr);
     }
 
     createSwapchain();
+    createSyncObjects();
 }
 
 void RenderDevice::setupImGui()
 {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.IniFilename = "resources/config/imgui.ini";

@@ -1,7 +1,7 @@
 #include "cycle/gltf_loader.h"
 
 #include "cgltf.h"
-#include "cycle/id_types.h"
+#include "cycle/types/id.h"
 #include "cycle/types/material.h"
 #include "cycle/types/mesh.h"
 

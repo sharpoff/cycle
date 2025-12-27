@@ -2,8 +2,8 @@
 
 #include "cycle/math.h"
 
-#include "cycle/id_types.h"
-#include "cycle/types.h"
+#include "cycle/types/id.h"
+#include "cycle/containers.h"
 
 class Entity
 {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "cycle/id_types.h"
-#include "cycle/types.h"
+#include "cycle/types/id.h"
+#include "cycle/containers.h"
 
 #include "cycle/graphics/graphics_types.h"
 #include "cycle/types/entity.h"

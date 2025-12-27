@@ -3,12 +3,14 @@
 #include "cycle/filesystem.h"
 #include "cycle/graphics/graphics_types.h"
 #include "cycle/graphics/render_device.h"
-#include "cycle/id_types.h"
+#include "cycle/types/id.h"
 
 #include "cycle/globals.h"
 #include "cycle/resource_manager.h"
 
 #include "imgui.h"
+
+#include "cycle/types/shader_data.h"
 
 void Renderer::init(SDL_Window *window)
 {
@@ -167,7 +169,7 @@ void Renderer::draw()
     };
 
     cmdEncoder.beginRendering({
-        .renderAreaExtent = device.getWindowSize(),
+        .renderAreaExtent = {device.getSwapchainWidth(), device.getSwapchainHeight()},
         .colorAttachments = {swapchainAttachment},
         .depthAttachment = &depthAttachment,
     });
@@ -213,26 +215,10 @@ void Renderer::draw()
 
 void Renderer::createAttachmentImages()
 {
-    vec2 windowSize = device.getWindowSize();
-
-    { // color image
-        ImageCreateInfo createInfo = {
-            .width = (uint32_t)windowSize.x,
-            .height = (uint32_t)windowSize.y,
-            .mipLevels = calculateMipLevels(windowSize.x, windowSize.y),
-            .sampleCount = 1,
-            .usage = IMAGE_USAGE_COLOR_ATTACHMENT,
-            .format = IMAGE_FORMAT_R8G8B8A8_SRGB,
-        };
-
-        bool created = device.createImage(colorImage, createInfo, "color image");
-        assert(created);
-    }
-
     { // depth image
         ImageCreateInfo createInfo = {
-            .width = (uint32_t)windowSize.x,
-            .height = (uint32_t)windowSize.y,
+            .width = device.getSwapchainWidth(),
+            .height = device.getSwapchainHeight(),
             .mipLevels = 1,
             .sampleCount = 1,
             .usage = IMAGE_USAGE_DEPTH_ATTACHMENT,
@@ -246,7 +232,7 @@ void Renderer::createAttachmentImages()
 
 void Renderer::destroyAttachmentImages()
 {
-    device.destroyImage(colorImage);
+    device.waitIdle();
     device.destroyImage(depthImage);
 }
 
