@@ -8,37 +8,21 @@
 #include "cycle/globals.h"
 #include "cycle/resource_manager.h"
 
+#include "cycle/types/material.h"
 #include "imgui.h"
 
 #include "cycle/types/shader_data.h"
+#include <filesystem>
 
 void Renderer::init(SDL_Window *window)
 {
+    assert(window);
+
     device.init(window);
-}
 
-void Renderer::shutdown()
-{
-    device.waitIdle();
+    ResourceManager &resourceManager = g_engine->getResourceManager();
+    resourceManager.setRenderDevice(&device);
 
-    destroyAttachmentImages();
-
-    ResourceManager *resourceManager = g_engine->getResourceManager();
-    resourceManager->destroyAllResources();
-
-    device.destroyBuffer(sceneInfoBuffer);
-
-    device.destroySampler(linearSampler);
-    device.destroySampler(nearestSampler);
-
-    device.destroyPipelineLayout(geometryPipelineLayout);
-    device.destroyRenderPipeline(geometryPipeline);
-
-    device.shutdown();
-}
-
-void Renderer::loadResources()
-{
     createAttachmentImages();
 
     // create global data buffer
@@ -58,28 +42,45 @@ void Renderer::loadResources()
             SamplerCreateInfo samplerCreateInfo = {};
             samplerCreateInfo.magFilter = SAMPLER_FILTER_LINEAR;
             samplerCreateInfo.minFilter = SAMPLER_FILTER_LINEAR;
-            samplerCreateInfo.addressModeU = SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-            samplerCreateInfo.addressModeV = SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-            samplerCreateInfo.addressModeW = SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-            device.createSampler(linearSampler, samplerCreateInfo);
+            samplerCreateInfo.addressModeU = SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.addressModeV = SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.addressModeW = SAMPLER_ADDRESS_MODE_REPEAT;
+
+            bool created = device.createSampler(linearSampler, samplerCreateInfo);
+            assert(created);
         }
 
         { // nearest
             SamplerCreateInfo samplerCreateInfo = {};
             samplerCreateInfo.magFilter = SAMPLER_FILTER_NEAREST;
             samplerCreateInfo.minFilter = SAMPLER_FILTER_NEAREST;
-            samplerCreateInfo.addressModeU = SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-            samplerCreateInfo.addressModeV = SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-            samplerCreateInfo.addressModeW = SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-            device.createSampler(nearestSampler, samplerCreateInfo);
+            samplerCreateInfo.addressModeU = SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.addressModeV = SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.addressModeW = SAMPLER_ADDRESS_MODE_REPEAT;
+
+            bool created = device.createSampler(nearestSampler, samplerCreateInfo);
+            assert(created);
         }
     }
 
-    // create pipelines
+    // create default resources
+    {
+        // create default texture
+        auto texID = resourceManager.loadTextureFromFile("default", texturesDir / "checkerboard.png");
+        assert(texID != TextureID::Invalid && (uint32_t)texID == DEFAULT_TEXTURE_ID);
+
+        // create default material
+        auto matID = resourceManager.addMaterial("default", {.baseColorTexID = texID});
+        assert(matID != MaterialID::Invalid && (uint32_t)matID == DEFAULT_MATERIAL_ID);
+    }
+
+    // create pipeline layout
     {
         const Vector<DescriptorSetLayoutBinding> bindings0 = {
             {0, DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, SHADER_STAGE_VERTEX}, // scene data
-            {1, DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1024, SHADER_STAGE_FRAGMENT}, // textures
+            {1, DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024, SHADER_STAGE_FRAGMENT}, // textures
+            {2, DESCRIPTOR_TYPE_SAMPLER, 2, SHADER_STAGE_FRAGMENT}, // samplers
+            {3, DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, SHADER_STAGE_FRAGMENT}, // materials
         };
 
         const Vector<DescriptorSetLayout> descriptorSetLayouts = {
@@ -87,61 +88,88 @@ void Renderer::loadResources()
         };
 
         const Vector<PushConstantRange> pushConstantRanges = {
-            {SHADER_STAGE_VERTEX, 0, sizeof(MeshDrawInfo)}
-        };
+            {SHADER_STAGE_VERTEX | SHADER_STAGE_FRAGMENT, 0, sizeof(MeshDrawInfo)}};
 
         PipelineLayoutCreateInfo layoutCreateInfo = {};
         layoutCreateInfo.descriptorSetLayouts = descriptorSetLayouts;
         layoutCreateInfo.pushConstantRanges = pushConstantRanges;
         device.createPipelineLayout(geometryPipelineLayout, layoutCreateInfo);
+    }
+    createPipelines();
 
-        const RenderPipelineCreateInfo createInfo = {
-            .cullMode = CULL_MODE_BACK,
-            .frontFace = FRONT_FACE_COUNTER_CLOCKWISE,
-            .depthCompareOp = COMPARE_OP_GREATER,
-            .depthWriteEnable = true,
-            .colorAttachmentFormats = {IMAGE_FORMAT_B8G8R8A8_SRGB},
-            .depthAttachmentFormat = IMAGE_FORMAT_D32_SFLOAT,
-            .pipelineLayout = &geometryPipelineLayout,
-            .vertexCode = filesystem::readBinaryFile("resources/shaders/bin/triangle.vert.spv"),
-            .fragmentCode = filesystem::readBinaryFile("resources/shaders/bin/triangle.frag.spv"),
+    // write static descriptors
+    device.writeDescriptor(0, sceneInfoBuffer, DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+
+    device.writeDescriptor(2, linearSampler, DESCRIPTOR_TYPE_SAMPLER, SAMPLER_LINEAR_ID);
+    device.writeDescriptor(2, nearestSampler, DESCRIPTOR_TYPE_SAMPLER, SAMPLER_NEAREST_ID);
+
+    device.updateDescriptors(geometryPipelineLayout, bindlessDescriptorSet);
+}
+
+void Renderer::shutdown()
+{
+    device.waitIdle();
+
+    destroyAttachmentImages();
+
+    ResourceManager &resourceManager = g_engine->getResourceManager();
+    resourceManager.destroyAllResources();
+
+    device.destroyBuffer(sceneInfoBuffer);
+    device.destroyBuffer(materialsBuffer);
+
+    device.destroySampler(linearSampler);
+    device.destroySampler(nearestSampler);
+
+    device.destroyPipelineLayout(geometryPipelineLayout);
+    device.destroyRenderPipeline(geometryPipeline);
+
+    device.shutdown();
+}
+
+void Renderer::loadResources()
+{
+    ResourceManager &resourceManager = g_engine->getResourceManager();
+    auto &materials = resourceManager.getMaterials();
+    auto &textures = resourceManager.getTextures();
+
+    // create materials buffer
+    if (materials.size() > 0) {
+        if (materialsBuffer.size > 0) { // delete existing materials buffer
+            device.destroyBuffer(materialsBuffer);
+        }
+
+        const BufferCreateInfo createInfo = {
+            .size = sizeof(Material) * materials.size(),
+            .usage = BUFFER_USAGE_STORAGE | BUFFER_USAGE_TRANSFER_DST,
         };
-        device.createRenderPipeline(geometryPipeline, createInfo);
+
+        bool created = device.createBuffer(materialsBuffer, createInfo);
+        assert(created);
+
+        device.uploadBufferData(materialsBuffer, resourceManager.getMaterials().data(), createInfo.size);
     }
 
-    ResourceManager *resourceManager = g_engine->getResourceManager();
-    assert(resourceManager);
-
-    // load image
-    {
-        auto id = resourceManager->loadTextureFromFile("checkerboard", "resources/textures/checkerboard.png");
-        if (id != TextureID::Invalid) {
-        }
+    // write dynamic descriptors
+    for (size_t i = 0; i < textures.size(); i++) {
+        auto &texture = textures[i];
+        device.writeDescriptor(1, texture, DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
     }
 
-    // load models
-    {
-        ModelID id = ModelID::Invalid;
-        id = resourceManager->loadModelFromFile("monkey", "resources/models/monkey.gltf"); 
+    if (materials.size() > 0)
+        device.writeDescriptor(3, materialsBuffer, DESCRIPTOR_TYPE_STORAGE_BUFFER);
 
-        id = resourceManager->loadModelFromFile("sponza", "resources/models/sponza/Sponza.gltf");
-        Model *sponzaModel = resourceManager->getModelByID(id);
-        if (sponzaModel) {
-            sponzaModel->worldMatrix = glm::scale(vec3(0.01f));
-        }
-    }
+    device.updateDescriptors(geometryPipelineLayout, bindlessDescriptorSet);
+}
 
-    // write descriptor set
-    {
-        device.writeDescriptor(0, sceneInfoBuffer, DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+void Renderer::recreatePipelines()
+{
+    device.waitIdle();
 
-        if (Image *texture = resourceManager->getTextureByName("checkerboard"); texture != nullptr) {
-            device.writeDescriptor(1, *texture, linearSampler, DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0);
-        }
+    device.destroyRenderPipeline(geometryPipeline);
 
-        uint32_t set = 0;
-        device.updateDescriptors(geometryPipelineLayout, set);
-    }
+    compileShaders();
+    createPipelines();
 }
 
 void Renderer::draw()
@@ -174,23 +202,23 @@ void Renderer::draw()
         .depthAttachment = &depthAttachment,
     });
 
-    ResourceManager *resourceManager = g_engine->getResourceManager();
-    assert(resourceManager);
+    ResourceManager &resourceManager = g_engine->getResourceManager();
 
     cmdEncoder.bindPipeline(geometryPipeline);
-    if (Model *model = resourceManager->getModelByName("sponza"); model != nullptr) {
+    if (Model *model = resourceManager.getModelByName("sponza"); model != nullptr) {
         for (MeshID meshID : model->meshes) {
             if (meshID == MeshID::Invalid)
                 continue;
 
-            Mesh *mesh = resourceManager->getMeshByID(meshID);
+            Mesh *mesh = resourceManager.getMeshByID(meshID);
             if (!mesh)
                 continue;
 
             MeshDrawInfo push = {};
             push.worldMatrix = model->worldMatrix * mesh->worldMatrix;
             push.vertexBufferAddress = mesh->vertexBuffer.address;
-            cmdEncoder.pushConstants(geometryPipelineLayout, SHADER_STAGE_VERTEX, &push, sizeof(push));
+            push.materialId = mesh->materialID != MaterialID::Invalid ? (unsigned int)mesh->materialID : DEFAULT_MATERIAL_ID;
+            cmdEncoder.pushConstants(geometryPipelineLayout, SHADER_STAGE_VERTEX | SHADER_STAGE_FRAGMENT, &push, sizeof(push));
 
             cmdEncoder.bindIndexBuffer(mesh->indexBuffer);
             cmdEncoder.drawIndexed(mesh->indices.size(), 1, 0, 0, 0);
@@ -234,6 +262,40 @@ void Renderer::destroyAttachmentImages()
 {
     device.waitIdle();
     device.destroyImage(depthImage);
+}
+
+void Renderer::compileShaders()
+{
+    std::filesystem::create_directory(shadersBinaryDir);
+    for (auto &entry : std::filesystem::directory_iterator(shadersDir)) {
+        if (!entry.is_regular_file())
+            continue;
+
+        std::filesystem::path filepath = entry.path();
+        String extension = filepath.extension();
+        if (extension == ".vert" || extension == ".frag" || extension == ".comp" || extension == ".tesc" || extension == ".tese") {
+            String filename = filepath.filename();
+
+            String cmd = "glslangValidator -V " + filepath.string() + " -o " + String(shadersBinaryDir / (filename + ".spv"));
+            system(cmd.c_str());
+        }
+    }
+}
+
+void Renderer::createPipelines()
+{
+    const RenderPipelineCreateInfo createInfo = {
+        .cullMode = CULL_MODE_BACK,
+        .frontFace = FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthCompareOp = COMPARE_OP_GREATER,
+        .depthWriteEnable = true,
+        .colorAttachmentFormats = {IMAGE_FORMAT_B8G8R8A8_SRGB},
+        .depthAttachmentFormat = IMAGE_FORMAT_D32_SFLOAT,
+        .pipelineLayout = &geometryPipelineLayout,
+        .vertexCode = filesystem::readBinaryFile(shadersBinaryDir / "mesh.vert.spv"),
+        .fragmentCode = filesystem::readBinaryFile(shadersBinaryDir / "mesh.frag.spv"),
+    };
+    device.createRenderPipeline(geometryPipeline, createInfo);
 }
 
 void Renderer::updateDynamicData()

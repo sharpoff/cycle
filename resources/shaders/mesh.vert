@@ -7,6 +7,7 @@
 
 layout(location = 0) out vec3 outColor;
 layout(location = 1) out vec2 outUV;
+layout(location = 2) out vec3 outNormal;
 
 void main()
 {
@@ -14,5 +15,6 @@ void main()
 
     outColor = vertex.normal;
     outUV = vec2(vertex.uv_x, vertex.uv_y);
+    outNormal = normalize(vertex.normal);
     gl_Position = sceneInfo.viewProjection * meshDrawInfo.worldMatrix * vec4(vertex.position, 1.0);
 }

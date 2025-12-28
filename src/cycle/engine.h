@@ -5,6 +5,7 @@
 #include "cycle/input/input.h"
 #include "cycle/renderer.h"
 #include "cycle/resource_manager.h"
+#include "cycle/types/scene.h"
 
 class Engine
 {
@@ -14,11 +15,10 @@ public:
 
     void run();
 
-    bool        isRunning();
-    SDL_Window *getWindow();
+    ResourceManager &getResourceManager() { return resourceManager; }
+    Scene           &getScene() { return scene; }
 
-    ResourceManager *getResourceManager() { return &resourceManager; }
-    Input           *getInput() { return &input; }
+    bool isRunning() { return running; }
 
 private:
     void processEvents();
@@ -28,9 +28,10 @@ private:
     bool   running = false;
 
     Renderer        renderer;
+    ResourceManager resourceManager;
     Camera          camera;
     Input           input;
-    ResourceManager resourceManager;
+    Scene           scene;
 
     SDL_Window *window;
 };

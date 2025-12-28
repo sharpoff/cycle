@@ -8,6 +8,7 @@
 #include "cycle/graphics/graphics_types.h"
 
 #define VULKAN_API_VERSION VK_API_VERSION_1_3
+#define ENABLE_LOG_DEVICE_LIMITS false
 
 #define FRAMES_IN_FLIGHT 2
 
@@ -42,6 +43,8 @@ public:
 
     void writeDescriptor(uint32_t binding, Buffer &buffer, DescriptorType type, uint32_t dstArrayElement = 0);
     void writeDescriptor(uint32_t binding, Image &image, Sampler &sampler, DescriptorType type, uint32_t dstArrayElement = 0);
+    void writeDescriptor(uint32_t binding, Image &image, DescriptorType type, uint32_t dstArrayElement = 0);
+    void writeDescriptor(uint32_t binding, Sampler &sampler, DescriptorType type, uint32_t dstArrayElement = 0);
     void updateDescriptors(PipelineLayout &layout, uint32_t set);
 
     void waitIdle();

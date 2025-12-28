@@ -9,12 +9,14 @@
 #include "cycle/types/mesh.h"
 #include "cycle/types/model.h"
 
+// TODO: remove resource functions
+
 class RenderDevice;
 
 class ResourceManager
 {
 public:
-    void init(RenderDevice *renderDevice);
+    void setRenderDevice(RenderDevice *renderDevice);
     void destroyAllResources();
 
     ModelID   loadModelFromFile(String name, String filename);

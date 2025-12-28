@@ -37,7 +37,7 @@ void RenderDevice::init(SDL_Window *window)
 
     createSwapchain();
 
-    LOGI("Selected present mode: %s", vulkan::toString(presentMode));
+    printf("Selected present mode: %s\n", vulkan::toString(presentMode));
 
     createSyncObjects();
 
@@ -82,22 +82,27 @@ void RenderDevice::init(SDL_Window *window)
         vulkan::setDebugName(device, (uint64_t)immediateFence, VK_OBJECT_TYPE_FENCE, "immediate VkFence");
     }
 
-    // descriptors
-    Vector<VkDescriptorPoolSize> poolSizes = {
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1024},
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1024},
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1024},
-    };
-    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-    descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    descriptorPoolCreateInfo.maxSets = 0;
-    for (auto &poolSize : poolSizes) {
-        descriptorPoolCreateInfo.maxSets += poolSize.descriptorCount;
+    // create descriptor pool
+    {
+        Vector<VkDescriptorPoolSize> poolSizes = {
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1024},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1024},
+            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024},
+            {VK_DESCRIPTOR_TYPE_SAMPLER, 10},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1024},
+        };
+
+        VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        descriptorPoolCreateInfo.maxSets = 0;
+        for (auto &poolSize : poolSizes) {
+            descriptorPoolCreateInfo.maxSets += poolSize.descriptorCount;
+        }
+        descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
+        VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
+        vulkan::setDebugName(device, (uint64_t)descriptorPool, VK_OBJECT_TYPE_DESCRIPTOR_POOL, "main VkDescriptorPool");
     }
-    descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-    descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
-    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
-    vulkan::setDebugName(device, (uint64_t)descriptorPool, VK_OBJECT_TYPE_DESCRIPTOR_POOL, "main VkDescriptorPool");
 
     setupImGui();
 }
@@ -617,7 +622,9 @@ void RenderDevice::uploadBufferData(Buffer &buffer, void *data, uint64_t size, B
 {
     assert(data && size > 0);
 
-    if (stagingBuffer && stagingBuffer->size >= size) {
+    if (buffer.allocation.info.pMappedData) { // using mapped data
+        memcpy(buffer.allocation.info.pMappedData, data, size);
+    } else if (stagingBuffer && stagingBuffer->size >= size) { // using external staging buffer
         memcpy(stagingBuffer->allocation.info.pMappedData, data, size);
         VK_CHECK(vmaFlushAllocation(allocator, stagingBuffer->allocation.handle, 0, VK_WHOLE_SIZE));
 
@@ -625,7 +632,7 @@ void RenderDevice::uploadBufferData(Buffer &buffer, void *data, uint64_t size, B
             VkBufferCopy copyRegion = {0, 0, size};
             vkCmdCopyBuffer(cmd, stagingBuffer->buffer, buffer.buffer, 1, &copyRegion);
         });
-    } else {
+    } else { // using created staging buffer
         const BufferCreateInfo createInfo = {
             .size = size,
             .usage = BUFFER_USAGE_TRANSFER_SRC,
@@ -804,6 +811,16 @@ void RenderDevice::writeDescriptor(uint32_t binding, Image &image, Sampler &samp
     descriptorSetWriter.write(binding, image.view, sampler.sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, vulkan::getDescriptorType(type), dstArrayElement);
 }
 
+void RenderDevice::writeDescriptor(uint32_t binding, Image &image, DescriptorType type, uint32_t dstArrayElement)
+{
+    descriptorSetWriter.write(binding, image.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, vulkan::getDescriptorType(type), dstArrayElement);
+}
+
+void RenderDevice::writeDescriptor(uint32_t binding, Sampler &sampler, DescriptorType type, uint32_t dstArrayElement)
+{
+    descriptorSetWriter.write(binding, sampler.sampler, vulkan::getDescriptorType(type), dstArrayElement);
+}
+
 void RenderDevice::updateDescriptors(PipelineLayout &layout, uint32_t set)
 {
     assert(set >= 0 && set < layout.descriptorSets.size()); // bounds check
@@ -861,6 +878,129 @@ void RenderDevice::createDevice()
 
     vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
     vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
+
+    printf("Selected GPU: %s\n", deviceProperties.deviceName);
+
+    // Log GPU limits
+    if (ENABLE_LOG_DEVICE_LIMITS)
+    {
+        printf("---- deviceProperties.limits ----\n");
+        printf("\tmaxImageDimension1D: %u\n", deviceProperties.limits.maxImageDimension1D);
+        printf("\tmaxImageDimension2D: %u\n", deviceProperties.limits.maxImageDimension2D);
+        printf("\tmaxImageDimension3D: %u\n", deviceProperties.limits.maxImageDimension3D);
+        printf("\tmaxImageDimensionCube: %u\n", deviceProperties.limits.maxImageDimensionCube);
+        printf("\tmaxImageArrayLayers: %u\n", deviceProperties.limits.maxImageArrayLayers);
+        printf("\tmaxTexelBufferElements: %u\n", deviceProperties.limits.maxTexelBufferElements);
+        printf("\tmaxUniformBufferRange: %u\n", deviceProperties.limits.maxUniformBufferRange);
+        printf("\tmaxStorageBufferRange: %u\n", deviceProperties.limits.maxStorageBufferRange);
+        printf("\tmaxPushConstantsSize: %u\n", deviceProperties.limits.maxPushConstantsSize);
+        printf("\tmaxMemoryAllocationCount: %u\n", deviceProperties.limits.maxMemoryAllocationCount);
+        printf("\tmaxSamplerAllocationCount: %u\n", deviceProperties.limits.maxSamplerAllocationCount);
+        printf("\tbufferImageGranularity: %lu\n", deviceProperties.limits.bufferImageGranularity);
+        printf("\tsparseAddressSpaceSize: %lu\n", deviceProperties.limits.sparseAddressSpaceSize);
+        printf("\tmaxBoundDescriptorSets: %u\n", deviceProperties.limits.maxBoundDescriptorSets);
+        printf("\tmaxPerStageDescriptorSamplers: %u\n", deviceProperties.limits.maxPerStageDescriptorSamplers);
+        printf("\tmaxPerStageDescriptorUniformBuffers: %u\n", deviceProperties.limits.maxPerStageDescriptorUniformBuffers);
+        printf("\tmaxPerStageDescriptorStorageBuffers: %u\n", deviceProperties.limits.maxPerStageDescriptorStorageBuffers);
+        printf("\tmaxPerStageDescriptorSampledImages: %u\n", deviceProperties.limits.maxPerStageDescriptorSampledImages);
+        printf("\tmaxPerStageDescriptorStorageImages: %u\n", deviceProperties.limits.maxPerStageDescriptorStorageImages);
+        printf("\tmaxPerStageDescriptorInputAttachments: %u\n", deviceProperties.limits.maxPerStageDescriptorInputAttachments);
+        printf("\tmaxPerStageResources: %u\n", deviceProperties.limits.maxPerStageResources);
+        printf("\tmaxDescriptorSetSamplers: %u\n", deviceProperties.limits.maxDescriptorSetSamplers);
+        printf("\tmaxDescriptorSetUniformBuffers: %u\n", deviceProperties.limits.maxDescriptorSetUniformBuffers);
+        printf("\tmaxDescriptorSetUniformBuffersDynamic: %u\n", deviceProperties.limits.maxDescriptorSetUniformBuffersDynamic);
+        printf("\tmaxDescriptorSetStorageBuffers: %u\n", deviceProperties.limits.maxDescriptorSetStorageBuffers);
+        printf("\tmaxDescriptorSetStorageBuffersDynamic: %u\n", deviceProperties.limits.maxDescriptorSetStorageBuffersDynamic);
+        printf("\tmaxDescriptorSetSampledImages: %u\n", deviceProperties.limits.maxDescriptorSetSampledImages);
+        printf("\tmaxDescriptorSetStorageImages: %u\n", deviceProperties.limits.maxDescriptorSetStorageImages);
+        printf("\tmaxDescriptorSetInputAttachments: %u\n", deviceProperties.limits.maxDescriptorSetInputAttachments);
+        printf("\tmaxVertexInputAttributes: %u\n", deviceProperties.limits.maxVertexInputAttributes);
+        printf("\tmaxVertexInputBindings: %u\n", deviceProperties.limits.maxVertexInputBindings);
+        printf("\tmaxVertexInputAttributeOffset: %u\n", deviceProperties.limits.maxVertexInputAttributeOffset);
+        printf("\tmaxVertexInputBindingStride: %u\n", deviceProperties.limits.maxVertexInputBindingStride);
+        printf("\tmaxVertexOutputComponents: %u\n", deviceProperties.limits.maxVertexOutputComponents);
+        printf("\tmaxTessellationGenerationLevel: %u\n", deviceProperties.limits.maxTessellationGenerationLevel);
+        printf("\tmaxTessellationPatchSize: %u\n", deviceProperties.limits.maxTessellationPatchSize);
+        printf("\tmaxTessellationControlPerVertexInputComponents: %u\n", deviceProperties.limits.maxTessellationControlPerVertexInputComponents);
+        printf("\tmaxTessellationControlPerVertexOutputComponents: %u\n", deviceProperties.limits.maxTessellationControlPerVertexOutputComponents);
+        printf("\tmaxTessellationControlPerPatchOutputComponents: %u\n", deviceProperties.limits.maxTessellationControlPerPatchOutputComponents);
+        printf("\tmaxTessellationControlTotalOutputComponents: %u\n", deviceProperties.limits.maxTessellationControlTotalOutputComponents);
+        printf("\tmaxTessellationEvaluationInputComponents: %u\n", deviceProperties.limits.maxTessellationEvaluationInputComponents);
+        printf("\tmaxTessellationEvaluationOutputComponents: %u\n", deviceProperties.limits.maxTessellationEvaluationOutputComponents);
+        printf("\tmaxGeometryShaderInvocations: %u\n", deviceProperties.limits.maxGeometryShaderInvocations);
+        printf("\tmaxGeometryInputComponents: %u\n", deviceProperties.limits.maxGeometryInputComponents);
+        printf("\tmaxGeometryOutputComponents: %u\n", deviceProperties.limits.maxGeometryOutputComponents);
+        printf("\tmaxGeometryOutputVertices: %u\n", deviceProperties.limits.maxGeometryOutputVertices);
+        printf("\tmaxGeometryTotalOutputComponents: %u\n", deviceProperties.limits.maxGeometryTotalOutputComponents);
+        printf("\tmaxFragmentInputComponents: %u\n", deviceProperties.limits.maxFragmentInputComponents);
+        printf("\tmaxFragmentOutputAttachments: %u\n", deviceProperties.limits.maxFragmentOutputAttachments);
+        printf("\tmaxFragmentDualSrcAttachments: %u\n", deviceProperties.limits.maxFragmentDualSrcAttachments);
+        printf("\tmaxFragmentCombinedOutputResources: %u\n", deviceProperties.limits.maxFragmentCombinedOutputResources);
+        printf("\tmaxComputeSharedMemorySize: %u\n", deviceProperties.limits.maxComputeSharedMemorySize);
+        printf("\tmaxComputeWorkGroupCount[0]: %u\n", deviceProperties.limits.maxComputeWorkGroupCount[0]);
+        printf("\tmaxComputeWorkGroupCount[1]: %u\n", deviceProperties.limits.maxComputeWorkGroupCount[1]);
+        printf("\tmaxComputeWorkGroupCount[2]: %u\n", deviceProperties.limits.maxComputeWorkGroupCount[2]);
+        printf("\tmaxComputeWorkGroupInvocations: %u\n", deviceProperties.limits.maxComputeWorkGroupInvocations);
+        printf("\tmaxComputeWorkGroupSize[0]: %u\n", deviceProperties.limits.maxComputeWorkGroupSize[0]);
+        printf("\tmaxComputeWorkGroupSize[1]: %u\n", deviceProperties.limits.maxComputeWorkGroupSize[1]);
+        printf("\tmaxComputeWorkGroupSize[2]: %u\n", deviceProperties.limits.maxComputeWorkGroupSize[2]);
+        printf("\tsubPixelPrecisionBits: %u\n", deviceProperties.limits.subPixelPrecisionBits);
+        printf("\tsubTexelPrecisionBits: %u\n", deviceProperties.limits.subTexelPrecisionBits);
+        printf("\tmipmapPrecisionBits: %u\n", deviceProperties.limits.mipmapPrecisionBits);
+        printf("\tmaxDrawIndexedIndexValue: %u\n", deviceProperties.limits.maxDrawIndexedIndexValue);
+        printf("\tmaxDrawIndirectCount: %u\n", deviceProperties.limits.maxDrawIndirectCount);
+        printf("\tmaxSamplerLodBias: %f\n", deviceProperties.limits.maxSamplerLodBias);
+        printf("\tmaxSamplerAnisotropy: %f\n", deviceProperties.limits.maxSamplerAnisotropy);
+        printf("\tmaxViewports: %u\n", deviceProperties.limits.maxViewports);
+        printf("\tmaxViewportDimensions[0]: %u\n", deviceProperties.limits.maxViewportDimensions[0]);
+        printf("\tmaxViewportDimensions[1]: %u\n", deviceProperties.limits.maxViewportDimensions[1]);
+        printf("\tviewportBoundsRange[0]: %f\n", deviceProperties.limits.viewportBoundsRange[0]);
+        printf("\tviewportBoundsRange[1]: %f\n", deviceProperties.limits.viewportBoundsRange[1]);
+        printf("\tviewportSubPixelBits: %u\n", deviceProperties.limits.viewportSubPixelBits);
+        printf("\tminMemoryMapAlignment: %lu\n", deviceProperties.limits.minMemoryMapAlignment);
+        printf("\tminTexelBufferOffsetAlignment: %lu\n", deviceProperties.limits.minTexelBufferOffsetAlignment);
+        printf("\tminUniformBufferOffsetAlignment: %lu\n", deviceProperties.limits.minUniformBufferOffsetAlignment);
+        printf("\tminStorageBufferOffsetAlignment: %lu\n", deviceProperties.limits.minStorageBufferOffsetAlignment);
+        printf("\tminTexelOffset: %u\n", deviceProperties.limits.minTexelOffset);
+        printf("\tmaxTexelOffset: %u\n", deviceProperties.limits.maxTexelOffset);
+        printf("\tminTexelGatherOffset: %u\n", deviceProperties.limits.minTexelGatherOffset);
+        printf("\tmaxTexelGatherOffset: %u\n", deviceProperties.limits.maxTexelGatherOffset);
+        printf("\tminInterpolationOffset: %f\n", deviceProperties.limits.minInterpolationOffset);
+        printf("\tmaxInterpolationOffset: %f\n", deviceProperties.limits.maxInterpolationOffset);
+        printf("\tsubPixelInterpolationOffsetBits: %u\n", deviceProperties.limits.subPixelInterpolationOffsetBits);
+        printf("\tmaxFramebufferWidth: %u\n", deviceProperties.limits.maxFramebufferWidth);
+        printf("\tmaxFramebufferHeight: %u\n", deviceProperties.limits.maxFramebufferHeight);
+        printf("\tmaxFramebufferLayers: %u\n", deviceProperties.limits.maxFramebufferLayers);
+        printf("\tframebufferColorSampleCounts: %u\n", deviceProperties.limits.framebufferColorSampleCounts);
+        printf("\tframebufferDepthSampleCounts: %u\n", deviceProperties.limits.framebufferDepthSampleCounts);
+        printf("\tframebufferStencilSampleCounts: %u\n", deviceProperties.limits.framebufferStencilSampleCounts);
+        printf("\tframebufferNoAttachmentsSampleCounts: %u\n", deviceProperties.limits.framebufferNoAttachmentsSampleCounts);
+        printf("\tmaxColorAttachments: %u\n", deviceProperties.limits.maxColorAttachments);
+        printf("\tsampledImageColorSampleCounts: %u\n", deviceProperties.limits.sampledImageColorSampleCounts);
+        printf("\tsampledImageIntegerSampleCounts: %u\n", deviceProperties.limits.sampledImageIntegerSampleCounts);
+        printf("\tsampledImageDepthSampleCounts: %u\n", deviceProperties.limits.sampledImageDepthSampleCounts);
+        printf("\tsampledImageStencilSampleCounts: %u\n", deviceProperties.limits.sampledImageStencilSampleCounts);
+        printf("\tstorageImageSampleCounts: %u\n", deviceProperties.limits.storageImageSampleCounts);
+        printf("\tmaxSampleMaskWords: %u\n", deviceProperties.limits.maxSampleMaskWords);
+        printf("\ttimestampComputeAndGraphics: %s\n", deviceProperties.limits.timestampComputeAndGraphics ? "true" : "false");
+        printf("\ttimestampPeriod: %f\n", deviceProperties.limits.timestampPeriod);
+        printf("\tmaxClipDistances: %u\n", deviceProperties.limits.maxClipDistances);
+        printf("\tmaxCullDistances: %u\n", deviceProperties.limits.maxCullDistances);
+        printf("\tmaxCombinedClipAndCullDistances: %u\n", deviceProperties.limits.maxCombinedClipAndCullDistances);
+        printf("\tdiscreteQueuePriorities: %u\n", deviceProperties.limits.discreteQueuePriorities);
+        printf("\tpointSizeRange[0]: %f\n", deviceProperties.limits.pointSizeRange[0]);
+        printf("\tpointSizeRange[1]: %f\n", deviceProperties.limits.pointSizeRange[1]);
+        printf("\tlineWidthRange[0]: %f\n", deviceProperties.limits.lineWidthRange[0]);
+        printf("\tlineWidthRange[1]: %f\n", deviceProperties.limits.lineWidthRange[1]);
+        printf("\tpointSizeGranularity: %f\n", deviceProperties.limits.pointSizeGranularity);
+        printf("\tlineWidthGranularity: %f\n", deviceProperties.limits.lineWidthGranularity);
+        printf("\tstrictLines: %s\n", deviceProperties.limits.strictLines ? "true" : "false");
+        printf("\tstandardSampleLocations: %s\n", deviceProperties.limits.standardSampleLocations ? "true" : "false");
+        printf("\toptimalBufferCopyOffsetAlignment: %lu\n", deviceProperties.limits.optimalBufferCopyOffsetAlignment);
+        printf("\toptimalBufferCopyRowPitchAlignment: %lu\n", deviceProperties.limits.optimalBufferCopyRowPitchAlignment);
+        printf("\tnonCoherentAtomSize: %lu\n", deviceProperties.limits.nonCoherentAtomSize);
+        printf("---- deviceProperties.limits ----\n");
+    }
 
     // find queue indices
     uint32_t queueFamilyCount = 0;
@@ -1173,8 +1313,8 @@ void RenderDevice::setupImGui()
     initInfo.Queue = graphicsQueue;
     initInfo.PipelineCache = nullptr;
     initInfo.DescriptorPool = descriptorPool;
-    initInfo.MinImageCount = FRAMES_IN_FLIGHT;
-    initInfo.ImageCount = FRAMES_IN_FLIGHT;
+    initInfo.MinImageCount = 2;
+    initInfo.ImageCount = 2;
     initInfo.Allocator = nullptr;
     initInfo.CheckVkResultFn = nullptr;
     initInfo.UseDynamicRendering = true;

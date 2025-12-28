@@ -1,12 +1,13 @@
 #include "cycle/gltf_loader.h"
 
+#include <filesystem>
+
 #include "cgltf.h"
 #include "cycle/types/id.h"
 #include "cycle/types/material.h"
 #include "cycle/types/mesh.h"
 
 #include "cycle/resource_manager.h"
-#include <filesystem>
 
 namespace gltf
 {
@@ -82,15 +83,49 @@ namespace gltf
             cgltf_accessor_unpack_indices(primitive.indices, mesh.indices.data(), 4, mesh.indices.size());
 
             // load materials
-            if (primitive.material) {
-                Material material;
+            cgltf_material *gltfMaterial = primitive.material;
+            if (gltfMaterial) {
+                Material material = {};
 
-                if (primitive.material->has_pbr_metallic_roughness) {
-                    if (primitive.material->pbr_metallic_roughness.base_color_texture.texture) {
-                        cgltf_image *gltfImage = primitive.material->pbr_metallic_roughness.base_color_texture.texture->image;
+                if (gltfMaterial->has_pbr_metallic_roughness) {
+                    // base color
+                    if (gltfMaterial->pbr_metallic_roughness.base_color_texture.texture) {
+                        cgltf_image *gltfImage = gltfMaterial->pbr_metallic_roughness.base_color_texture.texture->image;
                         const char *uri = gltfImage->uri;
 
-                        material.baseColorTexture = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
+                        if (uri) {
+                            material.baseColorTexID = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
+                        }
+                    }
+
+                    // metallic roughness
+                    if (gltfMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture) {
+                        cgltf_image *gltfImage = gltfMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image;
+                        const char *uri = gltfImage->uri;
+
+                        if (uri) {
+                            material.metallicRoughnessTexID = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
+                        }
+                    }
+
+                    // normal
+                    if (gltfMaterial->normal_texture.texture) {
+                        cgltf_image *gltfImage = gltfMaterial->normal_texture.texture->image;
+                        const char *uri = gltfImage->uri;
+
+                        if (uri) {
+                            material.normalTexID = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
+                        }
+                    }
+
+                    // emissive
+                    if (gltfMaterial->emissive_texture.texture) {
+                        cgltf_image *gltfImage = gltfMaterial->emissive_texture.texture->image;
+                        const char *uri = gltfImage->uri;
+
+                        if (uri) {
+                            material.emissiveTexID = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
+                        }
                     }
                 }
 

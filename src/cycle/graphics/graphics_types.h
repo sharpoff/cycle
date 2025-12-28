@@ -38,7 +38,7 @@ using QueueFlags = uint32_t;
 struct Allocation
 {
     VmaAllocation     handle = VK_NULL_HANDLE;
-    VmaAllocationInfo info;
+    VmaAllocationInfo info = {};
 };
 
 //========================
@@ -141,7 +141,7 @@ struct BufferCreateInfo
 
 struct Buffer
 {
-    uint64_t         size;
+    uint64_t         size = 0;
     BufferUsageFlags usage;
 
     VkBuffer        buffer = VK_NULL_HANDLE;

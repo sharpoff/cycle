@@ -4,5 +4,8 @@
 
 struct Material
 {
-    TextureID baseColorTexture = TextureID::Invalid;
+    TextureID baseColorTexID = TextureID::Invalid;
+    TextureID metallicRoughnessTexID = TextureID::Invalid;
+    TextureID normalTexID = TextureID::Invalid;
+    TextureID emissiveTexID = TextureID::Invalid;
 };

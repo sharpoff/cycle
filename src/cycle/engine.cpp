@@ -37,7 +37,18 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
     renderer.init(window);
     renderer.setCamera(&camera);
 
-    resourceManager.init(&renderer.getRenderDevice());
+    // load models
+    {
+        ModelID modelID = ModelID::Invalid;
+        modelID = resourceManager.loadModelFromFile("sponza", modelsDir / "sponza/Sponza.gltf");
+
+        Model *sponzaModel = resourceManager.getModelByID(modelID);
+        if (sponzaModel) {
+            sponzaModel->worldMatrix = glm::scale(vec3(0.01f));
+        }
+    }
+
+    // should be called *after* loading models/textures/materials
     renderer.loadResources();
 
     // physics.init();
@@ -109,13 +120,18 @@ void Engine::processEvents()
         }
     }
 
-    ImGuiIO &io = ImGui::GetIO();
-    if (io.WantCaptureKeyboard)
-        return; // skip keyboard handling
-
     if (input.isKeyDown(KeyboardKey::ESCAPE)) {
         running = false;
     }
+
+    if (input.isKeyDown(KeyboardKey::P)) {
+        LOGI("%s", "Reloading shaders");
+        renderer.recreatePipelines();
+    }
+
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.WantCaptureKeyboard)
+        return; // skip keyboard handling
 
     // camera movement
     if (input.isKeyDown(KeyboardKey::LSHIFT)) {
@@ -138,14 +154,4 @@ void Engine::processEvents()
     }
 
     camera.move(mat3(camera.getRotation()) * camTranslation);
-}
-
-bool Engine::isRunning()
-{
-    return running;
-}
-
-SDL_Window *Engine::getWindow()
-{
-    return window;
 }

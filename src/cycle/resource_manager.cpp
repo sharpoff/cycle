@@ -6,7 +6,7 @@
 #include "cycle/logger.h"
 #include "stb_image.h"
 
-void ResourceManager::init(RenderDevice *renderDevice)
+void ResourceManager::setRenderDevice(RenderDevice *renderDevice)
 {
     assert(renderDevice);
     this->renderDevice = renderDevice;
@@ -14,6 +14,7 @@ void ResourceManager::init(RenderDevice *renderDevice)
 
 void ResourceManager::destroyAllResources()
 {
+    assert(renderDevice);
     for (Image &texture : textures) {
         renderDevice->destroyImage(texture);
     }
@@ -46,6 +47,8 @@ ModelID ResourceManager::loadModelFromFile(String name, String filename)
 
 TextureID ResourceManager::loadTextureFromFile(String name, String filename)
 {
+    assert(renderDevice);
+
     uint32_t width, height, channels;
     unsigned char *pixels = stbi_load(filename.c_str(), (int *)&width, (int *)&height, (int *)&channels, STBI_rgb_alpha);
     if (!pixels) {
@@ -58,7 +61,7 @@ TextureID ResourceManager::loadTextureFromFile(String name, String filename)
         .width = width,
         .height = height,
         .usage = IMAGE_USAGE_SAMPLED | IMAGE_USAGE_TRANSFER_DST,
-        .format = IMAGE_FORMAT_R8G8B8A8_UNORM,
+        .format = IMAGE_FORMAT_R8G8B8A8_SRGB,
     };
 
     Image image;
@@ -72,13 +75,17 @@ TextureID ResourceManager::loadTextureFromFile(String name, String filename)
 
 void ResourceManager::uploadMeshBuffers(Mesh &mesh)
 {
+    assert(renderDevice);
+
     // vertices
     {
         const BufferCreateInfo createInfo = {
             .size = mesh.vertices.size() * sizeof(Vertex),
             .usage = BUFFER_USAGE_DEVICE_ADDRESS | BUFFER_USAGE_TRANSFER_DST,
         };
-        renderDevice->createBuffer(mesh.vertexBuffer, createInfo);
+
+        bool created = renderDevice->createBuffer(mesh.vertexBuffer, createInfo);
+        assert(created);
 
         renderDevice->uploadBufferData(mesh.vertexBuffer, mesh.vertices.data(), createInfo.size);
     }
@@ -89,7 +96,9 @@ void ResourceManager::uploadMeshBuffers(Mesh &mesh)
             .size = mesh.indices.size() * sizeof(uint32_t),
             .usage = BUFFER_USAGE_INDEX | BUFFER_USAGE_TRANSFER_DST,
         };
-        renderDevice->createBuffer(mesh.indexBuffer, createInfo);
+
+        bool created = renderDevice->createBuffer(mesh.indexBuffer, createInfo);
+        assert(created);
 
         renderDevice->uploadBufferData(mesh.indexBuffer, mesh.indices.data(), createInfo.size);
     }

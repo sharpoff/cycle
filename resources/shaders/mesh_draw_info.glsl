@@ -17,7 +17,7 @@ layout(push_constant) uniform MeshDrawInfo
 {
     mat4 worldMatrix;
     VertexBuffer vertexBuffer;
-    // IndexBuffer indexBuffer;
+    uint materialID;
 } meshDrawInfo;
 
 #endif
