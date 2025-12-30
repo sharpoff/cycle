@@ -31,16 +31,32 @@ using glm::vec4;
 
 namespace math
 {
+    // https://www.vincentparizet.com/blog/posts/vulkan_perspective_matrix/
     inline mat4 perspective(float fov, float aspectRatio, float near, float far)
     {
-        // https://www.vincentparizet.com/blog/posts/vulkan_perspective_matrix/
         float f = 1.0f / tan(fov * 0.5f);
 
+        // clang-format off
         return mat4(
             f / aspectRatio, 0, 0, 0,
             0, -f, 0, 0,
             0, 0, near / (far - near), -1,
             0, 0, far * near / (far - near), 0
         );
+        // clang-format on
+    }
+
+    inline mat4 perspectiveInf(float fov, float aspectRatio, float near)
+    {
+        float f = 1.0f / tanf(fov * 0.5f);
+
+        // clang-format off
+        return mat4(
+            f / aspectRatio, 0.0f, 0.0f, 0.0f,
+            0.0f, -f, 0.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, -1.0f,
+            0.0f, 0.0f, near, 0.0f
+        );
+        // clang-format on
     }
 } // namespace math

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 4.2)
 project(cycle LANGUAGES C CXX)
 
+set(CMAKE_CXX_STANDARD 17)
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()

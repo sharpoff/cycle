@@ -1,9 +1,5 @@
 #include "cycle/graphics/command_encoder.h"
 
-#include "cycle/graphics/graphics_types.h"
-#include "cycle/graphics/vulkan_helpers.h"
-#include "cycle/math.h"
-
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_vulkan.h"
 
@@ -20,15 +16,13 @@ void CommandEncoder::drawIndexed(uint32_t indexCount, uint32_t instanceCount, ui
 void CommandEncoder::bindPipeline(RenderPipeline &pipeline)
 {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
-    if (!pipeline.layout->descriptorSets.empty())
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout->layout, 0, pipeline.layout->descriptorSets.size(), pipeline.layout->descriptorSets.data(), 0, nullptr);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout->layout, 0, 1, &pipeline.layout->descriptorSet, 0, nullptr);
 }
 
 void CommandEncoder::bindPipeline(ComputePipeline &pipeline)
 {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipeline);
-    if (!pipeline.layout->descriptorSets.empty())
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.layout->layout, 0, pipeline.layout->descriptorSets.size(), pipeline.layout->descriptorSets.data(), 0, nullptr);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.layout->layout, 0, 1, &pipeline.layout->descriptorSet, 0, nullptr);
 }
 
 void CommandEncoder::bindVertexBuffer(Buffer &vertexBuffer)
@@ -42,161 +36,17 @@ void CommandEncoder::bindIndexBuffer(Buffer &indexBuffer)
     vkCmdBindIndexBuffer(cmd, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void CommandEncoder::beginRendering(const RenderingInfo &renderInfo)
+void CommandEncoder::beginRendering(const VkRenderingInfo &renderInfo)
 {
-    VkRenderingAttachmentInfo depthInfo = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+    vkCmdBeginRendering(cmd, &renderInfo);
 
-    Vector<VkImageMemoryBarrier> barriers;
-    VkPipelineStageFlags srcPipelineStage = 0;
-    VkPipelineStageFlags dstPipelineStage = 0;
-
-    if (renderInfo.depthAttachment) {
-        const AttachmentInfo &attachment = *renderInfo.depthAttachment;
-
-        depthInfo.clearValue.depthStencil = {0.0f, 0};
-        depthInfo.loadOp = attachment.load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depthInfo.storeOp = attachment.store ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthInfo.imageView = attachment.image->view;
-        depthInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-
-        VkImageMemoryBarrier &barrier = barriers.emplace_back();
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier.newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = attachment.image->image;
-        barrier.subresourceRange = vulkan::getImageSubresourceRange(*attachment.image);
-        srcPipelineStage |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-        dstPipelineStage |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    }
-
-    Vector<VkRenderingAttachmentInfo> colorAttachments;
-    for (size_t i = 0; i < renderInfo.colorAttachments.size(); i++) {
-        const AttachmentInfo &attachment = renderInfo.colorAttachments[i];
-
-        VkRenderingAttachmentInfo &info = colorAttachments.emplace_back();
-        info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        info.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-        info.loadOp = attachment.load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
-        info.storeOp = attachment.store ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        info.imageView = attachment.image->view;
-        info.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-        VkImageMemoryBarrier &barrier = barriers.emplace_back();
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier.newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = attachment.image->image;
-        barrier.subresourceRange = vulkan::getImageSubresourceRange(*attachment.image);
-        srcPipelineStage |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dstPipelineStage |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    }
-
-    // insert barriers
-    vkCmdPipelineBarrier(cmd,
-        srcPipelineStage, dstPipelineStage, // stages
-        0,
-        0, nullptr, // memory barriers
-        0, nullptr, // buffer memory barriers
-        barriers.size(), barriers.data() // image memory barriers
-    );
-
-    uint32_t width = renderInfo.renderAreaExtent.x;
-    uint32_t height = renderInfo.renderAreaExtent.y;
-
-    // begin rendering
-    VkRenderingInfo vulkanRenderingInfo = {VK_STRUCTURE_TYPE_RENDERING_INFO};
-    vulkanRenderingInfo.renderArea.offset = {};
-    vulkanRenderingInfo.renderArea.extent = {width, height};
-    vulkanRenderingInfo.pDepthAttachment = &depthInfo;
-    vulkanRenderingInfo.pColorAttachments = colorAttachments.data();
-    vulkanRenderingInfo.colorAttachmentCount = colorAttachments.size();
-    vulkanRenderingInfo.layerCount = 1;
-
-    vkCmdBeginRendering(cmd, &vulkanRenderingInfo);
-
-    setViewport(0.0f, 0.0f, width, height);
-    setScissor(0.0f, 0.0f, width, height);
-
-    renderInfos.push(renderInfo);
+    setViewport(0.0f, 0.0f, renderInfo.renderArea.extent.width, renderInfo.renderArea.extent.height);
+    setScissor(0.0f, 0.0f, renderInfo.renderArea.extent.width, renderInfo.renderArea.extent.height);
 }
 
 void CommandEncoder::endRendering()
 {
     vkCmdEndRendering(cmd);
-
-    RenderingInfo &renderInfo = renderInfos.front();
-
-    Vector<VkImageMemoryBarrier> barriers;
-    VkPipelineStageFlags srcPipelineStage = 0;
-    VkPipelineStageFlags dstPipelineStage = 0;
-
-    Vector<AttachmentInfo> &colorAttachments = renderInfo.colorAttachments;
-    for (auto &attachment : colorAttachments) {
-        // XXX: probably some color images would like some barriers too. add layout tracking for other images
-        if (!attachment.image->isSwapchain) { // find swapchain image
-            continue;
-        }
-
-        VkImageMemoryBarrier &swapchainBarrier = barriers.emplace_back();
-        swapchainBarrier.sType = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-        swapchainBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        swapchainBarrier.dstAccessMask = 0;
-        swapchainBarrier.oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-        swapchainBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        swapchainBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        swapchainBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        swapchainBarrier.image = attachment.image->image;
-        swapchainBarrier.subresourceRange.levelCount = 1;
-        swapchainBarrier.subresourceRange.baseMipLevel = 0;
-        swapchainBarrier.subresourceRange.baseArrayLayer = 0;
-        swapchainBarrier.subresourceRange.layerCount = 1;
-        swapchainBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-
-        srcPipelineStage |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dstPipelineStage |= VK_PIPELINE_STAGE_NONE;
-
-        break; // swapchain image should only be one
-    }
-
-    if (renderInfo.depthAttachment) {
-        const AttachmentInfo &attachment = *renderInfo.depthAttachment;
-
-        // guard write after write
-        // XXX: probably should also guard read/write and other accesses with READ/WRITE bits?
-        VkImageMemoryBarrier &barrier = barriers.emplace_back();
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = attachment.image->image;
-        barrier.subresourceRange = vulkan::getImageSubresourceRange(*attachment.image);
-        srcPipelineStage |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-        dstPipelineStage |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    }
-
-    if (!barriers.empty()) {
-        vkCmdPipelineBarrier(cmd,
-            srcPipelineStage, dstPipelineStage, // stages
-            0,
-            0, nullptr, // memory barriers
-            0, nullptr, // buffer memory barriers
-            barriers.size(), barriers.data() // image memory barriers
-        );
-    }
-
-
-    renderInfos.pop();
 }
 
 void CommandEncoder::setViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
@@ -221,9 +71,9 @@ void CommandEncoder::setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 }
 
-void CommandEncoder::pushConstants(PipelineLayout &pipelineLayout, ShaderStageFlags shaderStage, void *data, uint32_t size, uint32_t offset)
+void CommandEncoder::pushConstants(PipelineLayout &pipelineLayout, VkShaderStageFlags shaderStage, void *data, uint32_t size, uint32_t offset)
 {
-    vkCmdPushConstants(cmd, pipelineLayout.layout, vulkan::getShaderStageFlags(shaderStage), offset, size, data);
+    vkCmdPushConstants(cmd, pipelineLayout.layout, shaderStage, offset, size, data);
 }
 
 void CommandEncoder::beginImGuiFrame()

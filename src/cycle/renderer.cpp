@@ -1,18 +1,19 @@
 #include "cycle/renderer.h"
 
 #include "cycle/filesystem.h"
-#include "cycle/graphics/graphics_types.h"
 #include "cycle/graphics/render_device.h"
+#include "cycle/graphics/vulkan_helpers.h"
 #include "cycle/types/id.h"
 
 #include "cycle/globals.h"
-#include "cycle/resource_manager.h"
 
 #include "cycle/types/material.h"
-#include "imgui.h"
+#include "cycle/types/render_data.h"
 
 #include "cycle/types/shader_data.h"
 #include <filesystem>
+
+#include "imgui.h"
 
 void Renderer::init(SDL_Window *window)
 {
@@ -20,8 +21,11 @@ void Renderer::init(SDL_Window *window)
 
     device.init(window);
 
-    ResourceManager &resourceManager = g_engine->getResourceManager();
-    resourceManager.setRenderDevice(&device);
+    // init all resource managers
+    g_textureManager->init(&device);
+    g_meshManager->init(&device);
+    g_materialManager->init();
+    g_modelManager->init();
 
     createAttachmentImages();
 
@@ -29,7 +33,7 @@ void Renderer::init(SDL_Window *window)
     {
         const BufferCreateInfo createInfo = {
             .size = sizeof(SceneInfo),
-            .usage = BUFFER_USAGE_UNIFORM,
+            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         };
 
         bool created = device.createBuffer(sceneInfoBuffer, createInfo);
@@ -40,11 +44,11 @@ void Renderer::init(SDL_Window *window)
     {
         { // linear
             SamplerCreateInfo samplerCreateInfo = {};
-            samplerCreateInfo.magFilter = SAMPLER_FILTER_LINEAR;
-            samplerCreateInfo.minFilter = SAMPLER_FILTER_LINEAR;
-            samplerCreateInfo.addressModeU = SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.addressModeV = SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.addressModeW = SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
             bool created = device.createSampler(linearSampler, samplerCreateInfo);
             assert(created);
@@ -52,11 +56,11 @@ void Renderer::init(SDL_Window *window)
 
         { // nearest
             SamplerCreateInfo samplerCreateInfo = {};
-            samplerCreateInfo.magFilter = SAMPLER_FILTER_NEAREST;
-            samplerCreateInfo.minFilter = SAMPLER_FILTER_NEAREST;
-            samplerCreateInfo.addressModeU = SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.addressModeV = SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.addressModeW = SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+            samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+            samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
             bool created = device.createSampler(nearestSampler, samplerCreateInfo);
             assert(created);
@@ -66,44 +70,37 @@ void Renderer::init(SDL_Window *window)
     // create default resources
     {
         // create default texture
-        auto texID = resourceManager.loadTextureFromFile("default", texturesDir / "checkerboard.png");
+        auto texID = g_textureManager->createTexture(texturesDir / "checkerboard.png", "default");
         assert(texID != TextureID::Invalid && (uint32_t)texID == DEFAULT_TEXTURE_ID);
 
-        // create default material
-        auto matID = resourceManager.addMaterial("default", {.baseColorTexID = texID});
-        assert(matID != MaterialID::Invalid && (uint32_t)matID == DEFAULT_MATERIAL_ID);
+        // add default material
+        g_materialManager->addMaterial(Material{.baseColorTexID = texID}, "default");
     }
 
     // create pipeline layout
     {
-        const Vector<DescriptorSetLayoutBinding> bindings0 = {
-            {0, DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, SHADER_STAGE_VERTEX}, // scene data
-            {1, DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024, SHADER_STAGE_FRAGMENT}, // textures
-            {2, DESCRIPTOR_TYPE_SAMPLER, 2, SHADER_STAGE_FRAGMENT}, // samplers
-            {3, DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, SHADER_STAGE_FRAGMENT}, // materials
+        const Vector<VkDescriptorSetLayoutBinding> bindings = {
+            {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT}, // scene data
+            {1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024, VK_SHADER_STAGE_FRAGMENT_BIT}, // textures
+            {2, VK_DESCRIPTOR_TYPE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT}, // samplers
+            {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT}, // materials
         };
 
-        const Vector<DescriptorSetLayout> descriptorSetLayouts = {
-            {bindings0}, // set 0
-        };
-
-        const Vector<PushConstantRange> pushConstantRanges = {
-            {SHADER_STAGE_VERTEX | SHADER_STAGE_FRAGMENT, 0, sizeof(MeshDrawInfo)}};
+        const Vector<VkPushConstantRange> pushConstantRanges = {
+            {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshDrawInfo)}};
 
         PipelineLayoutCreateInfo layoutCreateInfo = {};
-        layoutCreateInfo.descriptorSetLayouts = descriptorSetLayouts;
+        layoutCreateInfo.descriptorSetLayoutBindings = bindings;
         layoutCreateInfo.pushConstantRanges = pushConstantRanges;
         device.createPipelineLayout(geometryPipelineLayout, layoutCreateInfo);
     }
     createPipelines();
 
     // write static descriptors
-    device.writeDescriptor(0, sceneInfoBuffer, DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-
-    device.writeDescriptor(2, linearSampler, DESCRIPTOR_TYPE_SAMPLER, SAMPLER_LINEAR_ID);
-    device.writeDescriptor(2, nearestSampler, DESCRIPTOR_TYPE_SAMPLER, SAMPLER_NEAREST_ID);
-
-    device.updateDescriptors(geometryPipelineLayout, bindlessDescriptorSet);
+    device.writeDescriptor(0, sceneInfoBuffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    device.writeDescriptor(2, linearSampler, VK_DESCRIPTOR_TYPE_SAMPLER, SAMPLER_LINEAR_ID);
+    device.writeDescriptor(2, nearestSampler, VK_DESCRIPTOR_TYPE_SAMPLER, SAMPLER_NEAREST_ID);
+    device.updateDescriptors(geometryPipelineLayout);
 }
 
 void Renderer::shutdown()
@@ -112,8 +109,8 @@ void Renderer::shutdown()
 
     destroyAttachmentImages();
 
-    ResourceManager &resourceManager = g_engine->getResourceManager();
-    resourceManager.destroyAllResources();
+    g_textureManager->release();
+    g_meshManager->release();
 
     device.destroyBuffer(sceneInfoBuffer);
     device.destroyBuffer(materialsBuffer);
@@ -129,9 +126,8 @@ void Renderer::shutdown()
 
 void Renderer::loadResources()
 {
-    ResourceManager &resourceManager = g_engine->getResourceManager();
-    auto &materials = resourceManager.getMaterials();
-    auto &textures = resourceManager.getTextures();
+    auto &materials = g_materialManager->getMaterials();
+    auto &textures = g_textureManager->getTextures();
 
     // create materials buffer
     if (materials.size() > 0) {
@@ -141,41 +137,41 @@ void Renderer::loadResources()
 
         const BufferCreateInfo createInfo = {
             .size = sizeof(Material) * materials.size(),
-            .usage = BUFFER_USAGE_STORAGE | BUFFER_USAGE_TRANSFER_DST,
+            .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
         bool created = device.createBuffer(materialsBuffer, createInfo);
         assert(created);
 
-        device.uploadBufferData(materialsBuffer, resourceManager.getMaterials().data(), createInfo.size);
+        device.uploadBufferData(materialsBuffer, materials.data(), createInfo.size);
     }
 
     // write dynamic descriptors
     for (size_t i = 0; i < textures.size(); i++) {
         auto &texture = textures[i];
-        device.writeDescriptor(1, texture, DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
+        device.writeDescriptor(1, texture, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
     }
 
     if (materials.size() > 0)
-        device.writeDescriptor(3, materialsBuffer, DESCRIPTOR_TYPE_STORAGE_BUFFER);
+        device.writeDescriptor(3, materialsBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 
-    device.updateDescriptors(geometryPipelineLayout, bindlessDescriptorSet);
+    device.updateDescriptors(geometryPipelineLayout);
 }
 
-void Renderer::recreatePipelines()
+void Renderer::reloadShaders()
 {
     device.waitIdle();
 
-    device.destroyRenderPipeline(geometryPipeline);
-
     compileShaders();
+
+    device.destroyRenderPipeline(geometryPipeline);
     createPipelines();
 }
 
-void Renderer::draw()
+void Renderer::draw(const Vector<RenderData> &renderData)
 {
     CommandEncoder cmdEncoder = {};
-    if (!device.beginCommandEncoding(cmdEncoder)) {
+    if (!device.beginCommandBuffer(cmdEncoder)) {
         // recreate all swapchain dependant resources
         destroyAttachmentImages();
         createAttachmentImages();
@@ -184,54 +180,72 @@ void Renderer::draw()
 
     updateDynamicData();
 
-    AttachmentInfo swapchainAttachment = {
-        .image = &device.getSwapchainImage(),
-        .load = false,
-        .store = true,
+    barriers.transitionImage(colorImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    barriers.transitionImage(depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+    barriers.transitionImage(device.getSwapchainImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    barriers.flushBarriers(cmdEncoder.cmd);
+
+    //===========================
+    // Render meshes
+    //===========================
+
+    VkExtent2D renderArea = {device.getSwapchainWidth(), device.getSwapchainHeight()};
+
+    Vector<VkRenderingAttachmentInfo> colorAttachments = {
+        // vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true),
+        vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, device.getSwapchainImageView(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
     };
+    VkRenderingAttachmentInfo depthAttachment = vulkan::createAttachmentInfo(depthImage.view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, true);
 
-    AttachmentInfo depthAttachment = {
-        .image = &depthImage,
-        .load = false,
-        .store = true,
-    };
-
-    cmdEncoder.beginRendering({
-        .renderAreaExtent = {device.getSwapchainWidth(), device.getSwapchainHeight()},
-        .colorAttachments = {swapchainAttachment},
-        .depthAttachment = &depthAttachment,
-    });
-
-    ResourceManager &resourceManager = g_engine->getResourceManager();
+    VkRenderingInfo renderingInfo = vulkan::createRenderingInfo(renderArea, colorAttachments, &depthAttachment);
+    cmdEncoder.beginRendering(renderingInfo);
 
     cmdEncoder.bindPipeline(geometryPipeline);
-    if (Model *model = resourceManager.getModelByName("sponza"); model != nullptr) {
-        for (MeshID meshID : model->meshes) {
-            if (meshID == MeshID::Invalid)
-                continue;
+    for (const RenderData &rd : renderData) {
+        Model *model = g_modelManager->getModelByID(rd.modelID);
+        if (!model)
+            continue;
 
-            Mesh *mesh = resourceManager.getMeshByID(meshID);
+        mat4 worldMatrix = rd.transform.getMatrix();
+        for (MeshID meshID : model->meshes) {
+            Mesh *mesh = g_meshManager->getMeshByID(meshID);
             if (!mesh)
                 continue;
 
             MeshDrawInfo push = {};
-            push.worldMatrix = model->worldMatrix * mesh->worldMatrix;
+            push.worldMatrix = worldMatrix * mesh->worldMatrix;
             push.vertexBufferAddress = mesh->vertexBuffer.address;
             push.materialId = mesh->materialID != MaterialID::Invalid ? (unsigned int)mesh->materialID : DEFAULT_MATERIAL_ID;
-            cmdEncoder.pushConstants(geometryPipelineLayout, SHADER_STAGE_VERTEX | SHADER_STAGE_FRAGMENT, &push, sizeof(push));
+            cmdEncoder.pushConstants(geometryPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &push, sizeof(push));
 
             cmdEncoder.bindIndexBuffer(mesh->indexBuffer);
             cmdEncoder.drawIndexed(mesh->indices.size(), 1, 0, 0, 0);
         }
     }
-
-    // render imgui
-    cmdEncoder.beginImGuiFrame();
-    ImGui::ShowDemoWindow();
-    cmdEncoder.endImGuiFrame();
-
     cmdEncoder.endRendering();
-    device.endCommandEncoding(cmdEncoder);
+
+    //===========================
+    // render imgui
+    //===========================
+    // {
+    //     Vector<VkRenderingAttachmentInfo> colorAttachments = {
+    //         vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, device.getSwapchainImageView(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
+    //     };
+
+    //     VkRenderingInfo renderingInfo = vulkan::createRenderingInfo(renderArea, colorAttachments, &depthAttachment);
+    //     cmdEncoder.beginRendering(renderingInfo);
+
+    //     cmdEncoder.beginImGuiFrame();
+    //     ImGui::ShowDemoWindow();
+    //     cmdEncoder.endImGuiFrame();
+
+    //     cmdEncoder.endRendering();
+    // }
+
+    barriers.transitionImage(device.getSwapchainImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    barriers.flushBarriers(cmdEncoder.cmd);
+
+    device.endCommandBuffer(cmdEncoder);
 
     if (!device.swapchainPresent()) {
         // recreate all swapchain dependant resources
@@ -243,17 +257,32 @@ void Renderer::draw()
 
 void Renderer::createAttachmentImages()
 {
+    { // color image
+        ImageCreateInfo createInfo = {
+            .width = device.getSwapchainWidth(),
+            .height = device.getSwapchainHeight(),
+            .mipLevels = 1,
+            .sampleCount = device.maxSampleCount,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .format = VK_FORMAT_B8G8R8A8_SRGB,
+        };
+
+        bool created = device.createImage(colorImage, createInfo);
+        assert(created);
+    }
+
     { // depth image
         ImageCreateInfo createInfo = {
             .width = device.getSwapchainWidth(),
             .height = device.getSwapchainHeight(),
             .mipLevels = 1,
-            .sampleCount = 1,
-            .usage = IMAGE_USAGE_DEPTH_ATTACHMENT,
-            .format = IMAGE_FORMAT_D32_SFLOAT,
+            .sampleCount = device.maxSampleCount,
+            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .format = VK_FORMAT_D32_SFLOAT,
+            .aspect = VK_IMAGE_ASPECT_DEPTH_BIT,
         };
 
-        bool created = device.createImage(depthImage, createInfo, "depth image");
+        bool created = device.createImage(depthImage, createInfo);
         assert(created);
     }
 }
@@ -261,6 +290,7 @@ void Renderer::createAttachmentImages()
 void Renderer::destroyAttachmentImages()
 {
     device.waitIdle();
+    device.destroyImage(colorImage);
     device.destroyImage(depthImage);
 }
 
@@ -285,12 +315,13 @@ void Renderer::compileShaders()
 void Renderer::createPipelines()
 {
     const RenderPipelineCreateInfo createInfo = {
-        .cullMode = CULL_MODE_BACK,
-        .frontFace = FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthCompareOp = COMPARE_OP_GREATER,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .sampleCount = device.maxSampleCount,
+        .depthCompareOp = VK_COMPARE_OP_GREATER,
         .depthWriteEnable = true,
-        .colorAttachmentFormats = {IMAGE_FORMAT_B8G8R8A8_SRGB},
-        .depthAttachmentFormat = IMAGE_FORMAT_D32_SFLOAT,
+        .colorAttachmentFormats = {VK_FORMAT_B8G8R8A8_SRGB},
+        .depthAttachmentFormat = VK_FORMAT_D32_SFLOAT,
         .pipelineLayout = &geometryPipelineLayout,
         .vertexCode = filesystem::readBinaryFile(shadersBinaryDir / "mesh.vert.spv"),
         .fragmentCode = filesystem::readBinaryFile(shadersBinaryDir / "mesh.frag.spv"),
@@ -306,9 +337,4 @@ void Renderer::updateDynamicData()
         sceneInfo.viewProjection = camera->getProjection() * camera->getView();
         memcpy(mapped, &sceneInfo, sizeof(sceneInfo));
     }
-}
-
-uint32_t Renderer::calculateMipLevels(uint32_t width, uint32_t height)
-{
-    return floor(log2(std::max(width, height))) + 1;
 }

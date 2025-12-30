@@ -4,8 +4,7 @@
 
 #include "cycle/input/input.h"
 #include "cycle/renderer.h"
-#include "cycle/resource_manager.h"
-#include "cycle/types/scene.h"
+#include "cycle/world.h"
 
 class Engine
 {
@@ -14,9 +13,6 @@ public:
     void shutdown();
 
     void run();
-
-    ResourceManager &getResourceManager() { return resourceManager; }
-    Scene           &getScene() { return scene; }
 
     bool isRunning() { return running; }
 
@@ -27,11 +23,10 @@ private:
     bool   minimized = false;
     bool   running = false;
 
-    Renderer        renderer;
-    ResourceManager resourceManager;
-    Camera          camera;
-    Input           input;
-    Scene           scene;
+    Renderer renderer;
+    Camera   camera;
+    Input    input;
+    World    world;
 
     SDL_Window *window;
 };

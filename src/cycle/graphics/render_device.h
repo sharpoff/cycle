@@ -5,7 +5,9 @@
 #include "cycle/graphics/command_encoder.h"
 
 #include "cycle/graphics/descriptor_set_writer.h"
-#include "cycle/graphics/graphics_types.h"
+#include "cycle/graphics/vulkan_types.h"
+
+#include <math.h>
 
 #define VULKAN_API_VERSION VK_API_VERSION_1_3
 #define ENABLE_LOG_DEVICE_LIMITS false
@@ -18,12 +20,12 @@ public:
     void init(SDL_Window *window);
     void shutdown();
 
-    bool createBuffer(Buffer &buffer, const BufferCreateInfo &createInfo, String debugName = "");
-    bool createImage(Image &image, const ImageCreateInfo &createInfo, String debugName = "");
-    bool createSampler(Sampler &sampler, const SamplerCreateInfo &createInfo, String debugName = "");
-    bool createPipelineLayout(PipelineLayout &pipelineLayout, const PipelineLayoutCreateInfo &createInfo, String debugName = "");
-    bool createRenderPipeline(RenderPipeline &renderPipeline, const RenderPipelineCreateInfo &createInfo, String debugName = "");
-    bool createComputePipeline(ComputePipeline &computePipeline, const ComputePipelineCreateInfo &createInfo, String debugName = "");
+    bool createBuffer(Buffer &buffer, const BufferCreateInfo &createInfo);
+    bool createImage(Image &image, const ImageCreateInfo &createInfo);
+    bool createSampler(Sampler &sampler, const SamplerCreateInfo &createInfo);
+    bool createPipelineLayout(PipelineLayout &pipelineLayout, const PipelineLayoutCreateInfo &createInfo);
+    bool createRenderPipeline(RenderPipeline &renderPipeline, const RenderPipelineCreateInfo &createInfo);
+    bool createComputePipeline(ComputePipeline &computePipeline, const ComputePipelineCreateInfo &createInfo);
 
     void destroyBuffer(Buffer &buffer);
     void destroyImage(Image &image);
@@ -35,29 +37,37 @@ public:
     void uploadBufferData(Buffer &buffer, void *data, uint64_t size, Buffer *stagingBuffer = nullptr);
     void uploadImageData(Image &image, void *data, uint64_t size);
 
-    bool beginCommandEncoding(CommandEncoder &encoder);
-    void endCommandEncoding(CommandEncoder &encoder);
+    void generateMipmaps(Image &image);
+
+    bool beginCommandBuffer(CommandEncoder &encoder);
+    void endCommandBuffer(CommandEncoder &encoder);
     bool swapchainPresent();
 
     void immediateSubmit(Func<void(VkCommandBuffer cmd)> &&function);
 
-    void writeDescriptor(uint32_t binding, Buffer &buffer, DescriptorType type, uint32_t dstArrayElement = 0);
-    void writeDescriptor(uint32_t binding, Image &image, Sampler &sampler, DescriptorType type, uint32_t dstArrayElement = 0);
-    void writeDescriptor(uint32_t binding, Image &image, DescriptorType type, uint32_t dstArrayElement = 0);
-    void writeDescriptor(uint32_t binding, Sampler &sampler, DescriptorType type, uint32_t dstArrayElement = 0);
-    void updateDescriptors(PipelineLayout &layout, uint32_t set);
+    void writeDescriptor(uint32_t binding, Buffer &buffer, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void writeDescriptor(uint32_t binding, Image &image, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void writeDescriptor(uint32_t binding, Image &image, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void writeDescriptor(uint32_t binding, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void updateDescriptors(PipelineLayout &layout);
 
     void waitIdle();
 
-    uint32_t getSwapchainWidth() { return swapchainExtent.width; };
-    uint32_t getSwapchainHeight() { return swapchainExtent.height; };
-    Image &getSwapchainImage() { return swapchainImages[imageIndex]; };
+    uint32_t    getSwapchainWidth() { return swapchainExtent.width; };
+    uint32_t    getSwapchainHeight() { return swapchainExtent.height; };
+    VkImage     getSwapchainImage() { return swapchainImages[imageIndex]; };
+    VkImageView getSwapchainImageView() { return swapchainImageViews[imageIndex]; };
+
+    uint32_t calculateMipLevels(uint32_t width, uint32_t height) { return floor(log2(std::max(width, height))) + 1; }
+
+    VkSampleCountFlagBits maxSampleCount = VK_SAMPLE_COUNT_1_BIT;
 
 private:
     void createInstance();
     void createDevice();
     void createAllocator();
     void createSwapchain();
+    void destroySwapchain();
     void createSyncObjects();
 
     void recreateSwapchain();
@@ -83,11 +93,12 @@ private:
 
     VmaAllocator allocator = VK_NULL_HANDLE;
 
-    VkSwapchainKHR     swapchain = VK_NULL_HANDLE;
-    Vector<Image>    swapchainImages;
-    VkExtent2D         swapchainExtent = {};
-    VkPresentModeKHR   presentMode;
-    VkSurfaceFormatKHR surfaceFormat;
+    VkSwapchainKHR      swapchain = VK_NULL_HANDLE;
+    Vector<VkImage>     swapchainImages;
+    Vector<VkImageView> swapchainImageViews;
+    VkExtent2D          swapchainExtent = {};
+    VkPresentModeKHR    presentMode;
+    VkSurfaceFormatKHR  surfaceFormat;
 
     VkCommandPool                            commandPool;
     Array<VkCommandBuffer, FRAMES_IN_FLIGHT> commandBuffers;
@@ -103,7 +114,6 @@ private:
     VkDescriptorPool    descriptorPool;
     DescriptorSetWriter descriptorSetWriter;
 
-    uint32_t maxSampleCount = VK_SAMPLE_COUNT_1_BIT;
     uint32_t currentFrame = 0;
     uint32_t imageIndex = 0;
     bool     resizeRequested = false;

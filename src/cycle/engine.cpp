@@ -5,6 +5,7 @@
 #include "cycle/input/keyboard.h"
 #include "cycle/logger.h"
 #include "cycle/math.h"
+#include "cycle/types/transform.h"
 #include "glm/trigonometric.hpp"
 
 #include <chrono>
@@ -30,7 +31,7 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
 
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-    mat4 projection = math::perspective(glm::radians(60.0f), float(width) / height, 0.01f, 1000.0f);
+    mat4 projection = math::perspectiveInf(glm::radians(60.0f), float(width) / height, 0.01f);
     camera.setProjection(projection);
     camera.setPosition(vec3(0.0f, 0.0f, 1.0f));
 
@@ -40,27 +41,21 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
     // load models
     {
         ModelID modelID = ModelID::Invalid;
-        modelID = resourceManager.loadModelFromFile("sponza", modelsDir / "sponza/Sponza.gltf");
-
-        Model *sponzaModel = resourceManager.getModelByID(modelID);
-        if (sponzaModel) {
-            sponzaModel->worldMatrix = glm::scale(vec3(0.01f));
-        }
+        modelID = g_modelManager->loadModel(modelsDir / "sponza/Sponza.gltf", "sponza");
+        modelID = g_modelManager->loadModel(modelsDir / "monkey.gltf", "monkey");
+        assert(modelID != ModelID::Invalid);
     }
 
-    // should be called *after* loading models/textures/materials
+    // should be called *after* loading assets
     renderer.loadResources();
 
-    // physics.init();
-    // game.init();
-
-    running = true;
+    world.addEntity(new Entity(Transform(glm::scale(vec3(0.01))), RENDERING_ALL, g_modelManager->getModelIDByName("sponza")), "sponza");
+    world.addEntity(new Entity(Transform(), RENDERING_ALL, g_modelManager->getModelIDByName("monkey")), "monkey");
 }
 
 void Engine::shutdown()
 {
-    // game.shutdown();
-    // physics.shutdown();
+    world.release();
     renderer.shutdown();
 
     g_engine = nullptr;
@@ -70,6 +65,7 @@ void Engine::run()
 {
     auto startTime = std::chrono::high_resolution_clock::now();
 
+    running = true;
     while (running) {
         auto endTime = std::chrono::high_resolution_clock::now();
         deltaTime = std::chrono::duration<float, std::milli>(endTime - startTime).count() / 1000.0;
@@ -77,11 +73,8 @@ void Engine::run()
 
         processEvents();
 
-        // game.update();
-        // physics.update();
-
         if (!minimized) {
-            renderer.draw();
+            renderer.draw(world.getRenderData());
         }
     }
 }
@@ -126,7 +119,7 @@ void Engine::processEvents()
 
     if (input.isKeyDown(KeyboardKey::P)) {
         LOGI("%s", "Reloading shaders");
-        renderer.recreatePipelines();
+        renderer.reloadShaders();
     }
 
     ImGuiIO &io = ImGui::GetIO();

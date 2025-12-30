@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cycle/graphics/graphics_types.h"
+#include "cycle/graphics/vulkan_types.h"
 
 struct CommandEncoder
 {
@@ -10,15 +10,14 @@ struct CommandEncoder
     void bindPipeline(ComputePipeline &pipeline);
     void bindVertexBuffer(Buffer &vertexBuffer);
     void bindIndexBuffer(Buffer &indexBuffer);
-    void beginRendering(const RenderingInfo &renderInfo);
+    void beginRendering(const VkRenderingInfo &renderInfo);
     void endRendering();
     void setViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
     void setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
-    void pushConstants(PipelineLayout &pipelineLayout, ShaderStageFlags shaderStage, void *data, uint32_t size, uint32_t offset = 0);
+    void pushConstants(PipelineLayout &pipelineLayout, VkShaderStageFlags shaderStage, void *data, uint32_t size, uint32_t offset = 0);
 
     void beginImGuiFrame();
     void endImGuiFrame();
 
     VkCommandBuffer cmd;
-    Queue<RenderingInfo> renderInfos;
 };

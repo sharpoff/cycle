@@ -1,9 +1,9 @@
 #pragma once
 
-#include "cycle/graphics/graphics_types.h"
-#include "cycle/types/id.h"
+#include "cycle/graphics/vulkan_types.h"
 #include "cycle/math.h"
-#include "cycle/containers.h"
+
+#include "cycle/types/id.h"
 #include "cycle/types/vertex.h"
 
 struct Mesh

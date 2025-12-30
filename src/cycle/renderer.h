@@ -1,15 +1,15 @@
 #pragma once
 
+#include "cycle/graphics/barrier_merger.h"
 #include "cycle/types/camera.h"
-#include "cycle/graphics/graphics_types.h"
+#include "cycle/graphics/vulkan_types.h"
 #include "cycle/graphics/render_device.h"
+#include "cycle/types/render_data.h"
 
 #define DEFAULT_TEXTURE_ID 0
 #define DEFAULT_MATERIAL_ID 0
 #define SAMPLER_LINEAR_ID 0
 #define SAMPLER_NEAREST_ID 1
-
-class ResourceManager;
 
 class Renderer
 {
@@ -18,8 +18,8 @@ public:
     void shutdown();
 
     void loadResources();
-    void recreatePipelines();
-    void draw();
+    void reloadShaders();
+    void draw(const Vector<RenderData> &renderData);
 
     void setCamera(Camera *camera) { this->camera = camera; }
 
@@ -30,14 +30,12 @@ private:
     void compileShaders();
     void createPipelines();
 
-    void     updateDynamicData();
-    uint32_t calculateMipLevels(uint32_t width, uint32_t height);
+    void updateDynamicData();
 
     RenderDevice device;
-    Camera      *camera;
+    Camera *camera;
 
-    uint32_t bindlessDescriptorSet = 0;
-
+    Image colorImage;
     Image depthImage;
 
     Buffer sceneInfoBuffer;
@@ -48,4 +46,6 @@ private:
 
     PipelineLayout geometryPipelineLayout;
     RenderPipeline geometryPipeline;
+
+    BarrierMerger barriers;
 };

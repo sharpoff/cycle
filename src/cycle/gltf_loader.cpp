@@ -7,14 +7,21 @@
 #include "cycle/types/material.h"
 #include "cycle/types/mesh.h"
 
-#include "cycle/resource_manager.h"
+#include "cycle/managers/mesh_manager.h"
+#include "cycle/managers/texture_manager.h"
+#include "cycle/managers/material_manager.h"
+
+#include "cycle/globals.h"
 
 namespace gltf
 {
-    static void processNode(ResourceManager *resourceManager, Model &model, cgltf_data *data, cgltf_node *gltfNode, String baseDir);
+    static void processNode(Model &model, cgltf_data *data, cgltf_node *gltfNode, String baseDir);
 
-    bool loadModel(ResourceManager *resourceManager, Model &model, const String &filename)
+    bool load(Model &model, const String &filename)
     {
+        if (filename.empty())
+            return false;
+
         cgltf_options options = {};
         cgltf_data   *data = NULL;
         if (cgltf_parse_file(&options, filename.c_str(), &data) != cgltf_result_success)
@@ -32,30 +39,30 @@ namespace gltf
         String baseDir = std::filesystem::path(filename).parent_path();
 
         for (size_t i = 0; i < root->nodes_count; i++)
-            processNode(resourceManager, model, data, root->nodes[i], baseDir);
+            processNode(model, data, root->nodes[i], baseDir);
 
         cgltf_free(data);
         return true;
     }
 
-    static void processNode(ResourceManager *resourceManager, Model &model, cgltf_data *data, cgltf_node *gltfNode, String baseDir)
+    static void processNode(Model &model, cgltf_data *data, cgltf_node *gltfNode, String baseDir)
     {
         for (size_t i = 0; i < gltfNode->mesh->primitives_count; i++) {
             Mesh mesh = {};
             auto primitive = gltfNode->mesh->primitives[i];
 
-            size_t             vertexSize = primitive.attributes[0].data->count;
+            size_t vertexSize = primitive.attributes[0].data->count;
             std::vector<float> temp(vertexSize * 4);
 
             // load vertices
-            mesh.vertices.resize(vertexSize);
+            Vector<Vertex> vertices(vertexSize);
             if (auto accessor = cgltf_find_accessor(&primitive, cgltf_attribute_type_position, 0); accessor) {
                 cgltf_accessor_unpack_floats(accessor, &temp[0], vertexSize * 3);
 
                 for (size_t j = 0; j < vertexSize; j++) {
-                    mesh.vertices[j].position.x = temp[j * 3 + 0];
-                    mesh.vertices[j].position.y = temp[j * 3 + 1];
-                    mesh.vertices[j].position.z = temp[j * 3 + 2];
+                    vertices[j].position.x = temp[j * 3 + 0];
+                    vertices[j].position.y = temp[j * 3 + 1];
+                    vertices[j].position.z = temp[j * 3 + 2];
                 }
             }
 
@@ -63,9 +70,9 @@ namespace gltf
                 cgltf_accessor_unpack_floats(accessor, &temp[0], vertexSize * 3);
 
                 for (size_t j = 0; j < vertexSize; j++) {
-                    mesh.vertices[j].normal.x = temp[j * 3 + 0];
-                    mesh.vertices[j].normal.y = temp[j * 3 + 1];
-                    mesh.vertices[j].normal.z = temp[j * 3 + 2];
+                    vertices[j].normal.x = temp[j * 3 + 0];
+                    vertices[j].normal.y = temp[j * 3 + 1];
+                    vertices[j].normal.z = temp[j * 3 + 2];
                 }
             }
 
@@ -73,19 +80,19 @@ namespace gltf
                 cgltf_accessor_unpack_floats(accessor, &temp[0], vertexSize * 2);
 
                 for (size_t j = 0; j < vertexSize; j++) {
-                    mesh.vertices[j].uv_x = temp[j * 2 + 0];
-                    mesh.vertices[j].uv_y = temp[j * 2 + 1];
+                    vertices[j].uv_x = temp[j * 2 + 0];
+                    vertices[j].uv_y = temp[j * 2 + 1];
                 }
             }
 
             // load indices
-            mesh.indices.resize(primitive.indices->count);
-            cgltf_accessor_unpack_indices(primitive.indices, mesh.indices.data(), 4, mesh.indices.size());
+            Vector<uint32_t> indices(primitive.indices->count);
+            cgltf_accessor_unpack_indices(primitive.indices, indices.data(), 4, indices.size());
 
             // load materials
-            cgltf_material *gltfMaterial = primitive.material;
-            if (gltfMaterial) {
+            if (primitive.material) {
                 Material material = {};
+                cgltf_material *gltfMaterial = primitive.material;
 
                 if (gltfMaterial->has_pbr_metallic_roughness) {
                     // base color
@@ -94,7 +101,7 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            material.baseColorTexID = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
+                            material.baseColorTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
                         }
                     }
 
@@ -104,7 +111,7 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            material.metallicRoughnessTexID = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
+                            material.metallicRoughnessTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
                         }
                     }
 
@@ -114,7 +121,7 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            material.normalTexID = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
+                            material.normalTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
                         }
                     }
 
@@ -124,23 +131,22 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            material.emissiveTexID = resourceManager->loadTextureFromFile(resourceManager->getUniqueTextureName(), baseDir / std::filesystem::path(uri));
+                            material.emissiveTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
                         }
                     }
                 }
 
-                MaterialID materialID = resourceManager->addMaterial(resourceManager->getUniqueMaterialName(), material);
-                mesh.materialID = materialID;
+                mesh.materialID = g_materialManager->addMaterial(material);
             }
 
-            resourceManager->uploadMeshBuffers(mesh);
-
-            MeshID meshID = resourceManager->addMesh(resourceManager->getUniqueMeshName(), mesh);
+            MeshID meshID = g_meshManager->addMesh(mesh);
             model.meshes.push_back(meshID);
+
+            g_meshManager->uploadMeshData(meshID, vertices, indices);
         }
 
         for (size_t i = 0; i < gltfNode->children_count; i++) {
-            processNode(resourceManager, model, data, gltfNode->children[i], baseDir);
+            processNode(model, data, gltfNode->children[i], baseDir);
         }
     }
 } // namespace gltf
