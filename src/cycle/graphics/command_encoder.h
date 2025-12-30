@@ -16,8 +16,5 @@ struct CommandEncoder
     void setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
     void pushConstants(PipelineLayout &pipelineLayout, VkShaderStageFlags shaderStage, void *data, uint32_t size, uint32_t offset = 0);
 
-    void beginImGuiFrame();
-    void endImGuiFrame();
-
     VkCommandBuffer cmd;
 };

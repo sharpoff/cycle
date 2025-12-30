@@ -11,11 +11,14 @@ public:
     const EntityID addEntity(Entity *entity, String name = "");
     void release();
 
-    const Vector<RenderData> &getRenderData() { return renderData; }
+    Entity *getEntityByName(String name);
+    Entity *getEntityByID(const EntityID id);
+
+    const EntityID getEntityIDByName(String name);
+
+    const Vector<RenderData> getRenderData();
 
 private:
     Vector<Entity*> entities;
     UnorderedMap<String, EntityID> nameEntityMap;
-
-    Vector<RenderData> renderData;
 };

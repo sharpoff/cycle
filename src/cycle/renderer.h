@@ -4,12 +4,14 @@
 #include "cycle/types/camera.h"
 #include "cycle/graphics/vulkan_types.h"
 #include "cycle/graphics/render_device.h"
-#include "cycle/types/render_data.h"
 
 #define DEFAULT_TEXTURE_ID 0
 #define DEFAULT_MATERIAL_ID 0
 #define SAMPLER_LINEAR_ID 0
 #define SAMPLER_NEAREST_ID 1
+
+class World;
+class Editor;
 
 class Renderer
 {
@@ -19,11 +21,14 @@ public:
 
     void loadResources();
     void reloadShaders();
-    void draw(const Vector<RenderData> &renderData);
+    void draw(World &world, Editor &editor);
 
     void setCamera(Camera *camera) { this->camera = camera; }
 
+    RenderDevice &getRenderDevice() { return device; }
+
 private:
+    void resizeWindow();
     void createAttachmentImages();
     void destroyAttachmentImages();
 

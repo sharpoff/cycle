@@ -28,7 +28,7 @@ namespace vulkan
         return VK_IMAGE_TYPE_MAX_ENUM;
     }
 
-    VkRenderingAttachmentInfo createAttachmentInfo(VkImageView imageView, VkImageLayout layout, bool store, VkImageView resolveImageView, VkImageLayout resolveLayout)
+    VkRenderingAttachmentInfo createAttachmentInfo(VkImageView imageView, VkImageLayout layout, bool load, bool store, VkImageView resolveImageView, VkImageLayout resolveLayout)
     {
         VkRenderingAttachmentInfo attachmentInfo = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
         attachmentInfo.clearValue.color = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -40,7 +40,7 @@ namespace vulkan
             attachmentInfo.resolveImageLayout = resolveLayout;
             attachmentInfo.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
         }
-        attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachmentInfo.loadOp = load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
         attachmentInfo.storeOp = store ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
         return attachmentInfo;
     }

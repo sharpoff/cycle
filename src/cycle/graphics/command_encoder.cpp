@@ -1,8 +1,5 @@
 #include "cycle/graphics/command_encoder.h"
 
-#include "imgui_impl_sdl3.h"
-#include "imgui_impl_vulkan.h"
-
 void CommandEncoder::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 {
     vkCmdDraw(cmd, vertexCount, instanceCount, firstVertex, firstInstance);
@@ -74,17 +71,4 @@ void CommandEncoder::setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t
 void CommandEncoder::pushConstants(PipelineLayout &pipelineLayout, VkShaderStageFlags shaderStage, void *data, uint32_t size, uint32_t offset)
 {
     vkCmdPushConstants(cmd, pipelineLayout.layout, shaderStage, offset, size, data);
-}
-
-void CommandEncoder::beginImGuiFrame()
-{
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplSDL3_NewFrame();
-    ImGui::NewFrame();
-}
-
-void CommandEncoder::endImGuiFrame()
-{
-    ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 }

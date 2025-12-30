@@ -14,6 +14,7 @@
 #include <filesystem>
 
 #include "imgui.h"
+#include "imgui_impl_vulkan.h"
 
 void Renderer::init(SDL_Window *window)
 {
@@ -168,13 +169,11 @@ void Renderer::reloadShaders()
     createPipelines();
 }
 
-void Renderer::draw(const Vector<RenderData> &renderData)
+void Renderer::draw(World &world, Editor &editor)
 {
     CommandEncoder cmdEncoder = {};
     if (!device.beginCommandBuffer(cmdEncoder)) {
-        // recreate all swapchain dependant resources
-        destroyAttachmentImages();
-        createAttachmentImages();
+        resizeWindow();
         return;
     }
 
@@ -185,62 +184,61 @@ void Renderer::draw(const Vector<RenderData> &renderData)
     barriers.transitionImage(device.getSwapchainImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     barriers.flushBarriers(cmdEncoder.cmd);
 
+    VkExtent2D renderArea = {device.getSwapchainWidth(), device.getSwapchainHeight()};
+    VkRenderingAttachmentInfo depthAttachment = vulkan::createAttachmentInfo(depthImage.view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, false, true);
+
     //===========================
     // Render meshes
     //===========================
+    {
+        Vector<VkRenderingAttachmentInfo> colorAttachments = {
+            vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, false, true),
+        };
 
-    VkExtent2D renderArea = {device.getSwapchainWidth(), device.getSwapchainHeight()};
+        VkRenderingInfo renderingInfo = vulkan::createRenderingInfo(renderArea, colorAttachments, &depthAttachment);
+        cmdEncoder.beginRendering(renderingInfo);
 
-    Vector<VkRenderingAttachmentInfo> colorAttachments = {
-        // vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true),
-        vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, device.getSwapchainImageView(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
-    };
-    VkRenderingAttachmentInfo depthAttachment = vulkan::createAttachmentInfo(depthImage.view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, true);
-
-    VkRenderingInfo renderingInfo = vulkan::createRenderingInfo(renderArea, colorAttachments, &depthAttachment);
-    cmdEncoder.beginRendering(renderingInfo);
-
-    cmdEncoder.bindPipeline(geometryPipeline);
-    for (const RenderData &rd : renderData) {
-        Model *model = g_modelManager->getModelByID(rd.modelID);
-        if (!model)
-            continue;
-
-        mat4 worldMatrix = rd.transform.getMatrix();
-        for (MeshID meshID : model->meshes) {
-            Mesh *mesh = g_meshManager->getMeshByID(meshID);
-            if (!mesh)
+        cmdEncoder.bindPipeline(geometryPipeline);
+        for (const RenderData &rd : world.getRenderData()) {
+            Model *model = g_modelManager->getModelByID(rd.modelID);
+            if (!model)
                 continue;
 
-            MeshDrawInfo push = {};
-            push.worldMatrix = worldMatrix * mesh->worldMatrix;
-            push.vertexBufferAddress = mesh->vertexBuffer.address;
-            push.materialId = mesh->materialID != MaterialID::Invalid ? (unsigned int)mesh->materialID : DEFAULT_MATERIAL_ID;
-            cmdEncoder.pushConstants(geometryPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &push, sizeof(push));
+            mat4 worldMatrix = rd.transform.getMatrix();
+            for (MeshID meshID : model->meshes) {
+                Mesh *mesh = g_meshManager->getMeshByID(meshID);
+                if (!mesh)
+                    continue;
 
-            cmdEncoder.bindIndexBuffer(mesh->indexBuffer);
-            cmdEncoder.drawIndexed(mesh->indices.size(), 1, 0, 0, 0);
+                MeshDrawInfo push = {};
+                push.worldMatrix = worldMatrix * mesh->worldMatrix;
+                push.vertexBufferAddress = mesh->vertexBuffer.address;
+                push.materialId = mesh->materialID != MaterialID::Invalid ? (unsigned int)mesh->materialID : DEFAULT_MATERIAL_ID;
+                cmdEncoder.pushConstants(geometryPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &push, sizeof(push));
+
+                cmdEncoder.bindIndexBuffer(mesh->indexBuffer);
+                cmdEncoder.drawIndexed(mesh->indices.size(), 1, 0, 0, 0);
+            }
         }
+        cmdEncoder.endRendering();
     }
-    cmdEncoder.endRendering();
 
     //===========================
-    // render imgui
+    // Render imgui
     //===========================
-    // {
-    //     Vector<VkRenderingAttachmentInfo> colorAttachments = {
-    //         vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, device.getSwapchainImageView(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
-    //     };
+    {
+        Vector<VkRenderingAttachmentInfo> colorAttachments = {
+            vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, true, device.getSwapchainImageView(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
+        };
 
-    //     VkRenderingInfo renderingInfo = vulkan::createRenderingInfo(renderArea, colorAttachments, &depthAttachment);
-    //     cmdEncoder.beginRendering(renderingInfo);
+        VkRenderingInfo renderingInfo = vulkan::createRenderingInfo(renderArea, colorAttachments, &depthAttachment);
+        cmdEncoder.beginRendering(renderingInfo);
 
-    //     cmdEncoder.beginImGuiFrame();
-    //     ImGui::ShowDemoWindow();
-    //     cmdEncoder.endImGuiFrame();
+        editor.draw();
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdEncoder.cmd);
 
-    //     cmdEncoder.endRendering();
-    // }
+        cmdEncoder.endRendering();
+    }
 
     barriers.transitionImage(device.getSwapchainImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     barriers.flushBarriers(cmdEncoder.cmd);
@@ -248,11 +246,18 @@ void Renderer::draw(const Vector<RenderData> &renderData)
     device.endCommandBuffer(cmdEncoder);
 
     if (!device.swapchainPresent()) {
-        // recreate all swapchain dependant resources
-        destroyAttachmentImages();
-        createAttachmentImages();
+        resizeWindow();
         return;
     }
+}
+
+void Renderer::resizeWindow()
+{
+    // recreate all swapchain dependant resources
+    destroyAttachmentImages();
+    createAttachmentImages();
+
+    camera->setAspectRatio((float)device.getSwapchainWidth() / device.getSwapchainHeight());
 }
 
 void Renderer::createAttachmentImages()

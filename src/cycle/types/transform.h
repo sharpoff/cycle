@@ -9,7 +9,9 @@ public:
     Transform(vec3 position, quat rotation, vec3 scale);
     Transform(mat4 matrix);
 
-    mat4 getMatrix() const;
+    void setMatrix(const mat4 &matrix);
+
+    const mat4 &getMatrix() const { return worldMatrix; }
 
 private:
     vec3 position = vec3(0.0f);

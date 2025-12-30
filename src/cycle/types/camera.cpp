@@ -34,10 +34,17 @@ void Camera::setRotation(vec3 rotation)
     updateView();
 }
 
-void Camera::setProjection(mat4 projection)
+void Camera::setPerspective(float fov, float aspectRatio, float near)
 {
-    this->projection = projection;
-    updateView();
+    this->fov = fov;
+    this->aspectRatio = aspectRatio;
+    this->zNear = near;
+    this->projection = math::perspectiveInf(fov, aspectRatio, near);
+}
+
+void Camera::setAspectRatio(float aspectRatio)
+{
+    setPerspective(fov, aspectRatio, zNear);
 }
 
 void Camera::updateView()

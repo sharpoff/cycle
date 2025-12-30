@@ -17,6 +17,7 @@
 void Engine::init(const char *title, uint32_t width, uint32_t height)
 {
     g_engine = this;
+    g_input = &input;
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         LOGE("Failed to initialize SDL: %s", SDL_GetError());
@@ -31,12 +32,13 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
 
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-    mat4 projection = math::perspectiveInf(glm::radians(60.0f), float(width) / height, 0.01f);
-    camera.setProjection(projection);
+    camera.setPerspective(glm::radians(60.0f), float(width) / height, 0.01f);
     camera.setPosition(vec3(0.0f, 0.0f, 1.0f));
 
     renderer.init(window);
+
     renderer.setCamera(&camera);
+    editor.setCamera(&camera);
 
     // load models
     {
@@ -51,6 +53,8 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
 
     world.addEntity(new Entity(Transform(glm::scale(vec3(0.01))), RENDERING_ALL, g_modelManager->getModelIDByName("sponza")), "sponza");
     world.addEntity(new Entity(Transform(), RENDERING_ALL, g_modelManager->getModelIDByName("monkey")), "monkey");
+
+    editor.selectEntity(world.getEntityIDByName("monkey"));
 }
 
 void Engine::shutdown()
@@ -74,7 +78,7 @@ void Engine::run()
         processEvents();
 
         if (!minimized) {
-            renderer.draw(world.getRenderData());
+            renderer.draw(world, editor);
         }
     }
 }
@@ -121,6 +125,8 @@ void Engine::processEvents()
         LOGI("%s", "Reloading shaders");
         renderer.reloadShaders();
     }
+
+    editor.processInput();
 
     ImGuiIO &io = ImGui::GetIO();
     if (io.WantCaptureKeyboard)
