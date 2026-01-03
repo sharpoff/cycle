@@ -4,30 +4,54 @@
 
 #include "textures.glsl"
 #include "materials.glsl"
+#include "lights.glsl"
 #include "mesh_draw_info.glsl"
+#include "scene_info.glsl"
 #include "pbr.glsl"
 
-layout(location = 0) in vec3 inColor;
-layout(location = 1) in vec2 inUV;
-layout(location = 2) in vec3 inNormal;
+layout(location = 0) in vec2 inUV;
+layout(location = 1) in vec3 inNormal;
+layout(location = 2) in vec3 inWorldPos;
 
 layout(location = 0) out vec4 fragColor;
 
 void main()
 {
     Material material = materials[meshDrawInfo.materialID];
-    if (meshDrawInfo.materialID == 0) { // default material
+    if (meshDrawInfo.materialID == DEFAULT_MATERIAL_ID) { // default material
         fragColor = vec4(sampleTexture2DLinear(material.baseColorTexID, inUV));
         return;
     }
 
-    vec3 color = vec3(0.0);
-    vec3 diffuseColor = vec3(0.0);
+    vec3 baseColor = vec3(0.0);
+    if (material.baseColorTexID != INVALID_ID)
+        baseColor = sampleTexture2DLinear(material.baseColorTexID, inUV).rgb;
 
-    if (material.baseColorTexID > 0)
-        diffuseColor = sampleTexture2DLinear(material.baseColorTexID, inUV).rgb;
+    float metallic = 0.2;
+    float perceptualRoughness = 1.0;
+    if (material.metallicRoughnessTexID != INVALID_ID) {
+        vec3 metalRoughnessTex = sampleTexture2DLinear(material.metallicRoughnessTexID, inUV).rgb;
+        metallic = metalRoughnessTex.b;
+        perceptualRoughness = metalRoughnessTex.g;
+    }
 
-    color = diffuseColor;
+    vec3 normal = normalize(inNormal);
+    vec3 view = normalize(sceneInfo.cameraPos - inWorldPos);
+
+    float reflectance = 0.5;
+
+    vec3 f0 = 0.16 * reflectance * reflectance * (1.0 - metallic) + baseColor * metallic;
+
+    vec3 lightColor = vec3(0.0);
+    for (uint i = 0; i < sceneInfo.lightsCount; i++) {
+        Light light = lights[i];
+        vec3 l = normalize(light.position - inWorldPos);
+
+        if (light.type == LIGHT_TYPE_DIRECTIONAL)
+            lightColor += pbrBRDF(view, l, normal, f0, perceptualRoughness, baseColor) * light.color;
+    }
+
+    vec3 color = lightColor;
 
     fragColor = vec4(color, 1.0);
 }

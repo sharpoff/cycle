@@ -101,7 +101,8 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            material.baseColorTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
+                            const TextureID id = g_textureManager->createTexture2D(baseDir / std::filesystem::path(uri));
+                            material.baseColorTexID = (id != TextureID::Invalid) ? id : (TextureID)0;
                         }
                     }
 
@@ -111,7 +112,8 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            material.metallicRoughnessTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
+                            const TextureID id = g_textureManager->createTexture2D(baseDir / std::filesystem::path(uri));
+                            material.metallicRoughnessTexID = (id != TextureID::Invalid) ? id : (TextureID)0;
                         }
                     }
 
@@ -121,7 +123,8 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            material.normalTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
+                            const TextureID id = g_textureManager->createTexture2D(baseDir / std::filesystem::path(uri));
+                            material.normalTexID = (id != TextureID::Invalid) ? id : (TextureID)0;
                         }
                     }
 
@@ -131,7 +134,8 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            material.emissiveTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
+                            const TextureID id = g_textureManager->createTexture2D(baseDir / std::filesystem::path(uri));
+                            material.emissiveTexID = (id != TextureID::Invalid) ? id : (TextureID)0;
                         }
                     }
                 }

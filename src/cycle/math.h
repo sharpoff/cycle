@@ -29,6 +29,8 @@ using glm::vec2;
 using glm::vec3;
 using glm::vec4;
 
+const float MATH_PI = glm::pi<float>();
+
 namespace math
 {
     // https://www.vincentparizet.com/blog/posts/vulkan_perspective_matrix/

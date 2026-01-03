@@ -34,8 +34,9 @@ public:
     void destroyRenderPipeline(RenderPipeline &pipeline);
     void destroyComputePipeline(ComputePipeline &pipeline);
 
-    void uploadBufferData(Buffer &buffer, void *data, uint64_t size, Buffer *stagingBuffer = nullptr);
-    void uploadImageData(Image &image, void *data, uint64_t size);
+    void uploadBufferData(Buffer &buffer, void *data, uint64_t size);
+    void uploadImage(Image &image, ImageLoadInfo &loadInfo);
+    void uploadImageLayers(Image &image, const Vector<ImageLoadInfo> &infos);
 
     void generateMipmaps(Image &image);
 

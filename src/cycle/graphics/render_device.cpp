@@ -166,7 +166,7 @@ bool RenderDevice::createImage(Image &image, const ImageCreateInfo &createInfo)
     assert(createInfo.width != 0 && createInfo.height != 0);
 
     VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-    imageInfo.imageType = vulkan::getImageType(createInfo.type);
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
     imageInfo.format = createInfo.format;
     imageInfo.extent.width = createInfo.width;
     imageInfo.extent.height = createInfo.height;
@@ -178,6 +178,7 @@ bool RenderDevice::createImage(Image &image, const ImageCreateInfo &createInfo)
     imageInfo.usage = createInfo.usage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.flags = (imageInfo.arrayLayers == 6) ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0; // cubemap
 
     image.width = createInfo.width;
     image.height = createInfo.height;
@@ -522,45 +523,17 @@ void RenderDevice::destroyComputePipeline(ComputePipeline &pipeline)
         vkDestroyPipeline(device, pipeline.pipeline, nullptr);
 }
 
-void RenderDevice::uploadBufferData(Buffer &buffer, void *data, uint64_t size, Buffer *stagingBuffer)
+void RenderDevice::uploadBufferData(Buffer &buffer, void *data, uint64_t size)
 {
     assert(data && size > 0);
 
-    if (buffer.allocation.info.pMappedData) { // using mapped data
+    // using mapped data
+    if (buffer.allocation.info.pMappedData) {
         memcpy(buffer.allocation.info.pMappedData, data, size);
-    } else if (stagingBuffer && stagingBuffer->size >= size) { // using external staging buffer
-        memcpy(stagingBuffer->allocation.info.pMappedData, data, size);
-        VK_CHECK(vmaFlushAllocation(allocator, stagingBuffer->allocation.handle, 0, VK_WHOLE_SIZE));
-
-        immediateSubmit([size, stagingBuffer, &buffer](VkCommandBuffer cmd) -> void {
-            VkBufferCopy copyRegion = {0, 0, size};
-            vkCmdCopyBuffer(cmd, stagingBuffer->buffer, buffer.buffer, 1, &copyRegion);
-        });
-    } else { // using created staging buffer
-        const BufferCreateInfo createInfo = {
-            .size = size,
-            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        };
-
-        Buffer staging;
-        createBuffer(staging, createInfo);
-        memcpy(staging.allocation.info.pMappedData, data, size);
-
-        VK_CHECK(vmaFlushAllocation(allocator, staging.allocation.handle, 0, VK_WHOLE_SIZE));
-
-        immediateSubmit([size, &staging, &buffer](VkCommandBuffer cmd) -> void {
-            VkBufferCopy copyRegion = {0, 0, size};
-            vkCmdCopyBuffer(cmd, staging.buffer, buffer.buffer, 1, &copyRegion);
-        });
-
-        destroyBuffer(staging);
+        return;
     }
-}
 
-void RenderDevice::uploadImageData(Image &image, void *data, uint64_t size)
-{
-    assert(data && size > 0);
-
+    // using created staging buffer
     const BufferCreateInfo createInfo = {
         .size = size,
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -572,7 +545,40 @@ void RenderDevice::uploadImageData(Image &image, void *data, uint64_t size)
 
     VK_CHECK(vmaFlushAllocation(allocator, staging.allocation.handle, 0, VK_WHOLE_SIZE));
 
-    immediateSubmit([size, &staging, &image](VkCommandBuffer cmd) -> void {
+    immediateSubmit([size, &staging, &buffer](VkCommandBuffer cmd) -> void {
+        VkBufferCopy copyRegion = {0, 0, size};
+        vkCmdCopyBuffer(cmd, staging.buffer, buffer.buffer, 1, &copyRegion);
+    });
+
+    destroyBuffer(staging);
+}
+
+void RenderDevice::uploadImage(Image &image, ImageLoadInfo &loadInfo)
+{
+    uploadImageLayers(image, {loadInfo});
+}
+
+void RenderDevice::uploadImageLayers(Image &image, const Vector<ImageLoadInfo> &infos)
+{
+    assert(infos.size() > 0);
+
+    const uint32_t bufsize = infos[0].size * image.arrayLayers;
+    const uint32_t layerSize = infos[0].size;
+
+    const BufferCreateInfo createInfo = {
+        .size = bufsize,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    };
+
+    Buffer staging;
+    createBuffer(staging, createInfo);
+    for (uint32_t face = 0; face < infos.size(); face++) {
+        void *pixels = infos[face].pixels;
+        assert(pixels);
+        memcpy(static_cast<unsigned char *>(staging.allocation.info.pMappedData) + (layerSize * face), pixels, layerSize);
+    }
+
+    immediateSubmit([layerSize, &staging, &image](VkCommandBuffer cmd) -> void {
         // transition image to transfer
         VkImageMemoryBarrier transferBarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         transferBarrier.srcAccessMask = 0;
@@ -593,11 +599,15 @@ void RenderDevice::uploadImageData(Image &image, void *data, uint64_t size)
         );
 
         // copy
-        VkBufferImageCopy copyRegion = {};
-        copyRegion.imageSubresource = {image.aspect, 0, 0, image.arrayLayers};
-        copyRegion.imageExtent = {image.width, image.height, 1};
+        Vector<VkBufferImageCopy> copyRegions;
+        for (uint32_t face = 0; face < image.arrayLayers; face++) {
+            VkBufferImageCopy &copyRegion = copyRegions.emplace_back();
+            copyRegion.imageSubresource = {image.aspect, 0, face, 1};
+            copyRegion.imageExtent = {image.width, image.height, 1};
+            copyRegion.bufferOffset = face * layerSize;
+        }
 
-        vkCmdCopyBufferToImage(cmd, staging.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+        vkCmdCopyBufferToImage(cmd, staging.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, copyRegions.size(), copyRegions.data());
 
         // transition image to fragment shader
         VkImageMemoryBarrier fragmentBarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
@@ -641,7 +651,7 @@ void RenderDevice::generateMipmaps(Image &image)
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .image = image.image,
-                .subresourceRange = {image.aspect, 0, 1, 0, 1}
+                .subresourceRange = {image.aspect, 0, 1, 0, image.arrayLayers}
             };
 
             vkCmdPipelineBarrier(cmd,
@@ -658,18 +668,18 @@ void RenderDevice::generateMipmaps(Image &image)
             VkImageBlit blit{};
 
             // src
-            blit.srcSubresource = {.aspectMask = image.aspect, .mipLevel = i - 1, .layerCount = 1};
+            blit.srcSubresource = {image.aspect, i - 1, 0, image.arrayLayers};
             blit.srcOffsets[1].x = static_cast<int32_t>(image.width >> (i - 1));
             blit.srcOffsets[1].y = static_cast<int32_t>(image.height >> (i - 1));
             blit.srcOffsets[1].z = 1;
 
             // dst
-            blit.dstSubresource = {.aspectMask = image.aspect, .mipLevel = i, .layerCount = 1};
+            blit.dstSubresource = {image.aspect, i, 0, image.arrayLayers};
             blit.dstOffsets[1].x = static_cast<int32_t>(image.width >> i);
             blit.dstOffsets[1].y = static_cast<int32_t>(image.height >> i);
             blit.dstOffsets[1].z = 1;
 
-            VkImageSubresourceRange subresourceRange = {.aspectMask = image.aspect, .baseMipLevel = i, .levelCount = 1, .layerCount = 1};
+            VkImageSubresourceRange subresourceRange = {image.aspect, i, 1, 0, image.arrayLayers};
 
             // transition mip level to transfer dst
             VkImageMemoryBarrier barrier0 = {
@@ -732,12 +742,8 @@ void RenderDevice::generateMipmaps(Image &image)
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image = image.image,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = image.mipLevels,
-                .baseArrayLayer = 0,
-                .layerCount = 1}};
+            .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, image.mipLevels, 0, image.arrayLayers}
+        };
 
         vkCmdPipelineBarrier(cmd,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,

@@ -1,33 +1,7 @@
 #include "cycle/graphics/vulkan_helpers.h"
-#include "cycle/logger.h"
 
 namespace vulkan
 {
-    VkImageType getImageType(VkImageViewType type)
-    {
-        switch (type) {
-            case VK_IMAGE_VIEW_TYPE_1D:
-                return VK_IMAGE_TYPE_1D;
-            case VK_IMAGE_VIEW_TYPE_2D:
-                return VK_IMAGE_TYPE_2D;
-            case VK_IMAGE_VIEW_TYPE_3D:
-                return VK_IMAGE_TYPE_3D;
-            case VK_IMAGE_VIEW_TYPE_CUBE:
-                return VK_IMAGE_TYPE_3D;
-            case VK_IMAGE_VIEW_TYPE_1D_ARRAY:
-                return VK_IMAGE_TYPE_1D;
-            case VK_IMAGE_VIEW_TYPE_2D_ARRAY:
-                return VK_IMAGE_TYPE_2D;
-            case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
-                return VK_IMAGE_TYPE_3D;
-            default:
-                break;
-        }
-
-        LOGE("%s", "Invalid VkImageViewType!");
-        return VK_IMAGE_TYPE_MAX_ENUM;
-    }
-
     VkRenderingAttachmentInfo createAttachmentInfo(VkImageView imageView, VkImageLayout layout, bool load, bool store, VkImageView resolveImageView, VkImageLayout resolveLayout)
     {
         VkRenderingAttachmentInfo attachmentInfo = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};

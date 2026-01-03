@@ -17,7 +17,9 @@ public:
 
     mat4 getProjection() { return projection; }
     mat4 getView() { return view; }
+
     mat4 getRotation();
+    vec3 getPosition() { return position; }
 
     float getFov() { return fov; }
     float getAspectRatio() { return aspectRatio; }

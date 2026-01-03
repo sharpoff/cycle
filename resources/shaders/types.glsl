@@ -10,8 +10,10 @@ const uint RENDERING_SHADOWS = 1 << 2;
 const uint RENDERING_MATERIAL = 1 << 3;
 const uint RENDERING_ALL = RENDERING_FILL | RENDERING_LIGHTING | RENDERING_SHADOWS | RENDERING_MATERIAL;
 
-#define DEFAULT_TEXTURE_ID 0
-#define DEFAULT_MATERIAL_ID 0
+const int DEFAULT_TEXTURE_ID = 0;
+const int DEFAULT_MATERIAL_ID = 0;
+
+const int INVALID_ID = 4294967295;
 
 struct Vertex
 {
@@ -27,6 +29,18 @@ struct Material
     uint metallicRoughnessTexID;
     uint normalTexID;
     uint emissiveTexID;
+};
+
+// Light types
+const uint LIGHT_TYPE_DIRECTIONAL = 0;
+const uint LIGHT_TYPE_POINT = 1;
+const uint LIGHT_TYPE_SPOT = 2;
+
+struct Light
+{
+    vec3 position;
+    uint type;
+    vec3 color;
 };
 
 #endif

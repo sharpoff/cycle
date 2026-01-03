@@ -4,14 +4,15 @@
 #include "cycle/types/camera.h"
 #include "cycle/types/id.h"
 
+class World;
+
 class Editor
 {
 public:
     void processInput();
-    void draw();
+    void draw(World &world);
 
-    void selectEntity(const EntityID id) { selectedEntityID = id; }
-
+    // void selectEntity(const EntityID id) { selectedEntityID = id; }
     void setCamera(Camera *camera) { this->camera = camera; }
 
 private:

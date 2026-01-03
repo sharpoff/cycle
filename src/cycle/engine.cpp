@@ -5,6 +5,7 @@
 #include "cycle/input/keyboard.h"
 #include "cycle/logger.h"
 #include "cycle/math.h"
+#include "cycle/types/light.h"
 #include "cycle/types/transform.h"
 #include "glm/trigonometric.hpp"
 
@@ -45,16 +46,23 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
         ModelID modelID = ModelID::Invalid;
         modelID = g_modelManager->loadModel(modelsDir / "sponza/Sponza.gltf", "sponza");
         modelID = g_modelManager->loadModel(modelsDir / "monkey.gltf", "monkey");
+        modelID = g_modelManager->loadModel(modelsDir / "cube.gltf", "cube");
         assert(modelID != ModelID::Invalid);
     }
 
-    // should be called *after* loading assets
-    renderer.loadResources();
+    // load textures
+    {
+        TextureID texID = TextureID::Invalid;
+        texID = g_textureManager->createTextureCubeMap("resources/textures/sky_cubemap/", "skybox");
+        assert(texID != TextureID::Invalid);
+    }
 
-    world.addEntity(new Entity(Transform(glm::scale(vec3(0.01))), RENDERING_ALL, g_modelManager->getModelIDByName("sponza")), "sponza");
-    world.addEntity(new Entity(Transform(), RENDERING_ALL, g_modelManager->getModelIDByName("monkey")), "monkey");
+    world.addEntity(new Entity(Transform(glm::scale(vec3(0.01))), g_modelManager->getModelIDByName("sponza")), "sponza");
+    world.addEntity(new Entity(Transform(), g_modelManager->getModelIDByName("monkey")), "monkey");
+    world.addEntity(new Light(LIGHT_TYPE_DIRECTIONAL, Transform(vec3(0.0f, 5.0f, 0.0f), glm::identity<quat>(), vec3(0.2f)), g_modelManager->getModelIDByName("cube")), "light");
 
-    editor.selectEntity(world.getEntityIDByName("monkey"));
+    // should be called *after* loading materials/textures/lights/etc.
+    renderer.loadDynamicResources();
 }
 
 void Engine::shutdown()
@@ -74,11 +82,14 @@ void Engine::run()
         auto endTime = std::chrono::high_resolution_clock::now();
         deltaTime = std::chrono::duration<float, std::milli>(endTime - startTime).count() / 1000.0;
         startTime = endTime;
+        time += deltaTime;
 
         processEvents();
 
+        world.update();
+
         if (!minimized) {
-            renderer.draw(world, editor);
+            renderer.draw(editor);
         }
     }
 }

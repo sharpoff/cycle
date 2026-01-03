@@ -6,7 +6,6 @@
 // clang-format off
 #include <volk.h>
 #include <vk_mem_alloc.h>
-#include <vulkan/vulkan_core.h>
 // clang-format on
 
 #include "cycle/containers.h"
@@ -24,6 +23,15 @@ struct Allocation
 //========================
 //         Image
 //========================
+
+struct ImageLoadInfo
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t channels = 4; // rgba
+    uint32_t size = 0;
+    void *pixels = nullptr;
+};
 
 struct ImageCreateInfo
 {

@@ -17,12 +17,15 @@ public:
 
     bool isRunning() { return running; }
 
+    double getDeltaTime() { return deltaTime; }
+    double getTime() { return time; }
     World &getWorld() { return world; }
 
 private:
     void processEvents();
 
     double deltaTime = 0.0f;
+    double time = 0.0f;
     bool   minimized = false;
     bool   running = false;
 

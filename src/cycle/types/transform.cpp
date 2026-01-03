@@ -15,8 +15,7 @@ Transform::Transform(vec3 position, quat rotation, vec3 scale)
     this->position = position;
     this->rotation = rotation;
     this->scale = scale;
-
-    worldMatrix = glm::translate(position) * glm::toMat4(rotation) * glm::scale(scale);
+    updateWorldMatrix();
 }
 
 Transform::Transform(mat4 matrix)
@@ -28,8 +27,40 @@ void Transform::setMatrix(const mat4 &matrix)
 {
     vec3 skew;
     vec4 perspective;
-    if (!glm::decompose(matrix, scale, rotation, position, skew, perspective))
-        LOGE("%s", "Failed to decompose model matrix!");
+    vec3 scale;
+    quat orientation;
+    vec3 translation;
 
-    this->worldMatrix = matrix;
+    if (!glm::decompose(matrix, scale, orientation, translation, skew, perspective)) {
+        LOGE("%s", "Failed to decompose model matrix!");
+        return;
+    }
+
+    this->position = translation;
+    this->rotation = orientation;
+    this->scale = scale;
+    updateWorldMatrix();
+}
+
+void Transform::setPosition(vec3 position)
+{
+    this->position = position;
+    updateWorldMatrix();
+}
+
+void Transform::setRotation(quat rotation)
+{
+    this->rotation = rotation;
+    updateWorldMatrix();
+}
+
+void Transform::setScale(vec3 scale)
+{
+    this->scale = scale;
+    updateWorldMatrix();
+}
+
+void Transform::updateWorldMatrix()
+{
+    worldMatrix = glm::translate(position) * glm::toMat4(rotation) * glm::scale(scale);
 }
