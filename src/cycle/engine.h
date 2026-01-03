@@ -3,7 +3,6 @@
 #include "SDL3/SDL_video.h"
 
 #include "cycle/editor.h"
-#include "cycle/input/input.h"
 #include "cycle/renderer.h"
 #include "cycle/world.h"
 
@@ -31,7 +30,6 @@ private:
 
     Renderer renderer;
     Camera   camera;
-    Input    input;
     World    world;
     Editor   editor;
 

@@ -4,6 +4,14 @@
 #include "cycle/input/keyboard.h"
 #include "cycle/input/mouse.h"
 
+#include "cycle/globals.h"
+
+void Input::init()
+{
+    static Input input;
+    g_input = &input;
+}
+
 void Input::processEvent(SDL_Event *event)
 {
     mouseMoving = false;

@@ -2,7 +2,6 @@
 
 #include "SDL3/SDL_events.h"
 #include "cycle/globals.h"
-#include "cycle/input/keyboard.h"
 #include "cycle/logger.h"
 #include "cycle/math.h"
 #include "cycle/types/light.h"
@@ -18,9 +17,8 @@
 void Engine::init(const char *title, uint32_t width, uint32_t height)
 {
     g_engine = this;
-    g_input = &input;
 
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         LOGE("Failed to initialize SDL: %s", SDL_GetError());
         exit(EXIT_FAILURE);
     }
@@ -32,6 +30,10 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
     }
 
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    SDL_RaiseWindow(window);
+
+    Input::init();
+    GamepadInput::init();
 
     camera.setPerspective(glm::radians(60.0f), float(width) / height, 0.01f);
     camera.setPosition(vec3(0.0f, 0.0f, 1.0f));
@@ -97,8 +99,9 @@ void Engine::run()
 void Engine::processEvents()
 {
     vec3 camTranslation = vec3(0.0f);
-    float movementSpeed = 2.0f * deltaTime;
-    float rotationSpeed = 1.0f;
+    float camMovementSpeed = 2.0f * deltaTime;
+    float camRotationSpeed = 1.0f;
+    float camRotationSpeedGamepad = 0.2f;
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -116,23 +119,39 @@ void Engine::processEvents()
             minimized = false;
         }
 
-        input.processEvent(&event);
+        g_input->processEvent(&event);
+        g_gamepadInput->processEvent(&event);
 
         ImGuiIO &io = ImGui::GetIO();
         if (io.WantCaptureMouse)
             continue; // skip mouse handling
 
-        if (input.isMouseButtonDown(MouseButton::LEFT) && input.isMouseMoving()) {
-            vec2 relPos = input.getMouseRelativePosition();
-            camera.rotate(vec3(-glm::radians(relPos.y) * rotationSpeed, glm::radians(relPos.x) * rotationSpeed, 0.0f));
+        // gamepad right axis movement
+        if (g_gamepadInput->isConnected()) {
+            const GamepadState &gamepadState = g_gamepadInput->getGamepadState();
+            vec2 relPos = vec2(0.0f);
+            if (abs(gamepadState.rightAxisX) > gamepadState.deadZone) {
+                relPos.x = gamepadState.rightAxisX / 32767.0f;
+            }
+            if (abs(gamepadState.rightAxisY) > gamepadState.deadZone) {
+                relPos.y = gamepadState.rightAxisY / 32767.0f;
+            }
+
+            camera.rotate(vec3(-glm::radians(relPos.y) * camRotationSpeedGamepad, glm::radians(relPos.x) * camRotationSpeedGamepad, 0.0f));
+        }
+
+        // mouse movement
+        if (g_input->isMouseButtonDown(MouseButton::LEFT) && g_input->isMouseMoving()) {
+            vec2 relPos = g_input->getMouseRelativePosition();
+            camera.rotate(vec3(-glm::radians(relPos.y) * camRotationSpeed, glm::radians(relPos.x) * camRotationSpeed, 0.0f));
         }
     }
 
-    if (input.isKeyDown(KeyboardKey::ESCAPE)) {
+    if (g_input->isKeyDown(KeyboardKey::ESCAPE)) {
         running = false;
     }
 
-    if (input.isKeyDown(KeyboardKey::P)) {
+    if (g_input->isKeyDown(KeyboardKey::P)) {
         LOGI("%s", "Reloading shaders");
         renderer.reloadShaders();
     }
@@ -143,24 +162,42 @@ void Engine::processEvents()
     if (io.WantCaptureKeyboard)
         return; // skip keyboard handling
 
+    // gamepad left axis movement
+    if (g_gamepadInput->isConnected()) {
+        const GamepadState &gamepadState = g_gamepadInput->getGamepadState();
+        if (abs(gamepadState.leftAxisX) > gamepadState.deadZone) {
+            if (gamepadState.leftAxisX > 0)
+                camTranslation.x += camMovementSpeed;
+            else
+                camTranslation.x -= camMovementSpeed;
+        }
+
+        if (abs(gamepadState.leftAxisY) > gamepadState.deadZone) {
+            if (gamepadState.leftAxisY > 0)
+                camTranslation.z += camMovementSpeed;
+            else
+                camTranslation.z -= camMovementSpeed;
+        }
+    }
+
     // camera movement
-    if (input.isKeyDown(KeyboardKey::LSHIFT)) {
-        movementSpeed *= 5;
+    if (g_input->isKeyDown(KeyboardKey::LSHIFT)) {
+        camMovementSpeed *= 5;
     }
-    if (input.isKeyDown(KeyboardKey::A)) {
-        camTranslation.x -= movementSpeed;
+    if (g_input->isKeyDown(KeyboardKey::A)) {
+        camTranslation.x -= camMovementSpeed;
     }
-    if (input.isKeyDown(KeyboardKey::D)) {
-        camTranslation.x += movementSpeed;
+    if (g_input->isKeyDown(KeyboardKey::D)) {
+        camTranslation.x += camMovementSpeed;
     }
-    if (input.isKeyDown(KeyboardKey::W)) {
-        camTranslation.z -= movementSpeed;
+    if (g_input->isKeyDown(KeyboardKey::W)) {
+        camTranslation.z -= camMovementSpeed;
     }
-    if (input.isKeyDown(KeyboardKey::S)) {
-        camTranslation.z += movementSpeed;
+    if (g_input->isKeyDown(KeyboardKey::S)) {
+        camTranslation.z += camMovementSpeed;
     }
-    if (input.isKeyDown(KeyboardKey::SPACE)) {
-        camTranslation.y += movementSpeed;
+    if (g_input->isKeyDown(KeyboardKey::SPACE)) {
+        camTranslation.y += camMovementSpeed;
     }
 
     camera.move(mat3(camera.getRotation()) * camTranslation);

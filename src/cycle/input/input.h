@@ -8,6 +8,7 @@
 class Input
 {
 public:
+    static void init();
     void processEvent(SDL_Event *event);
 
     bool isMouseButtonDown(const MouseButton &button);
