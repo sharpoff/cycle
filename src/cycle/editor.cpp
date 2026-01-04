@@ -41,7 +41,10 @@ void Editor::draw()
                 continue;
 
             if (ImGui::Selectable(nameComponent->name, entity == selectedEntityID)) {
-                selectedEntityID = entity;
+                if (entity != selectedEntityID)
+                    selectedEntityID = entity;
+                else
+                    selectedEntityID = EntityID::Invalid;
             }
         }
 

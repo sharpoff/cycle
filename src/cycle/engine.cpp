@@ -45,27 +45,29 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
     // load models
     {
         ModelID modelID = ModelID::Invalid;
-        modelID = g_modelManager->loadModel(modelsDir / "sponza/Sponza.gltf", "sponza");
+        // modelID = g_modelManager->loadModel(modelsDir / "sponza/Sponza.gltf", "sponza");
         modelID = g_modelManager->loadModel(modelsDir / "monkey.gltf", "monkey");
         modelID = g_modelManager->loadModel(modelsDir / "cube.gltf", "cube");
-        assert(modelID != ModelID::Invalid);
     }
 
     // load textures
     {
         TextureID texID = TextureID::Invalid;
         texID = g_textureManager->createTextureCubeMap("resources/textures/sky_cubemap/", "skybox");
-        assert(texID != TextureID::Invalid);
     }
 
     createEntities();
 
-    // should be called *after* loading materials/textures/lights/etc.
+    // should be called *after* loading entities/materials/textures/models/etc.
     renderer.loadDynamicResources();
+
+    // should be called *after* create entities, to affect physics entity components
+    physics.init();
 }
 
 void Engine::shutdown()
 {
+    physics.shutdown();
     renderer.shutdown();
 
     g_engine = nullptr;
@@ -94,34 +96,57 @@ void Engine::run()
 void Engine::createEntities()
 {
     // sponza
-    {
-        const EntityID      sponza = g_entityManager->createEntity();
-        TransformComponent &transform = g_entityManager->transformComponents.addComponent(sponza);
-        transform.transform = glm::scale(vec3(0.01f));
+    // {
+    //     const EntityID      sponza = g_entityManager->createEntity();
+    //     TransformComponent &transform = g_entityManager->transformComponents.addComponent(sponza);
+    //     transform.transform = glm::scale(vec3(0.01f));
 
-        NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(sponza);
-        nameComponent.name = "sponza";
+    //     NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(sponza);
+    //     nameComponent.name = "sponza";
 
-        RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(sponza);
-        renderComponent.modelID = g_modelManager->getModelIDByName("sponza");
-    }
+    //     RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(sponza);
+    //     renderComponent.modelID = g_modelManager->getModelIDByName("sponza");
+    // }
 
     // monkey
     {
-        const EntityID      monkey = g_entityManager->createEntity();
+        const EntityID monkey = g_entityManager->createEntity();
         TransformComponent &transform = g_entityManager->transformComponents.addComponent(monkey);
-        transform.transform = mat4(1.0f);
+        transform.transform = glm::translate(vec3(0.0f, 100.0f, 0.0f));
 
         NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(monkey);
         nameComponent.name = "monkey";
 
         RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(monkey);
         renderComponent.modelID = g_modelManager->getModelIDByName("monkey");
+
+        RigidBodyComponent &rigidbodyComponent = g_entityManager->rigidBodyComponents.addComponent(monkey);
+        rigidbodyComponent.isDynamic = true;
+        rigidbodyComponent.type = RigidBodyType::Box;
+        rigidbodyComponent.halfExtent = g_modelManager->getHalfExtent(renderComponent.modelID);
+    }
+
+    // floor
+    {
+        const EntityID box = g_entityManager->createEntity();
+        TransformComponent &transform = g_entityManager->transformComponents.addComponent(box);
+        transform.transform = glm::scale(vec3(10.0f, 0.1f, 10.0f));
+
+        NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(box);
+        nameComponent.name = "floor";
+
+        RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(box);
+        renderComponent.modelID = g_modelManager->getModelIDByName("cube");
+
+        RigidBodyComponent &rigidbodyComponent = g_entityManager->rigidBodyComponents.addComponent(box);
+        rigidbodyComponent.isDynamic = false;
+        rigidbodyComponent.type = RigidBodyType::Box;
+        rigidbodyComponent.halfExtent = g_modelManager->getHalfExtent(renderComponent.modelID, math::getScale(transform.transform));
     }
 
     // light
     {
-        const EntityID  light = g_entityManager->createEntity();
+        const EntityID light = g_entityManager->createEntity();
         LightComponent &lightComponent = g_entityManager->lightComponents.addComponent(light);
         lightComponent.lightType = LIGHT_TYPE_DIRECTIONAL;
         lightComponent.color = vec3(1.0f);
@@ -261,4 +286,6 @@ void Engine::update()
             transformComp->transform = glm::translate(pos) * mat4(math::getRotation(transform)) * glm::scale(math::getScale(transform));
         }
     }
+
+    physics.update();
 }

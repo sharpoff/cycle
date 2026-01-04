@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cycle/containers.h"
+#include "cycle/math.h"
 #include "cycle/types/id.h"
 #include "cycle/types/model.h"
 
@@ -15,6 +16,8 @@ public:
     Model *getModelByName(String name);
     Model *getModelByID(const ModelID id);
     const ModelID getModelIDByName(String name);
+
+    vec3 getHalfExtent(const ModelID id, const vec3 &scale = vec3(1.0f));
 
     Vector<Model> &getModels() { return models; }
 

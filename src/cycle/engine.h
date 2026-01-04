@@ -3,6 +3,7 @@
 #include "SDL3/SDL_video.h"
 
 #include "cycle/editor.h"
+#include "cycle/physics.h"
 #include "cycle/renderer.h"
 
 class Engine
@@ -29,6 +30,7 @@ private:
     bool   running = false;
 
     Renderer renderer;
+    Physics  physics;
     Camera   camera;
     Editor   editor;
 

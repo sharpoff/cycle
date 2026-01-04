@@ -24,8 +24,13 @@ void main()
     }
 
     vec3 baseColor = vec3(0.0);
-    if (material.baseColorTexID != INVALID_ID)
-        baseColor = sampleTexture2DLinear(material.baseColorTexID, inUV).rgb;
+    if (material.baseColorTexID != INVALID_ID) {
+        vec4 tex = sampleTexture2DLinear(material.baseColorTexID, inUV);
+        if (tex.a < 0.5)
+            discard;
+
+        baseColor = tex.rgb;
+    }
 
     float metallic = 0.2;
     float perceptualRoughness = 1.0;

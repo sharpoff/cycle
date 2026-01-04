@@ -29,6 +29,7 @@ target_link_libraries(engine
     glm
     volk
     GPUOpen::VulkanMemoryAllocator
+	Jolt
 )
 
 set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders")

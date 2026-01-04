@@ -63,3 +63,32 @@ const ModelID ModelManager::getModelIDByName(String name)
 
     return ModelID::Invalid;
 }
+
+vec3 ModelManager::getHalfExtent(const ModelID id, const vec3 &scale)
+{
+    Model *model = getModelByID(id);
+    if (!model)
+        return vec3();
+
+    mat4 scaleMatrix = glm::scale(scale);
+
+    vec3 min = vec3(std::numeric_limits<float>::max());
+    vec3 max = vec3(std::numeric_limits<float>::min());
+
+    for (MeshID meshID : model->meshes) {
+        Mesh *mesh = g_meshManager->getMeshByID(meshID);
+        if (!mesh)
+            return vec3();
+
+        if (mesh->vertices.size() == 0)
+            return vec3();
+
+        for (Vertex vert : mesh->vertices) {
+            vec3 position = vec3(scaleMatrix * vec4(vert.position, 0.0f));
+            min = glm::min(min, position);
+            max = glm::max(max, position);
+        }
+    }
+
+    return (max - min) / 2.0f;
+}

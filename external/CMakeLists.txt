@@ -16,3 +16,6 @@ add_subdirectory(volk)
 
 set(VMA_ENABLE_INSTALL OFF)
 add_subdirectory(VulkanMemoryAllocator)
+
+set(CPP_RTTI_ENABLED OFF)
+add_subdirectory(JoltPhysics/Build)
