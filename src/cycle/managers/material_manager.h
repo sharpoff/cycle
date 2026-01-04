@@ -13,6 +13,10 @@ public:
     Vector<Material> &getMaterials() { return materials; }
 
 private:
+    MaterialManager() {}
+    MaterialManager(MaterialManager &) = delete;
+    void operator=(MaterialManager const &) = delete;
+
     Vector<Material> materials;
     UnorderedMap<String, MaterialID> nameMaterialMap;
 };

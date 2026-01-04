@@ -61,4 +61,44 @@ namespace math
         );
         // clang-format on
     }
+
+    inline vec3 getPosition(const mat4 &m)
+    {
+        vec3 scale;
+        quat orientation;
+        vec3 translation;
+        vec3 skew;
+        vec4 perspective;
+
+        glm::decompose(m, scale, orientation, translation, skew, perspective);
+
+        return translation;
+    }
+
+    inline quat getRotation(const mat4 &m)
+    {
+        vec3 scale;
+        quat orientation;
+        vec3 translation;
+        vec3 skew;
+        vec4 perspective;
+
+        glm::decompose(m, scale, orientation, translation, skew, perspective);
+
+        return orientation;
+    }
+
+    inline vec3 getScale(const mat4 &m)
+    {
+        vec3 scale;
+        quat orientation;
+        vec3 translation;
+        vec3 skew;
+        vec4 perspective;
+
+        glm::decompose(m, scale, orientation, translation, skew, perspective);
+
+        return scale;
+    }
+
 } // namespace math

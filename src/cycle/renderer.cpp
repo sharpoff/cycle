@@ -3,15 +3,15 @@
 #include "cycle/filesystem.h"
 #include "cycle/graphics/render_device.h"
 #include "cycle/graphics/vulkan_helpers.h"
+#include "cycle/types/gpu_light.h"
 #include "cycle/types/id.h"
+#include "cycle/types/mesh_draw_info.h"
+#include "cycle/types/scene_info.h"
+#include "cycle/types/material.h"
 
 #include "cycle/globals.h"
 
-#include "cycle/types/light.h"
-#include "cycle/types/material.h"
-#include "cycle/types/render_data.h"
 
-#include "cycle/types/shader_data.h"
 #include <filesystem>
 
 #include "imgui.h"
@@ -24,10 +24,10 @@ void Renderer::init(SDL_Window *window)
     device.init(window);
 
     // init all resource managers
-    g_textureManager->init(&device);
-    g_meshManager->init(&device);
-    g_materialManager->init();
-    g_modelManager->init();
+    TextureManager::init(&device);
+    MeshManager::init(&device);
+    MaterialManager::init();
+    ModelManager::init();
 
     createAttachmentImages();
 
@@ -132,11 +132,9 @@ void Renderer::shutdown()
 
 void Renderer::loadDynamicResources()
 {
-    World &world = g_engine->getWorld();
-
     auto &materials = g_materialManager->getMaterials();
     auto &textures = g_textureManager->getTextures();
-    lightEntityIds = world.getEntitiesByType(EntityType::ENTITY_TYPE_LIGHT);
+    Vector<EntityID> &lightEntities = g_entityManager->lightComponents.getEntities();
 
     // create materials buffer
     if (materials.size() > 0) {
@@ -156,23 +154,26 @@ void Renderer::loadDynamicResources()
     }
 
     // create lights buffer
-    if (lightEntityIds.size() > 0) {
+    if (lightEntities.size() > 0) {
         if (lightsBuffer.size > 0) { // delete existing lights buffer
             device.destroyBuffer(lightsBuffer);
         }
 
-        gpuLights.clear();
-        for (EntityID lightID : lightEntityIds) {
-            Light *lightEnt = static_cast<Light*>(world.getEntityByID(lightID));
+        Vector<GPULight> gpuLights;
+        for (EntityID lightID : lightEntities) {
+            LightComponent *lightComponent = g_entityManager->lightComponents.getComponent(lightID);
+            TransformComponent *transformComponent = g_entityManager->transformComponents.getComponent(lightID);
+            if (!lightComponent || !transformComponent)
+                continue;
 
-            LightGPU &light = gpuLights.emplace_back();
-            light.color = lightEnt->color;
-            light.position = lightEnt->transform.getPosition();
-            light.type = lightEnt->lightType;
+            GPULight &light = gpuLights.emplace_back();
+            light.position = math::getPosition(transformComponent->transform);
+            light.color = lightComponent->color;
+            light.lightType = lightComponent->lightType;
         }
 
         const BufferCreateInfo createInfo = {
-            .size = sizeof(LightGPU) * gpuLights.size(),
+            .size = sizeof(GPULight) * gpuLights.size(),
             .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
@@ -191,7 +192,7 @@ void Renderer::loadDynamicResources()
     if (materials.size() > 0)
         device.writeDescriptor(3, materialsBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 
-    if (lightEntityIds.size() > 0)
+    if (lightEntities.size() > 0)
         device.writeDescriptor(4, lightsBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 
     device.updateDescriptors(meshPipelineLayout);
@@ -215,7 +216,6 @@ void Renderer::draw(Editor &editor)
         return;
     }
 
-    World &world = g_engine->getWorld();
     updateDynamicResources();
 
     barriers.transitionImage2(colorImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
@@ -256,13 +256,14 @@ void Renderer::draw(Editor &editor)
         encoder.beginRendering(renderingInfo);
 
         encoder.bindPipeline(meshPipeline);
-        for (Entity *entity : world.getEntities()) {
-            if (!entity)
+        for (EntityID entity : g_entityManager->renderComponents.getEntities()) {
+            RenderComponent    *renderComponent = g_entityManager->renderComponents.getComponent(entity);
+            TransformComponent *transformComponent = g_entityManager->transformComponents.getComponent(entity);
+            if (!renderComponent || !transformComponent)
                 continue;
 
-            RenderData rd = entity->getRenderData();
-            Model *model = g_modelManager->getModelByID(rd.modelID);
-            drawModel(encoder, model, rd.transform.getMatrix());
+            Model *model = g_modelManager->getModelByID(renderComponent->modelID);
+            drawModel(encoder, model, transformComponent->transform);
         }
         encoder.endRendering();
     }
@@ -278,7 +279,7 @@ void Renderer::draw(Editor &editor)
         VkRenderingInfo renderingInfo = vulkan::createRenderingInfo(renderArea, colorAttachments, &depthAttachment);
         encoder.beginRendering(renderingInfo);
 
-        editor.draw(world);
+        editor.draw();
         ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), encoder.cmd);
 
         encoder.endRendering();
@@ -429,18 +430,21 @@ void Renderer::updateDynamicResources()
 {
     assert(camera && "Camera is not set!");
 
-    World &world = g_engine->getWorld();
+    Vector<EntityID> &lightEntities = g_entityManager->lightComponents.getEntities();
 
-    gpuLights.clear();
-    for (EntityID lightID : lightEntityIds) {
-        Light *lightEnt = static_cast<Light*>(world.getEntityByID(lightID));
+    Vector<GPULight> gpuLights;
+    for (EntityID lightID : lightEntities) {
+        LightComponent     *lightComponent = g_entityManager->lightComponents.getComponent(lightID);
+        TransformComponent *transformComponent = g_entityManager->transformComponents.getComponent(lightID);
+        if (!lightComponent || !transformComponent)
+            continue;
 
-        LightGPU &light = gpuLights.emplace_back();
-        light.color = lightEnt->color;
-        light.position = lightEnt->transform.getPosition();
-        light.type = lightEnt->lightType;
+        GPULight &light = gpuLights.emplace_back();
+        light.position = math::getPosition(transformComponent->transform);
+        light.color = lightComponent->color;
+        light.lightType = lightComponent->lightType;
     }
-    device.uploadBufferData(lightsBuffer, gpuLights.data(), sizeof(LightGPU) * gpuLights.size());
+    device.uploadBufferData(lightsBuffer, gpuLights.data(), sizeof(GPULight) * gpuLights.size());
 
     SceneInfo sceneInfo = {};
     sceneInfo.view = camera->getView();

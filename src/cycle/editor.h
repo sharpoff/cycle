@@ -4,18 +4,18 @@
 #include "cycle/types/camera.h"
 #include "cycle/types/id.h"
 
-class World;
-
 class Editor
 {
 public:
     void processInput();
-    void draw(World &world);
+    void draw();
 
     // void selectEntity(const EntityID id) { selectedEntityID = id; }
     void setCamera(Camera *camera) { this->camera = camera; }
 
 private:
+    void updateGizmo();
+
     ImGuizmo::OPERATION gizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
     ImGuizmo::MODE gizmoMode = ImGuizmo::MODE::WORLD;
 

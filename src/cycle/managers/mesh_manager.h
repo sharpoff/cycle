@@ -17,6 +17,10 @@ public:
     void uploadMeshData(const MeshID &id, Vector<Vertex> vertices, Vector<uint32_t> indices);
 
 private:
+    MeshManager() {}
+    MeshManager(MeshManager &) = delete;
+    void operator=(MeshManager const &) = delete;
+
     Vector<Mesh> meshes;
 
     RenderDevice *renderDevice;

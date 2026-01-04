@@ -4,7 +4,7 @@
 #include "cycle/types/camera.h"
 #include "cycle/graphics/vulkan_types.h"
 #include "cycle/graphics/render_device.h"
-#include "cycle/types/light.h"
+#include "cycle/types/id.h"
 
 #define DEFAULT_TEXTURE_ID 0
 #define DEFAULT_MATERIAL_ID 0
@@ -51,8 +51,7 @@ private:
     Buffer materialsBuffer;
     Buffer lightsBuffer;
 
-    Vector<EntityID> lightEntityIds;
-    Vector<LightGPU> gpuLights;
+    Vector<EntityID> lightEntities;
 
     Sampler linearSampler;
     Sampler nearestSampler;

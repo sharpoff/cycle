@@ -19,6 +19,10 @@ public:
     Vector<Model> &getModels() { return models; }
 
 private:
+    ModelManager() {}
+    ModelManager(ModelManager &) = delete;
+    void operator=(ModelManager const &) = delete;
+
     Vector<Model> models;
     UnorderedMap<String, ModelID> nameModelMap;
 };

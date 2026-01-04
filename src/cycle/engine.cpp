@@ -4,8 +4,6 @@
 #include "cycle/globals.h"
 #include "cycle/logger.h"
 #include "cycle/math.h"
-#include "cycle/types/light.h"
-#include "cycle/types/transform.h"
 #include "glm/trigonometric.hpp"
 
 #include <chrono>
@@ -34,6 +32,7 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
 
     Input::init();
     GamepadInput::init();
+    EntityManager::init();
 
     camera.setPerspective(glm::radians(60.0f), float(width) / height, 0.01f);
     camera.setPosition(vec3(0.0f, 0.0f, 1.0f));
@@ -59,9 +58,7 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
         assert(texID != TextureID::Invalid);
     }
 
-    world.addEntity(new Entity(Transform(glm::scale(vec3(0.01))), g_modelManager->getModelIDByName("sponza")), "sponza");
-    world.addEntity(new Entity(Transform(), g_modelManager->getModelIDByName("monkey")), "monkey");
-    world.addEntity(new Light(LIGHT_TYPE_DIRECTIONAL, Transform(vec3(0.0f, 5.0f, 0.0f), glm::identity<quat>(), vec3(0.2f)), g_modelManager->getModelIDByName("cube")), "light");
+    createEntities();
 
     // should be called *after* loading materials/textures/lights/etc.
     renderer.loadDynamicResources();
@@ -69,7 +66,6 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
 
 void Engine::shutdown()
 {
-    world.release();
     renderer.shutdown();
 
     g_engine = nullptr;
@@ -87,12 +83,57 @@ void Engine::run()
         time += deltaTime;
 
         processEvents();
-
-        world.update();
+        update();
 
         if (!minimized) {
             renderer.draw(editor);
         }
+    }
+}
+
+void Engine::createEntities()
+{
+    // sponza
+    {
+        const EntityID      sponza = g_entityManager->createEntity();
+        TransformComponent &transform = g_entityManager->transformComponents.addComponent(sponza);
+        transform.transform = glm::scale(vec3(0.01f));
+
+        NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(sponza);
+        nameComponent.name = "sponza";
+
+        RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(sponza);
+        renderComponent.modelID = g_modelManager->getModelIDByName("sponza");
+    }
+
+    // monkey
+    {
+        const EntityID      monkey = g_entityManager->createEntity();
+        TransformComponent &transform = g_entityManager->transformComponents.addComponent(monkey);
+        transform.transform = mat4(1.0f);
+
+        NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(monkey);
+        nameComponent.name = "monkey";
+
+        RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(monkey);
+        renderComponent.modelID = g_modelManager->getModelIDByName("monkey");
+    }
+
+    // light
+    {
+        const EntityID  light = g_entityManager->createEntity();
+        LightComponent &lightComponent = g_entityManager->lightComponents.addComponent(light);
+        lightComponent.lightType = LIGHT_TYPE_DIRECTIONAL;
+        lightComponent.color = vec3(1.0f);
+
+        NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(light);
+        nameComponent.name = "light";
+
+        RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(light);
+        renderComponent.modelID = g_modelManager->getModelIDByName("cube");
+
+        TransformComponent &transformComponent = g_entityManager->transformComponents.addComponent(light);
+        transformComponent.transform = glm::translate(vec3(0.0f, 5.0f, 0.0f)) * glm::scale(vec3(0.2f));
     }
 }
 
@@ -201,4 +242,23 @@ void Engine::processEvents()
     }
 
     camera.move(mat3(camera.getRotation()) * camTranslation);
+}
+
+void Engine::update()
+{
+    for (const EntityID entity : g_entityManager->nameComponents.getEntities()) {
+        NameComponent *nameComp = g_entityManager->nameComponents.getComponent(entity);
+        if (nameComp && !strcmp(nameComp->name, "light")) {
+            TransformComponent *transformComp = g_entityManager->transformComponents.getComponent(entity);
+            if (!transformComp)
+                continue;
+
+            const mat4 &transform = transformComp->transform;
+
+            vec3 pos = math::getPosition(transform);
+            pos.x = sin(glm::radians(time) * 360.0f * 0.2f) * 5.0f;
+            pos.z = cos(glm::radians(time) * 360.0f * 0.2f) * 5.0f;
+            transformComp->transform = glm::translate(pos) * mat4(math::getRotation(transform)) * glm::scale(math::getScale(transform));
+        }
+    }
 }

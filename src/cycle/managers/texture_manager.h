@@ -18,6 +18,10 @@ public:
     Vector<Image> &getTextures() { return textures; }
 
 private:
+    TextureManager() {}
+    TextureManager(TextureManager &) = delete;
+    void operator=(TextureManager const &) = delete;
+
     bool loadImageInfoFromFile(String filename, ImageLoadInfo &info, bool flip = false);
     void freeImageInfo(ImageLoadInfo &info);
     void freeImageInfos(Vector<ImageLoadInfo> &infos);

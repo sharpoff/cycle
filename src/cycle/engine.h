@@ -4,7 +4,6 @@
 
 #include "cycle/editor.h"
 #include "cycle/renderer.h"
-#include "cycle/world.h"
 
 class Engine
 {
@@ -18,10 +17,11 @@ public:
 
     double getDeltaTime() { return deltaTime; }
     double getTime() { return time; }
-    World &getWorld() { return world; }
 
 private:
+    void createEntities();
     void processEvents();
+    void update();
 
     double deltaTime = 0.0f;
     double time = 0.0f;
@@ -30,7 +30,6 @@ private:
 
     Renderer renderer;
     Camera   camera;
-    World    world;
     Editor   editor;
 
     SDL_Window *window;
