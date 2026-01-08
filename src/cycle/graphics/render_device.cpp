@@ -1,15 +1,15 @@
 #include "cycle/graphics/render_device.h"
 
 #include "cycle/logger.h"
-
 #include "cycle/graphics/vulkan_helpers.h"
+
+#include <cycle/math.h>
 
 #include "SDL3/SDL_vulkan.h"
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_vulkan.h"
-
-#include <cycle/math.h>
+#include "ktx.h"
 
 void RenderDevice::init(SDL_Window *window)
 {
@@ -37,7 +37,9 @@ void RenderDevice::init(SDL_Window *window)
 
     createSwapchain();
 
-    printf("Selected present mode: %s\n", vulkan::toString(presentMode));
+    if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB)
+        LOGI("%s", "Swapchain format: VK_FORMAT_B8G8R8A8_SRGB");
+    LOGI("Present mode: %s", vulkan::toString(presentMode));
 
     createSyncObjects();
 
@@ -553,32 +555,19 @@ void RenderDevice::uploadBufferData(Buffer &buffer, void *data, uint64_t size)
     destroyBuffer(staging);
 }
 
-void RenderDevice::uploadImage(Image &image, ImageLoadInfo &loadInfo)
+void RenderDevice::uploadImage(Image &image, ImageLoadInfo &info)
 {
-    uploadImageLayers(image, {loadInfo});
-}
+    const uint32_t bufsize = info.textureKTX ? info.size : info.size * image.arrayLayers;
 
-void RenderDevice::uploadImageLayers(Image &image, const Vector<ImageLoadInfo> &infos)
-{
-    assert(infos.size() > 0);
-
-    const uint32_t bufsize = infos[0].size * image.arrayLayers;
-    const uint32_t layerSize = infos[0].size;
-
+    Buffer staging;
     const BufferCreateInfo createInfo = {
         .size = bufsize,
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     };
-
-    Buffer staging;
     createBuffer(staging, createInfo);
-    for (uint32_t face = 0; face < infos.size(); face++) {
-        void *pixels = infos[face].pixels;
-        assert(pixels);
-        memcpy(static_cast<unsigned char *>(staging.allocation.info.pMappedData) + (layerSize * face), pixels, layerSize);
-    }
+    uploadBufferData(staging, info.data, info.size);
 
-    immediateSubmit([layerSize, &staging, &image](VkCommandBuffer cmd) -> void {
+    immediateSubmit([&staging, &image, &info](VkCommandBuffer cmd) -> void {
         // transition image to transfer
         VkImageMemoryBarrier transferBarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         transferBarrier.srcAccessMask = 0;
@@ -599,12 +588,24 @@ void RenderDevice::uploadImageLayers(Image &image, const Vector<ImageLoadInfo> &
         );
 
         // copy
-        Vector<VkBufferImageCopy> copyRegions;
-        for (uint32_t face = 0; face < image.arrayLayers; face++) {
-            VkBufferImageCopy &copyRegion = copyRegions.emplace_back();
-            copyRegion.imageSubresource = {image.aspect, 0, face, 1};
+        Vector<VkBufferImageCopy> copyRegions{};
+        if (info.textureKTX) { // copy image and all faces and mip levels
+            for (uint32_t j = 0; j < image.mipLevels; j++) {
+                ktx_size_t     offset = 0;
+                KTX_error_code ret = ktxTexture_GetImageOffset(info.textureKTX, j, 0, 0, &offset);
+                assert(ret == KTX_SUCCESS);
+
+                VkBufferImageCopy copyRegion = {};
+                copyRegion.imageSubresource = {image.aspect, j, 0, image.arrayLayers};
+                copyRegion.imageExtent = {image.width >> j, image.height >> j, 1};
+                copyRegion.bufferOffset = offset;
+                copyRegions.push_back(copyRegion);
+            }
+        } else { // generate mip levels later if needed.
+            VkBufferImageCopy copyRegion = {};
+            copyRegion.imageSubresource = {image.aspect, 0, 0, 1};
             copyRegion.imageExtent = {image.width, image.height, 1};
-            copyRegion.bufferOffset = face * layerSize;
+            copyRegions.push_back(copyRegion);
         }
 
         vkCmdCopyBufferToImage(cmd, staging.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, copyRegions.size(), copyRegions.data());

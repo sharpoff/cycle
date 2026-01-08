@@ -38,9 +38,11 @@ const uint LIGHT_TYPE_SPOT = 2;
 
 struct Light
 {
-    vec3 position;
-    uint type;
-    vec3 color;
+    vec3  position;
+    float intensity;
+    vec3  direction;
+    uint  type;
+    vec3  color;
 };
 
 #endif

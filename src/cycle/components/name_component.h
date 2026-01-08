@@ -1,6 +1,8 @@
 #pragma once
 
+#include "cycle/containers.h"
+
 struct NameComponent
 {
-    const char *name = "";
+    String name = "";
 };

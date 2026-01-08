@@ -1,10 +1,7 @@
 #pragma once
 
 #include "SDL3/SDL_video.h"
-
-#include "cycle/editor.h"
-#include "cycle/physics.h"
-#include "cycle/renderer.h"
+#include "cycle/types/camera.h"
 
 class Engine
 {
@@ -29,10 +26,7 @@ private:
     bool   minimized = false;
     bool   running = false;
 
-    Renderer renderer;
-    Physics  physics;
-    Camera   camera;
-    Editor   editor;
+    Camera camera;
 
     SDL_Window *window;
 };

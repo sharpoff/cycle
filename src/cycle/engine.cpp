@@ -1,16 +1,35 @@
 #include "cycle/engine.h"
 
-#include "SDL3/SDL_events.h"
-#include "cycle/globals.h"
+#include <chrono>
+
+#include "cycle/audio.h"
 #include "cycle/logger.h"
 #include "cycle/math.h"
-#include "glm/trigonometric.hpp"
+#include "cycle/editor.h"
+#include "cycle/physics.h"
+#include "cycle/renderer.h"
+#include "cycle/input.h"
+#include "cycle/gamepad_input.h"
 
-#include <chrono>
+#include "cycle/managers/entity_manager.h"
+#include "cycle/managers/model_manager.h"
+#include "cycle/managers/texture_manager.h"
 
 #include <SDL3/SDL.h>
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
+
+extern Input *g_input;
+extern Physics *g_physics;
+extern GamepadInput *g_gamepadInput;
+extern EntityManager *g_entityManager;
+extern ModelManager *g_modelManager;
+extern TextureManager *g_textureManager;
+extern Editor *g_editor;
+extern Audio *g_audio;
+extern Renderer *g_renderer;
+
+Engine *g_engine;
 
 void Engine::init(const char *title, uint32_t width, uint32_t height)
 {
@@ -30,45 +49,49 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
     SDL_RaiseWindow(window);
 
-    Input::init();
-    GamepadInput::init();
-    EntityManager::init();
+    g_renderer->init(window);
+    g_input->init();
+    g_gamepadInput->init();
+    g_physics->init();
+    g_audio->init();
+    g_editor->init();
+    g_entityManager->init();
 
     camera.setPerspective(glm::radians(60.0f), float(width) / height, 0.01f);
     camera.setPosition(vec3(0.0f, 0.0f, 1.0f));
-
-    renderer.init(window);
-
-    renderer.setCamera(&camera);
-    editor.setCamera(&camera);
-
-    // load models
-    {
-        ModelID modelID = ModelID::Invalid;
-        // modelID = g_modelManager->loadModel(modelsDir / "sponza/Sponza.gltf", "sponza");
-        modelID = g_modelManager->loadModel(modelsDir / "monkey.gltf", "monkey");
-        modelID = g_modelManager->loadModel(modelsDir / "cube.gltf", "cube");
-    }
+    g_renderer->setCamera(&camera);
+    g_editor->setCamera(&camera);
 
     // load textures
     {
         TextureID texID = TextureID::Invalid;
-        texID = g_textureManager->createTextureCubeMap("resources/textures/sky_cubemap/", "skybox");
+        texID = g_textureManager->createTexture("resources/textures/sky_cubemap/sky_cubemap.ktx", "skybox");
+    }
+
+    // load models
+    {
+        ModelID modelID = ModelID::Invalid;
+        modelID = g_modelManager->loadModel(modelsDir / "sponza/Sponza.gltf", "sponza");
+        modelID = g_modelManager->loadModel(modelsDir / "monkey.gltf", "monkey");
+        modelID = g_modelManager->loadModel(modelsDir / "cube.gltf", "cube");
     }
 
     createEntities();
 
-    // should be called *after* loading entities/materials/textures/models/etc.
-    renderer.loadDynamicResources();
+    g_renderer->loadDynamicResources();
+    g_physics->createBodies();
 
-    // should be called *after* create entities, to affect physics entity components
-    physics.init();
+    g_entityManager->destroyEntity(g_entityManager->getEntityIDByName("box"));
+
+    // g_audio->load(audioDir / "ambient_drums.wav", "ambient_drums");
+    // g_audio->play("ambient_drums", true);
 }
 
 void Engine::shutdown()
 {
-    physics.shutdown();
-    renderer.shutdown();
+    g_physics->shutdown();
+    g_audio->shutdown();
+    g_renderer->shutdown();
 
     g_engine = nullptr;
 }
@@ -88,7 +111,7 @@ void Engine::run()
         update();
 
         if (!minimized) {
-            renderer.draw(editor);
+            g_renderer->draw();
         }
     }
 }
@@ -96,69 +119,83 @@ void Engine::run()
 void Engine::createEntities()
 {
     // sponza
-    // {
-    //     const EntityID      sponza = g_entityManager->createEntity();
-    //     TransformComponent &transform = g_entityManager->transformComponents.addComponent(sponza);
-    //     transform.transform = glm::scale(vec3(0.01f));
-
-    //     NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(sponza);
-    //     nameComponent.name = "sponza";
-
-    //     RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(sponza);
-    //     renderComponent.modelID = g_modelManager->getModelIDByName("sponza");
-    // }
-
-    // monkey
     {
-        const EntityID monkey = g_entityManager->createEntity();
-        TransformComponent &transform = g_entityManager->transformComponents.addComponent(monkey);
-        transform.transform = glm::translate(vec3(0.0f, 100.0f, 0.0f));
+        const EntityID      sponza = g_entityManager->createEntity();
+        TransformComponent &transform = g_entityManager->transforms.addComponent(sponza);
+        transform.transform = glm::scale(vec3(0.01f));
 
-        NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(monkey);
-        nameComponent.name = "monkey";
+        NameComponent &nameComponent = g_entityManager->names.addComponent(sponza);
+        nameComponent.name = "sponza";
 
-        RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(monkey);
-        renderComponent.modelID = g_modelManager->getModelIDByName("monkey");
-
-        RigidBodyComponent &rigidbodyComponent = g_entityManager->rigidBodyComponents.addComponent(monkey);
-        rigidbodyComponent.isDynamic = true;
-        rigidbodyComponent.type = RigidBodyType::Box;
-        rigidbodyComponent.halfExtent = g_modelManager->getHalfExtent(renderComponent.modelID);
+        ModelComponent &modelComponent = g_entityManager->models.addComponent(sponza);
+        modelComponent.modelID = g_modelManager->getModelIDByName("sponza");
     }
 
+    // monkeys
+    // for (int i = 0; i <= 5; i++)
+    // {
+    //     const EntityID monkey = g_entityManager->createEntity();
+    //     TransformComponent &transform = g_entityManager->transforms.addComponent(monkey);
+    //     transform.transform = glm::translate(vec3(0.0f, 30.0f * i, 0.0f));
+
+    //     NameComponent &nameComponent = g_entityManager->names.addComponent(monkey);
+    //     nameComponent.name = "monkey" + std::to_string(i);
+
+    //     ModelComponent &modelComponent = g_entityManager->models.addComponent(monkey);
+    //     modelComponent.modelID = g_modelManager->getModelIDByName("monkey");
+
+    //     RigidBodyComponent &rigidbodyComponent = g_entityManager->rigidBodies.addComponent(monkey);
+    //     rigidbodyComponent.isDynamic = true;
+    //     rigidbodyComponent.type = RigidBodyType::FromModel;
+    // }
+
     // floor
+    // {
+    //     const EntityID box = g_entityManager->createEntity();
+    //     TransformComponent &transform = g_entityManager->transforms.addComponent(box);
+    //     transform.transform = glm::translate(vec3(0.0f, -5.0f, 0.0f)) * glm::scale(vec3(10.0f, 0.1f, 10.0f));
+
+    //     NameComponent &nameComponent = g_entityManager->names.addComponent(box);
+    //     nameComponent.name = "floor";
+
+    //     ModelComponent &modelComponent = g_entityManager->models.addComponent(box);
+    //     modelComponent.modelID = g_modelManager->getModelIDByName("cube");
+
+    //     RigidBodyComponent &rigidbodyComponent = g_entityManager->rigidBodies.addComponent(box);
+    //     rigidbodyComponent.isDynamic = false;
+    //     rigidbodyComponent.type = RigidBodyType::Box;
+    //     rigidbodyComponent.halfExtent = g_modelManager->getHalfExtent(modelComponent.modelID, math::getScale(transform.transform));
+    // }
+
+    // box
     {
         const EntityID box = g_entityManager->createEntity();
-        TransformComponent &transform = g_entityManager->transformComponents.addComponent(box);
-        transform.transform = glm::scale(vec3(10.0f, 0.1f, 10.0f));
+        TransformComponent &transformComponent = g_entityManager->transforms.addComponent(box);
+        transformComponent.transform = mat4(1.0f);
 
-        NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(box);
-        nameComponent.name = "floor";
+        NameComponent &nameComponent = g_entityManager->names.addComponent(box);
+        nameComponent.name = "box";
 
-        RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(box);
-        renderComponent.modelID = g_modelManager->getModelIDByName("cube");
-
-        RigidBodyComponent &rigidbodyComponent = g_entityManager->rigidBodyComponents.addComponent(box);
-        rigidbodyComponent.isDynamic = false;
-        rigidbodyComponent.type = RigidBodyType::Box;
-        rigidbodyComponent.halfExtent = g_modelManager->getHalfExtent(renderComponent.modelID, math::getScale(transform.transform));
+        ModelComponent &modelComponent = g_entityManager->models.addComponent(box);
+        modelComponent.modelID = g_modelManager->getModelIDByName("cube");
     }
 
     // light
     {
         const EntityID light = g_entityManager->createEntity();
-        LightComponent &lightComponent = g_entityManager->lightComponents.addComponent(light);
+        TransformComponent &transformComponent = g_entityManager->transforms.addComponent(light);
+        transformComponent.transform = glm::translate(vec3(0.0f, 23.0f, 0.0f)) * glm::scale(vec3(0.2f));
+
+        LightComponent &lightComponent = g_entityManager->lights.addComponent(light);
         lightComponent.lightType = LIGHT_TYPE_DIRECTIONAL;
+        lightComponent.direction = vec3(0.0f, -1.0f, 0.0f);
         lightComponent.color = vec3(1.0f);
 
-        NameComponent &nameComponent = g_entityManager->nameComponents.addComponent(light);
+        NameComponent &nameComponent = g_entityManager->names.addComponent(light);
         nameComponent.name = "light";
 
-        RenderComponent &renderComponent = g_entityManager->renderComponents.addComponent(light);
-        renderComponent.modelID = g_modelManager->getModelIDByName("cube");
-
-        TransformComponent &transformComponent = g_entityManager->transformComponents.addComponent(light);
-        transformComponent.transform = glm::translate(vec3(0.0f, 5.0f, 0.0f)) * glm::scale(vec3(0.2f));
+        ModelComponent &modelComponent = g_entityManager->models.addComponent(light);
+        modelComponent.modelID = g_modelManager->getModelIDByName("cube");
     }
 }
 
@@ -168,6 +205,8 @@ void Engine::processEvents()
     float camMovementSpeed = 2.0f * deltaTime;
     float camRotationSpeed = 1.0f;
     float camRotationSpeedGamepad = 0.2f;
+
+    bool cameraMoved = false;
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -219,10 +258,10 @@ void Engine::processEvents()
 
     if (g_input->isKeyDown(KeyboardKey::P)) {
         LOGI("%s", "Reloading shaders");
-        renderer.reloadShaders();
+        g_renderer->reloadShaders();
     }
 
-    editor.processInput();
+    g_editor->processInput();
 
     ImGuiIO &io = ImGui::GetIO();
     if (io.WantCaptureKeyboard)
@@ -271,21 +310,5 @@ void Engine::processEvents()
 
 void Engine::update()
 {
-    for (const EntityID entity : g_entityManager->nameComponents.getEntities()) {
-        NameComponent *nameComp = g_entityManager->nameComponents.getComponent(entity);
-        if (nameComp && !strcmp(nameComp->name, "light")) {
-            TransformComponent *transformComp = g_entityManager->transformComponents.getComponent(entity);
-            if (!transformComp)
-                continue;
-
-            const mat4 &transform = transformComp->transform;
-
-            vec3 pos = math::getPosition(transform);
-            pos.x = sin(glm::radians(time) * 360.0f * 0.2f) * 5.0f;
-            pos.z = cos(glm::radians(time) * 360.0f * 0.2f) * 5.0f;
-            transformComp->transform = glm::translate(pos) * mat4(math::getRotation(transform)) * glm::scale(math::getScale(transform));
-        }
-    }
-
-    physics.update();
+    g_physics->update();
 }

@@ -12,13 +12,11 @@ add_subdirectory(external)
 file(GLOB_RECURSE CYCLE_SOURCES "src/*.cpp")
 file(GLOB_RECURSE CYCLE_HEADERS "src/*.h")
 
-file(GLOB_RECURSE EXTERNAL_HEADERS "external/stb/*.h" "external/imgui/*.h" "external/cgltf/*.h")
 file(GLOB_RECURSE EXTERNAL_SOURCES "external/imgui/*.cpp")
 
 add_executable(engine
     ${CYCLE_SOURCES}
     ${CYCLE_HEADERS}
-    ${EXTERNAL_HEADERS}
     ${EXTERNAL_SOURCES}
 )
 
@@ -30,6 +28,8 @@ target_link_libraries(engine
     volk
     GPUOpen::VulkanMemoryAllocator
 	Jolt
+    ktx
+    soloud
 )
 
 set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders")

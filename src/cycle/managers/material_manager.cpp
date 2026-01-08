@@ -1,11 +1,11 @@
 #include "cycle/managers/material_manager.h"
 
-#include "cycle/globals.h"
+MaterialManager *g_materialManager = nullptr;
 
 void MaterialManager::init()
 {
-    static MaterialManager materialManager;
-    g_materialManager = &materialManager;
+    static MaterialManager instance;
+    g_materialManager = &instance;
 }
 
 const MaterialID MaterialManager::addMaterial(const Material &material, String name)

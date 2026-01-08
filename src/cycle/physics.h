@@ -9,6 +9,7 @@
 #include "Jolt/Physics/Collision/ContactListener.h"
 #include "Jolt/Physics/PhysicsSystem.h"
 #include "cycle/containers.h"
+#include "cycle/math.h"
 #include "cycle/types/id.h"
 
 constexpr const bool enableDebugOutput = false;
@@ -170,12 +171,28 @@ public:
 class Physics
 {
 public:
-    void init();
+    static void init();
     void shutdown();
+
+    // should be called *after* creating entities, to affect physics entity components
+    void createBodies();
+    
+    // should be called *before* update
+    const EntityID castRay(vec3 origin, vec3 direction);
 
     void update();
 
+    void setBodyPosition(const EntityID entityID, const vec3 &position);
+
 private:
+    Physics() {}
+    Physics(Physics &) = delete;
+    void operator=(Physics const &) = delete;
+
+    void initInternal();
+
+    JPH::BodyID getBodyID(const EntityID entityID);
+
     JPH::JobSystemThreadPool *jobSystem;
     JPH::TempAllocatorImpl   *tempAllocator;
 
@@ -208,4 +225,5 @@ private:
     Vector<JPH::BodyID> bodyIDs;
 
     UnorderedMap<EntityID, size_t> entityBodyMap;
+    UnorderedMap<JPH::BodyID, EntityID> bodyEntityMap;
 };

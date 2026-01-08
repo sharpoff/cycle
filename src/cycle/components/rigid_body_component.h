@@ -6,11 +6,15 @@ enum class RigidBodyType
 {
     Box,
     Sphere,
+    FromModel,
 };
 
 struct RigidBodyComponent
 {
     bool isDynamic = false;
-    vec3 halfExtent = vec3(1.0f);
     RigidBodyType type = RigidBodyType::Box;
+    union {
+        vec3 halfExtent; // RigidBodyType::Box
+        float radius; // RigidBodyType::Sphere
+    };
 };

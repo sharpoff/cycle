@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Jolt/Jolt.h>
-#include "Jolt/Math/Vec3.h"
 #include "Jolt/Math/Vec4.h"
 #include "Jolt/Math/Mat44.h"
 
@@ -14,9 +13,9 @@ namespace math
         return JPH::Vec4(v.x, v.y, v.z, v.w);
     }
 
-    inline JPH::Vec3 toJolt(const vec3 &v)
+    inline JPH::RVec3 toJolt(const vec3 &v)
     {
-        return JPH::Vec3(v.x, v.y, v.z);
+        return JPH::RVec3(v.x, v.y, v.z);
     }
 
     inline JPH::Mat44 toJolt(const mat4 &m)
@@ -34,24 +33,24 @@ namespace math
         return JPH::Quat(q.x, q.y, q.z, q.w);
     }
 
-    inline vec4 toMath(const JPH::Vec4 &v)
+    inline vec4 fromJolt(const JPH::Vec4 &v)
     {
         return vec4(v.GetX(), v.GetY(), v.GetZ(), v.GetW());
     }
 
-    inline vec3 toMath(const JPH::Vec3 &v)
+    inline vec3 fromJolt(const JPH::RVec3 &v)
     {
         return vec3(v.GetX(), v.GetY(), v.GetZ());
     }
 
-    inline mat4 toMath(const JPH::Mat44 &m)
+    inline mat4 fromJolt(const JPH::Mat44 &m)
     {
         mat4 result = mat4(1.0f);
         m.StoreFloat4x4((JPH::Float4 *)&result);
         return result;
     }
 
-    inline quat toMath(const JPH::Quat &q)
+    inline quat fromJolt(const JPH::Quat &q)
     {
         return quat(q.GetW(), q.GetX(), q.GetY(), q.GetZ());
     }

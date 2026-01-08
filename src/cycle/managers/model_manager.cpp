@@ -2,12 +2,54 @@
 #include "cycle/gltf_loader.h"
 #include "cycle/logger.h"
 
-#include "cycle/globals.h"
+#include "cycle/graphics/render_device.h"
 
-void ModelManager::init()
+ModelManager *g_modelManager = nullptr;
+
+void ModelManager::init(RenderDevice *renderDevice)
 {
-    static ModelManager modelManager;
-    g_modelManager = &modelManager;
+    static ModelManager instance;
+    g_modelManager = &instance;
+
+    instance.renderDevice = renderDevice;
+}
+
+void ModelManager::release()
+{
+    for (Model &model : models) {
+        for (Mesh &mesh : model.meshes) {
+            renderDevice->destroyBuffer(mesh.vertexBuffer);
+            renderDevice->destroyBuffer(mesh.indexBuffer);
+        }
+    }
+}
+
+void ModelManager::uploadMeshData(Mesh &mesh, Vector<Vertex> &vertices, Vector<uint32_t> &indices)
+{
+    mesh.vertices = vertices;
+    mesh.indices = indices;
+
+    // vertex buffer
+    {
+        BufferCreateInfo createInfo = {
+            .size = mesh.vertices.size() * sizeof(Vertex),
+            .usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        };
+
+        renderDevice->createBuffer(mesh.vertexBuffer, createInfo);
+        renderDevice->uploadBufferData(mesh.vertexBuffer, vertices.data(), createInfo.size);
+    }
+
+    // index buffer
+    {
+        BufferCreateInfo createInfo = {
+            .size = mesh.indices.size() * sizeof(uint32_t),
+            .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        };
+
+        renderDevice->createBuffer(mesh.indexBuffer, createInfo);
+        renderDevice->uploadBufferData(mesh.indexBuffer, indices.data(), createInfo.size);
+    }
 }
 
 const ModelID ModelManager::addModel(Model &model, String name)
@@ -75,15 +117,8 @@ vec3 ModelManager::getHalfExtent(const ModelID id, const vec3 &scale)
     vec3 min = vec3(std::numeric_limits<float>::max());
     vec3 max = vec3(std::numeric_limits<float>::min());
 
-    for (MeshID meshID : model->meshes) {
-        Mesh *mesh = g_meshManager->getMeshByID(meshID);
-        if (!mesh)
-            return vec3();
-
-        if (mesh->vertices.size() == 0)
-            return vec3();
-
-        for (Vertex vert : mesh->vertices) {
+    for (Mesh &mesh : model->meshes) {
+        for (Vertex vert : mesh.vertices) {
             vec3 position = vec3(scaleMatrix * vec4(vert.position, 0.0f));
             min = glm::min(min, position);
             max = glm::max(max, position);

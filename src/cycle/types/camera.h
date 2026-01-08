@@ -17,6 +17,7 @@ public:
 
     mat4 getProjection() { return projection; }
     mat4 getView() { return view; }
+    vec3 getDirection() { return vec3(view[0][2], view[1][2], view[2][2]); }
 
     mat4 getRotation();
     vec3 getPosition() { return position; }

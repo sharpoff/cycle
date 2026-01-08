@@ -1,33 +1,32 @@
 #include "cycle/gltf_loader.h"
 
-#include <filesystem>
-
 #include "cgltf.h"
-#include "cycle/types/id.h"
 #include "cycle/types/material.h"
 #include "cycle/types/mesh.h"
 
-#include "cycle/managers/mesh_manager.h"
+#include "cycle/managers/model_manager.h"
 #include "cycle/managers/texture_manager.h"
 #include "cycle/managers/material_manager.h"
 
-#include "cycle/globals.h"
+extern ModelManager *g_modelManager;
+extern TextureManager *g_textureManager;
+extern MaterialManager *g_materialManager;
 
 namespace gltf
 {
     static void processNode(Model &model, cgltf_data *data, cgltf_node *gltfNode, String baseDir);
 
-    bool load(Model &model, const String &filename)
+    bool load(Model &model, const std::filesystem::path &filepath)
     {
-        if (filename.empty())
+        if (filepath.empty() || !std::filesystem::exists(filepath))
             return false;
 
         cgltf_options options = {};
         cgltf_data   *data = NULL;
-        if (cgltf_parse_file(&options, filename.c_str(), &data) != cgltf_result_success)
+        if (cgltf_parse_file(&options, filepath.c_str(), &data) != cgltf_result_success)
             return false;
 
-        if (cgltf_load_buffers(&options, data, filename.c_str()) != cgltf_result_success)
+        if (cgltf_load_buffers(&options, data, filepath.c_str()) != cgltf_result_success)
             return false;
 
         cgltf_scene *root = data->scene;
@@ -36,7 +35,7 @@ namespace gltf
             return false;
         }
 
-        String baseDir = std::filesystem::path(filename).parent_path();
+        String baseDir = std::filesystem::path(filepath).parent_path();
 
         for (size_t i = 0; i < root->nodes_count; i++)
             processNode(model, data, root->nodes[i], baseDir);
@@ -101,8 +100,7 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            const TextureID id = g_textureManager->createTexture2D(baseDir / std::filesystem::path(uri));
-                            material.baseColorTexID = (id != TextureID::Invalid) ? id : (TextureID)0;
+                            material.baseColorTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
                         }
                     }
 
@@ -112,8 +110,7 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            const TextureID id = g_textureManager->createTexture2D(baseDir / std::filesystem::path(uri));
-                            material.metallicRoughnessTexID = (id != TextureID::Invalid) ? id : (TextureID)0;
+                            material.metallicRoughnessTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
                         }
                     }
 
@@ -123,8 +120,7 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            const TextureID id = g_textureManager->createTexture2D(baseDir / std::filesystem::path(uri));
-                            material.normalTexID = (id != TextureID::Invalid) ? id : (TextureID)0;
+                            material.normalTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
                         }
                     }
 
@@ -134,8 +130,7 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            const TextureID id = g_textureManager->createTexture2D(baseDir / std::filesystem::path(uri));
-                            material.emissiveTexID = (id != TextureID::Invalid) ? id : (TextureID)0;
+                            material.emissiveTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
                         }
                     }
                 }
@@ -143,10 +138,8 @@ namespace gltf
                 mesh.materialID = g_materialManager->addMaterial(material);
             }
 
-            MeshID meshID = g_meshManager->addMesh(mesh);
-            model.meshes.push_back(meshID);
-
-            g_meshManager->uploadMeshData(meshID, vertices, indices);
+            g_modelManager->uploadMeshData(mesh, vertices, indices);
+            model.meshes.push_back(mesh);
         }
 
         for (size_t i = 0; i < gltfNode->children_count; i++) {

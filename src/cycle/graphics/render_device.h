@@ -36,7 +36,6 @@ public:
 
     void uploadBufferData(Buffer &buffer, void *data, uint64_t size);
     void uploadImage(Image &image, ImageLoadInfo &loadInfo);
-    void uploadImageLayers(Image &image, const Vector<ImageLoadInfo> &infos);
 
     void generateMipmaps(Image &image);
 
@@ -58,6 +57,7 @@ public:
     uint32_t    getSwapchainHeight() { return swapchainExtent.height; };
     VkImage     getSwapchainImage() { return swapchainImages[imageIndex]; };
     VkImageView getSwapchainImageView() { return swapchainImageViews[imageIndex]; };
+    VkSurfaceFormatKHR  getSurfaceFormat() { return surfaceFormat; }
 
     uint32_t calculateMipLevels(uint32_t width, uint32_t height) { return floor(log2(std::max(width, height))) + 1; }
 

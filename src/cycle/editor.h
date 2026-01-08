@@ -7,13 +7,20 @@
 class Editor
 {
 public:
+    static void init();
     void processInput();
     void draw();
 
-    // void selectEntity(const EntityID id) { selectedEntityID = id; }
     void setCamera(Camera *camera) { this->camera = camera; }
 
+    bool isMouseProcessed = true;
+    bool isKeyboardProcessed = true;
+
 private:
+    Editor() {}
+    Editor(Editor &) = delete;
+    void operator=(Editor const &) = delete;
+
     void updateGizmo();
 
     ImGuizmo::OPERATION gizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
@@ -21,4 +28,6 @@ private:
 
     EntityID selectedEntityID = EntityID::Invalid;
     Camera *camera = nullptr;
+
+    bool lastFrameManipulated = false;
 };

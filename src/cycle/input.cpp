@@ -1,0 +1,512 @@
+#include "cycle/input.h"
+
+#include "SDL3/SDL_events.h"
+#include "SDL3/SDL_mouse.h"
+
+Input *g_input;
+
+void Input::init()
+{
+    static Input instance;
+    g_input = &instance;
+}
+
+void Input::processEvent(SDL_Event *event)
+{
+    mouseMoving = false;
+
+    if (event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) {
+        keys[(uint8_t)getKeyFromSDL(event->key.key)] = event->type == SDL_EVENT_KEY_DOWN;
+    } else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN || event->type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        mouse[(uint8_t)getMouseButtonFromSDL(event->button.button)] = event->button.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+    } else if (event->type == SDL_EVENT_MOUSE_MOTION) {
+        mousePosition = vec2(event->motion.x, event->motion.y);
+        mouseRelativePosition = vec2(event->motion.xrel, event->motion.yrel);
+        mouseMoving = true;
+    }
+}
+
+bool Input::isMouseButtonDown(const MouseButton &button)
+{
+    if (button != MouseButton::UNDEFINED && button != MouseButton::COUNT)
+        return mouse[(uint8_t)button];
+
+    return false;
+}
+
+bool Input::isMouseMoving()
+{
+    return mouseMoving;
+}
+
+bool Input::isKeyDown(const KeyboardKey &key)
+{
+    if (key != KeyboardKey::UNDEFINED && key != KeyboardKey::COUNT)
+        return keys[(uint8_t)key];
+
+    return false;
+}
+
+MouseButton Input::getMouseButtonFromSDL(uint8_t button)
+{
+    switch (button) {
+        case SDL_BUTTON_LEFT:
+            return MouseButton::LEFT;
+        case SDL_BUTTON_RIGHT:
+            return MouseButton::RIGHT;
+        case SDL_BUTTON_MIDDLE:
+            return MouseButton::MIDDLE;
+    }
+
+    return MouseButton::UNDEFINED;
+}
+
+KeyboardKey Input::getKeyFromSDL(SDL_Keycode code)
+{
+    switch (code) {
+        case SDLK_RETURN:
+            return KeyboardKey::RETURN;
+        case SDLK_ESCAPE:
+            return KeyboardKey::ESCAPE;
+        case SDLK_BACKSPACE:
+            return KeyboardKey::BACKSPACE;
+        case SDLK_TAB:
+            return KeyboardKey::TAB;
+        case SDLK_SPACE:
+            return KeyboardKey::SPACE;
+        case SDLK_EXCLAIM:
+            return KeyboardKey::EXCLAIM;
+        case SDLK_DBLAPOSTROPHE:
+            return KeyboardKey::DBLAPOSTROPHE;
+        case SDLK_HASH:
+            return KeyboardKey::HASH;
+        case SDLK_DOLLAR:
+            return KeyboardKey::DOLLAR;
+        case SDLK_PERCENT:
+            return KeyboardKey::PERCENT;
+        case SDLK_AMPERSAND:
+            return KeyboardKey::AMPERSAND;
+        case SDLK_APOSTROPHE:
+            return KeyboardKey::APOSTROPHE;
+        case SDLK_LEFTPAREN:
+            return KeyboardKey::LEFTPAREN;
+        case SDLK_RIGHTPAREN:
+            return KeyboardKey::RIGHTPAREN;
+        case SDLK_ASTERISK:
+            return KeyboardKey::ASTERISK;
+        case SDLK_PLUS:
+            return KeyboardKey::PLUS;
+        case SDLK_COMMA:
+            return KeyboardKey::COMMA;
+        case SDLK_MINUS:
+            return KeyboardKey::MINUS;
+        case SDLK_PERIOD:
+            return KeyboardKey::PERIOD;
+        case SDLK_SLASH:
+            return KeyboardKey::SLASH;
+        case SDLK_0:
+            return KeyboardKey::NUM0;
+        case SDLK_1:
+            return KeyboardKey::NUM1;
+        case SDLK_2:
+            return KeyboardKey::NUM2;
+        case SDLK_3:
+            return KeyboardKey::NUM3;
+        case SDLK_4:
+            return KeyboardKey::NUM4;
+        case SDLK_5:
+            return KeyboardKey::NUM5;
+        case SDLK_6:
+            return KeyboardKey::NUM6;
+        case SDLK_7:
+            return KeyboardKey::NUM7;
+        case SDLK_8:
+            return KeyboardKey::NUM8;
+        case SDLK_9:
+            return KeyboardKey::NUM9;
+        case SDLK_COLON:
+            return KeyboardKey::COLON;
+        case SDLK_SEMICOLON:
+            return KeyboardKey::SEMICOLON;
+        case SDLK_LESS:
+            return KeyboardKey::LESS;
+        case SDLK_EQUALS:
+            return KeyboardKey::EQUALS;
+        case SDLK_GREATER:
+            return KeyboardKey::GREATER;
+        case SDLK_QUESTION:
+            return KeyboardKey::QUESTION;
+        case SDLK_AT:
+            return KeyboardKey::AT;
+        case SDLK_LEFTBRACKET:
+            return KeyboardKey::LEFTBRACKET;
+        case SDLK_BACKSLASH:
+            return KeyboardKey::BACKSLASH;
+        case SDLK_RIGHTBRACKET:
+            return KeyboardKey::RIGHTBRACKET;
+        case SDLK_CARET:
+            return KeyboardKey::CARET;
+        case SDLK_UNDERSCORE:
+            return KeyboardKey::UNDERSCORE;
+        case SDLK_GRAVE:
+            return KeyboardKey::GRAVE;
+        case SDLK_A:
+            return KeyboardKey::A;
+        case SDLK_B:
+            return KeyboardKey::B;
+        case SDLK_C:
+            return KeyboardKey::C;
+        case SDLK_D:
+            return KeyboardKey::D;
+        case SDLK_E:
+            return KeyboardKey::E;
+        case SDLK_F:
+            return KeyboardKey::F;
+        case SDLK_G:
+            return KeyboardKey::G;
+        case SDLK_H:
+            return KeyboardKey::H;
+        case SDLK_I:
+            return KeyboardKey::I;
+        case SDLK_J:
+            return KeyboardKey::J;
+        case SDLK_K:
+            return KeyboardKey::K;
+        case SDLK_L:
+            return KeyboardKey::L;
+        case SDLK_M:
+            return KeyboardKey::M;
+        case SDLK_N:
+            return KeyboardKey::N;
+        case SDLK_O:
+            return KeyboardKey::O;
+        case SDLK_P:
+            return KeyboardKey::P;
+        case SDLK_Q:
+            return KeyboardKey::Q;
+        case SDLK_R:
+            return KeyboardKey::R;
+        case SDLK_S:
+            return KeyboardKey::S;
+        case SDLK_T:
+            return KeyboardKey::T;
+        case SDLK_U:
+            return KeyboardKey::U;
+        case SDLK_V:
+            return KeyboardKey::V;
+        case SDLK_W:
+            return KeyboardKey::W;
+        case SDLK_X:
+            return KeyboardKey::X;
+        case SDLK_Y:
+            return KeyboardKey::Y;
+        case SDLK_Z:
+            return KeyboardKey::Z;
+        case SDLK_LEFTBRACE:
+            return KeyboardKey::LEFTBRACE;
+        case SDLK_PIPE:
+            return KeyboardKey::PIPE;
+        case SDLK_RIGHTBRACE:
+            return KeyboardKey::RIGHTBRACE;
+        case SDLK_TILDE:
+            return KeyboardKey::TILDE;
+        case SDLK_DELETE:
+            return KeyboardKey::DELETE;
+        case SDLK_PLUSMINUS:
+            return KeyboardKey::PLUSMINUS;
+        case SDLK_CAPSLOCK:
+            return KeyboardKey::CAPSLOCK;
+        case SDLK_F1:
+            return KeyboardKey::F1;
+        case SDLK_F2:
+            return KeyboardKey::F2;
+        case SDLK_F3:
+            return KeyboardKey::F3;
+        case SDLK_F4:
+            return KeyboardKey::F4;
+        case SDLK_F5:
+            return KeyboardKey::F5;
+        case SDLK_F6:
+            return KeyboardKey::F6;
+        case SDLK_F7:
+            return KeyboardKey::F7;
+        case SDLK_F8:
+            return KeyboardKey::F8;
+        case SDLK_F9:
+            return KeyboardKey::F9;
+        case SDLK_F10:
+            return KeyboardKey::F10;
+        case SDLK_F11:
+            return KeyboardKey::F11;
+        case SDLK_F12:
+            return KeyboardKey::F12;
+        case SDLK_PRINTSCREEN:
+            return KeyboardKey::PRINTSCREEN;
+        case SDLK_SCROLLLOCK:
+            return KeyboardKey::SCROLLLOCK;
+        case SDLK_PAUSE:
+            return KeyboardKey::PAUSE;
+        case SDLK_INSERT:
+            return KeyboardKey::INSERT;
+        case SDLK_HOME:
+            return KeyboardKey::HOME;
+        case SDLK_PAGEUP:
+            return KeyboardKey::PAGEUP;
+        case SDLK_END:
+            return KeyboardKey::END;
+        case SDLK_PAGEDOWN:
+            return KeyboardKey::PAGEDOWN;
+        case SDLK_RIGHT:
+            return KeyboardKey::RIGHT;
+        case SDLK_LEFT:
+            return KeyboardKey::LEFT;
+        case SDLK_DOWN:
+            return KeyboardKey::DOWN;
+        case SDLK_UP:
+            return KeyboardKey::UP;
+        case SDLK_NUMLOCKCLEAR:
+            return KeyboardKey::NUMLOCKCLEAR;
+        case SDLK_KP_DIVIDE:
+            return KeyboardKey::KP_DIVIDE;
+        case SDLK_KP_MULTIPLY:
+            return KeyboardKey::KP_MULTIPLY;
+        case SDLK_KP_MINUS:
+            return KeyboardKey::KP_MINUS;
+        case SDLK_KP_PLUS:
+            return KeyboardKey::KP_PLUS;
+        case SDLK_KP_ENTER:
+            return KeyboardKey::KP_ENTER;
+        case SDLK_KP_1:
+            return KeyboardKey::KP_1;
+        case SDLK_KP_2:
+            return KeyboardKey::KP_2;
+        case SDLK_KP_3:
+            return KeyboardKey::KP_3;
+        case SDLK_KP_4:
+            return KeyboardKey::KP_4;
+        case SDLK_KP_5:
+            return KeyboardKey::KP_5;
+        case SDLK_KP_6:
+            return KeyboardKey::KP_6;
+        case SDLK_KP_7:
+            return KeyboardKey::KP_7;
+        case SDLK_KP_8:
+            return KeyboardKey::KP_8;
+        case SDLK_KP_9:
+            return KeyboardKey::KP_9;
+        case SDLK_KP_0:
+            return KeyboardKey::KP_0;
+        case SDLK_KP_PERIOD:
+            return KeyboardKey::KP_PERIOD;
+        case SDLK_APPLICATION:
+            return KeyboardKey::APPLICATION;
+        case SDLK_POWER:
+            return KeyboardKey::POWER;
+        case SDLK_KP_EQUALS:
+            return KeyboardKey::KP_EQUALS;
+        case SDLK_F13:
+            return KeyboardKey::F13;
+        case SDLK_F14:
+            return KeyboardKey::F14;
+        case SDLK_F15:
+            return KeyboardKey::F15;
+        case SDLK_F16:
+            return KeyboardKey::F16;
+        case SDLK_F17:
+            return KeyboardKey::F17;
+        case SDLK_F18:
+            return KeyboardKey::F18;
+        case SDLK_F19:
+            return KeyboardKey::F19;
+        case SDLK_F20:
+            return KeyboardKey::F20;
+        case SDLK_F21:
+            return KeyboardKey::F21;
+        case SDLK_F22:
+            return KeyboardKey::F22;
+        case SDLK_F23:
+            return KeyboardKey::F23;
+        case SDLK_F24:
+            return KeyboardKey::F24;
+        case SDLK_EXECUTE:
+            return KeyboardKey::EXECUTE;
+        case SDLK_HELP:
+            return KeyboardKey::HELP;
+        case SDLK_MENU:
+            return KeyboardKey::MENU;
+        case SDLK_SELECT:
+            return KeyboardKey::SELECT;
+        case SDLK_STOP:
+            return KeyboardKey::STOP;
+        case SDLK_AGAIN:
+            return KeyboardKey::AGAIN;
+        case SDLK_UNDO:
+            return KeyboardKey::UNDO;
+        case SDLK_CUT:
+            return KeyboardKey::CUT;
+        case SDLK_COPY:
+            return KeyboardKey::COPY;
+        case SDLK_PASTE:
+            return KeyboardKey::PASTE;
+        case SDLK_FIND:
+            return KeyboardKey::FIND;
+        case SDLK_MUTE:
+            return KeyboardKey::MUTE;
+        case SDLK_VOLUMEUP:
+            return KeyboardKey::VOLUMEUP;
+        case SDLK_VOLUMEDOWN:
+            return KeyboardKey::VOLUMEDOWN;
+        case SDLK_KP_COMMA:
+            return KeyboardKey::KP_COMMA;
+        case SDLK_KP_EQUALSAS400:
+            return KeyboardKey::KP_EQUALSAS400;
+        case SDLK_ALTERASE:
+            return KeyboardKey::ALTERASE;
+        case SDLK_SYSREQ:
+            return KeyboardKey::SYSREQ;
+        case SDLK_CANCEL:
+            return KeyboardKey::CANCEL;
+        case SDLK_CLEAR:
+            return KeyboardKey::CLEAR;
+        case SDLK_PRIOR:
+            return KeyboardKey::PRIOR;
+        case SDLK_RETURN2:
+            return KeyboardKey::RETURN2;
+        case SDLK_SEPARATOR:
+            return KeyboardKey::SEPARATOR;
+        case SDLK_OUT:
+            return KeyboardKey::OUT;
+        case SDLK_OPER:
+            return KeyboardKey::OPER;
+        case SDLK_CLEARAGAIN:
+            return KeyboardKey::CLEARAGAIN;
+        case SDLK_CRSEL:
+            return KeyboardKey::CRSEL;
+        case SDLK_EXSEL:
+            return KeyboardKey::EXSEL;
+        case SDLK_THOUSANDSSEPARATOR:
+            return KeyboardKey::THOUSANDSSEPARATOR;
+        case SDLK_DECIMALSEPARATOR:
+            return KeyboardKey::DECIMALSEPARATOR;
+        case SDLK_CURRENCYUNIT:
+            return KeyboardKey::CURRENCYUNIT;
+        case SDLK_CURRENCYSUBUNIT:
+            return KeyboardKey::CURRENCYSUBUNIT;
+        case SDLK_KP_LEFTPAREN:
+            return KeyboardKey::KP_LEFTPAREN;
+        case SDLK_KP_RIGHTPAREN:
+            return KeyboardKey::KP_RIGHTPAREN;
+        case SDLK_KP_LEFTBRACE:
+            return KeyboardKey::KP_LEFTBRACE;
+        case SDLK_KP_RIGHTBRACE:
+            return KeyboardKey::KP_RIGHTBRACE;
+        case SDLK_KP_TAB:
+            return KeyboardKey::KP_TAB;
+        case SDLK_KP_BACKSPACE:
+            return KeyboardKey::KP_BACKSPACE;
+        case SDLK_KP_A:
+            return KeyboardKey::KP_A;
+        case SDLK_KP_B:
+            return KeyboardKey::KP_B;
+        case SDLK_KP_C:
+            return KeyboardKey::KP_C;
+        case SDLK_KP_D:
+            return KeyboardKey::KP_D;
+        case SDLK_KP_E:
+            return KeyboardKey::KP_E;
+        case SDLK_KP_F:
+            return KeyboardKey::KP_F;
+        case SDLK_KP_XOR:
+            return KeyboardKey::KP_XOR;
+        case SDLK_KP_POWER:
+            return KeyboardKey::KP_POWER;
+        case SDLK_KP_PERCENT:
+            return KeyboardKey::KP_PERCENT;
+        case SDLK_KP_LESS:
+            return KeyboardKey::KP_LESS;
+        case SDLK_KP_GREATER:
+            return KeyboardKey::KP_GREATER;
+        case SDLK_KP_AMPERSAND:
+            return KeyboardKey::KP_AMPERSAND;
+        case SDLK_KP_DBLAMPERSAND:
+            return KeyboardKey::KP_DBLAMPERSAND;
+        case SDLK_KP_VERTICALBAR:
+            return KeyboardKey::KP_VERTICALBAR;
+        case SDLK_KP_DBLVERTICALBAR:
+            return KeyboardKey::KP_DBLVERTICALBAR;
+        case SDLK_KP_COLON:
+            return KeyboardKey::KP_COLON;
+        case SDLK_KP_HASH:
+            return KeyboardKey::KP_HASH;
+        case SDLK_KP_SPACE:
+            return KeyboardKey::KP_SPACE;
+        case SDLK_KP_AT:
+            return KeyboardKey::KP_AT;
+        case SDLK_KP_EXCLAM:
+            return KeyboardKey::KP_EXCLAM;
+        case SDLK_KP_MEMSTORE:
+            return KeyboardKey::KP_MEMSTORE;
+        case SDLK_KP_MEMRECALL:
+            return KeyboardKey::KP_MEMRECALL;
+        case SDLK_KP_MEMCLEAR:
+            return KeyboardKey::KP_MEMCLEAR;
+        case SDLK_KP_MEMADD:
+            return KeyboardKey::KP_MEMADD;
+        case SDLK_KP_MEMSUBTRACT:
+            return KeyboardKey::KP_MEMSUBTRACT;
+        case SDLK_KP_MEMMULTIPLY:
+            return KeyboardKey::KP_MEMMULTIPLY;
+        case SDLK_KP_MEMDIVIDE:
+            return KeyboardKey::KP_MEMDIVIDE;
+        case SDLK_KP_PLUSMINUS:
+            return KeyboardKey::KP_PLUSMINUS;
+        case SDLK_KP_CLEAR:
+            return KeyboardKey::KP_CLEAR;
+        case SDLK_KP_CLEARENTRY:
+            return KeyboardKey::KP_CLEARENTRY;
+        case SDLK_KP_BINARY:
+            return KeyboardKey::KP_BINARY;
+        case SDLK_KP_OCTAL:
+            return KeyboardKey::KP_OCTAL;
+        case SDLK_KP_DECIMAL:
+            return KeyboardKey::KP_DECIMAL;
+        case SDLK_KP_HEXADECIMAL:
+            return KeyboardKey::KP_HEXADECIMAL;
+        case SDLK_LCTRL:
+            return KeyboardKey::LCTRL;
+        case SDLK_LSHIFT:
+            return KeyboardKey::LSHIFT;
+        case SDLK_LALT:
+            return KeyboardKey::LALT;
+        case SDLK_RCTRL:
+            return KeyboardKey::RCTRL;
+        case SDLK_RSHIFT:
+            return KeyboardKey::RSHIFT;
+        case SDLK_RALT:
+            return KeyboardKey::RALT;
+        case SDLK_SOFTLEFT:
+            return KeyboardKey::SOFTLEFT;
+        case SDLK_SOFTRIGHT:
+            return KeyboardKey::SOFTRIGHT;
+        case SDLK_CALL:
+            return KeyboardKey::CALL;
+        case SDLK_ENDCALL:
+            return KeyboardKey::ENDCALL;
+        case SDLK_LEFT_TAB:
+            return KeyboardKey::LEFT_TAB;
+        case SDLK_LEVEL5_SHIFT:
+            return KeyboardKey::LEVEL5_SHIFT;
+        case SDLK_MULTI_KEY_COMPOSE:
+            return KeyboardKey::MULTI_KEY_COMPOSE;
+        case SDLK_LMETA:
+            return KeyboardKey::LMETA;
+        case SDLK_RMETA:
+            return KeyboardKey::RMETA;
+        case SDLK_LHYPER:
+            return KeyboardKey::LHYPER;
+        case SDLK_RHYPER:
+            return KeyboardKey::RHYPER;
+    }
+
+    return KeyboardKey::UNDEFINED;
+}

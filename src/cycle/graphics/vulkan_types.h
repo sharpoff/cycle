@@ -24,13 +24,19 @@ struct Allocation
 //         Image
 //========================
 
+struct ktxTexture;
+
 struct ImageLoadInfo
 {
     uint32_t width = 0;
     uint32_t height = 0;
-    uint32_t channels = 4; // rgba
+    uint32_t mipLevels = 1;
+    uint32_t channels = 4;
+    uint32_t arrayLayers = 1;
     uint32_t size = 0;
-    void *pixels = nullptr;
+    void *data = nullptr;
+
+    ktxTexture *textureKTX = nullptr; // if ktx
 };
 
 struct ImageCreateInfo

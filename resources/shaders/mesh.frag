@@ -18,45 +18,52 @@ layout(location = 0) out vec4 fragColor;
 void main()
 {
     Material material = materials[meshDrawInfo.materialID];
-    if (meshDrawInfo.materialID == DEFAULT_MATERIAL_ID) { // default material
-        fragColor = vec4(sampleTexture2DLinear(material.baseColorTexID, inUV));
-        return;
-    }
 
     vec3 baseColor = vec3(0.0);
     if (material.baseColorTexID != INVALID_ID) {
-        vec4 tex = sampleTexture2DLinear(material.baseColorTexID, inUV);
-        if (tex.a < 0.5)
+        vec4 baseColorTex = sampleTexture2DLinear(material.baseColorTexID, inUV);
+        if (baseColorTex.a < 0.5)
             discard;
 
-        baseColor = tex.rgb;
+        baseColor = baseColorTex.rgb;
     }
 
     float metallic = 0.2;
-    float perceptualRoughness = 1.0;
+    float perceptualRoughness = 0.8;
+    float reflectance = 0.5;
+
     if (material.metallicRoughnessTexID != INVALID_ID) {
         vec3 metalRoughnessTex = sampleTexture2DLinear(material.metallicRoughnessTexID, inUV).rgb;
         metallic = metalRoughnessTex.b;
         perceptualRoughness = metalRoughnessTex.g;
     }
 
+    vec3 emissive = vec3(0.0);
+    if (material.emissiveTexID != INVALID_ID) {
+        emissive = sampleTexture2DLinear(material.emissiveTexID, inUV).rgb;
+    }
+
     vec3 normal = normalize(inNormal);
     vec3 view = normalize(sceneInfo.cameraPos - inWorldPos);
 
-    float reflectance = 0.5;
-
+    vec3 diffuseColor = (1.0 - metallic) * baseColor;
     vec3 f0 = 0.16 * reflectance * reflectance * (1.0 - metallic) + baseColor * metallic;
 
     vec3 lightColor = vec3(0.0);
     for (uint i = 0; i < sceneInfo.lightsCount; i++) {
         Light light = lights[i];
-        vec3 l = normalize(light.position - inWorldPos);
 
-        if (light.type == LIGHT_TYPE_DIRECTIONAL)
+        if (light.type == LIGHT_TYPE_DIRECTIONAL) {
+            vec3 l = normalize(-light.direction);
             lightColor += pbrBRDF(view, l, normal, f0, perceptualRoughness, baseColor) * light.color;
+        } else if (light.type == LIGHT_TYPE_POINT) {
+            vec3 l = normalize(light.position - inWorldPos);
+            lightColor += pbrBRDF(view, l, normal, f0, perceptualRoughness, diffuseColor) * light.color;
+        }
     }
 
     vec3 color = lightColor;
+    color += emissive;
 
     fragColor = vec4(color, 1.0);
 }

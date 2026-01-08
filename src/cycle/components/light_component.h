@@ -13,4 +13,5 @@ struct LightComponent
 {
     LightType lightType = LIGHT_TYPE_DIRECTIONAL;
     vec3 color = vec3(1.0f);
+    vec3 direction = vec3(0.0f);
 };

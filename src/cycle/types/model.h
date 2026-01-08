@@ -1,9 +1,9 @@
 #pragma once
 
-#include "cycle/types/id.h"
 #include "cycle/containers.h"
+#include "cycle/types/mesh.h"
 
 struct Model
 {
-    Vector<MeshID> meshes;
+    Vector<Mesh> meshes;
 };

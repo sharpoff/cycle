@@ -1,5 +1,8 @@
 #include "cycle/renderer.h"
 
+#include <filesystem>
+
+#include "cycle/editor.h"
 #include "cycle/filesystem.h"
 #include "cycle/graphics/render_device.h"
 #include "cycle/graphics/vulkan_helpers.h"
@@ -9,25 +12,42 @@
 #include "cycle/types/scene_info.h"
 #include "cycle/types/material.h"
 
-#include "cycle/globals.h"
-
-
-#include <filesystem>
+#include "cycle/managers/texture_manager.h"
+#include "cycle/managers/model_manager.h"
+#include "cycle/managers/material_manager.h"
+#include "cycle/managers/entity_manager.h"
 
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
 
+extern TextureManager *g_textureManager;
+extern ModelManager *g_modelManager;
+extern MaterialManager *g_materialManager;
+extern EntityManager *g_entityManager;
+
+extern Editor *g_editor;
+
+Renderer *g_renderer;
+
 void Renderer::init(SDL_Window *window)
+{
+    static Renderer instance;
+    g_renderer = &instance;
+
+    instance.initInternal(window);
+}
+
+void Renderer::initInternal(SDL_Window *window)
 {
     assert(window);
 
+    this->window = window;
     device.init(window);
 
     // init all resource managers
-    TextureManager::init(&device);
-    MeshManager::init(&device);
-    MaterialManager::init();
-    ModelManager::init();
+    g_textureManager->init(&device);
+    g_modelManager->init(&device);
+    g_materialManager->init();
 
     createAttachmentImages();
 
@@ -51,6 +71,7 @@ void Renderer::init(SDL_Window *window)
             samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
             samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
             samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.maxLod = 4;
 
             bool created = device.createSampler(linearSampler, samplerCreateInfo);
             assert(created);
@@ -63,6 +84,7 @@ void Renderer::init(SDL_Window *window)
             samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
             samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
             samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerCreateInfo.maxLod = 4;
 
             bool created = device.createSampler(nearestSampler, samplerCreateInfo);
             assert(created);
@@ -72,7 +94,7 @@ void Renderer::init(SDL_Window *window)
     // create default resources
     {
         // create default texture
-        auto texID = g_textureManager->createTexture2D(texturesDir / "checkerboard.png", "default");
+        auto texID = g_textureManager->createTexture(texturesDir / "compressed/checkerboard.ktx", "default");
         assert(texID != TextureID::Invalid && (uint32_t)texID == DEFAULT_TEXTURE_ID);
 
         // add default material
@@ -115,7 +137,7 @@ void Renderer::shutdown()
     destroyAttachmentImages();
 
     g_textureManager->release();
-    g_meshManager->release();
+    g_modelManager->release();
 
     device.destroyBuffer(sceneInfoBuffer);
     device.destroyBuffer(materialsBuffer);
@@ -134,7 +156,7 @@ void Renderer::loadDynamicResources()
 {
     auto &materials = g_materialManager->getMaterials();
     auto &textures = g_textureManager->getTextures();
-    Vector<EntityID> &lightEntities = g_entityManager->lightComponents.getEntities();
+    lightEntities = g_entityManager->lights.getEntities();
 
     // create materials buffer
     if (materials.size() > 0) {
@@ -159,18 +181,7 @@ void Renderer::loadDynamicResources()
             device.destroyBuffer(lightsBuffer);
         }
 
-        Vector<GPULight> gpuLights;
-        for (EntityID lightID : lightEntities) {
-            LightComponent *lightComponent = g_entityManager->lightComponents.getComponent(lightID);
-            TransformComponent *transformComponent = g_entityManager->transformComponents.getComponent(lightID);
-            if (!lightComponent || !transformComponent)
-                continue;
-
-            GPULight &light = gpuLights.emplace_back();
-            light.position = math::getPosition(transformComponent->transform);
-            light.color = lightComponent->color;
-            light.lightType = lightComponent->lightType;
-        }
+        updateGPULights();
 
         const BufferCreateInfo createInfo = {
             .size = sizeof(GPULight) * gpuLights.size(),
@@ -208,7 +219,7 @@ void Renderer::reloadShaders()
     createPipelines();
 }
 
-void Renderer::draw(Editor &editor)
+void Renderer::draw()
 {
     CommandEncoder encoder = {};
     if (!device.beginCommandBuffer(encoder)) {
@@ -256,13 +267,13 @@ void Renderer::draw(Editor &editor)
         encoder.beginRendering(renderingInfo);
 
         encoder.bindPipeline(meshPipeline);
-        for (EntityID entity : g_entityManager->renderComponents.getEntities()) {
-            RenderComponent    *renderComponent = g_entityManager->renderComponents.getComponent(entity);
-            TransformComponent *transformComponent = g_entityManager->transformComponents.getComponent(entity);
-            if (!renderComponent || !transformComponent)
+        for (EntityID entity : g_entityManager->models.getEntities()) {
+            ModelComponent    *modelComponent = g_entityManager->models.getComponent(entity);
+            TransformComponent *transformComponent = g_entityManager->transforms.getComponent(entity);
+            if (!modelComponent || !transformComponent)
                 continue;
 
-            Model *model = g_modelManager->getModelByID(renderComponent->modelID);
+            Model *model = g_modelManager->getModelByID(modelComponent->modelID);
             drawModel(encoder, model, transformComponent->transform);
         }
         encoder.endRendering();
@@ -279,7 +290,7 @@ void Renderer::draw(Editor &editor)
         VkRenderingInfo renderingInfo = vulkan::createRenderingInfo(renderArea, colorAttachments, &depthAttachment);
         encoder.beginRendering(renderingInfo);
 
-        editor.draw();
+        g_editor->draw();
         ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), encoder.cmd);
 
         encoder.endRendering();
@@ -303,19 +314,15 @@ void Renderer::drawModel(CommandEncoder &encoder, Model *model, mat4 worldMatrix
         return;
     }
 
-    for (MeshID meshID : model->meshes) {
-        Mesh *mesh = g_meshManager->getMeshByID(meshID);
-        if (!mesh)
-            continue;
-
+    for (Mesh &mesh : model->meshes) {
         MeshDrawInfo push = {};
-        push.worldMatrix = worldMatrix * mesh->worldMatrix;
-        push.vertexBufferAddress = mesh->vertexBuffer.address;
-        push.materialId = mesh->materialID != MaterialID::Invalid ? (unsigned int)mesh->materialID : DEFAULT_MATERIAL_ID;
+        push.worldMatrix = worldMatrix * mesh.worldMatrix;
+        push.vertexBufferAddress = mesh.vertexBuffer.address;
+        push.materialId = mesh.materialID != MaterialID::Invalid ? (unsigned int)mesh.materialID : DEFAULT_MATERIAL_ID;
         encoder.pushConstants(meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &push, sizeof(push));
 
-        encoder.bindIndexBuffer(mesh->indexBuffer);
-        encoder.drawIndexed(mesh->indices.size(), 1, 0, 0, 0);
+        encoder.bindIndexBuffer(mesh.indexBuffer);
+        encoder.drawIndexed(mesh.indices.size(), 1, 0, 0, 0);
     }
 }
 
@@ -337,7 +344,7 @@ void Renderer::createAttachmentImages()
             .mipLevels = 1,
             .sampleCount = device.maxSampleCount,
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .format = VK_FORMAT_B8G8R8A8_SRGB,
+            .format = device.getSurfaceFormat().format,
         };
 
         bool created = device.createImage(colorImage, createInfo);
@@ -430,20 +437,7 @@ void Renderer::updateDynamicResources()
 {
     assert(camera && "Camera is not set!");
 
-    Vector<EntityID> &lightEntities = g_entityManager->lightComponents.getEntities();
-
-    Vector<GPULight> gpuLights;
-    for (EntityID lightID : lightEntities) {
-        LightComponent     *lightComponent = g_entityManager->lightComponents.getComponent(lightID);
-        TransformComponent *transformComponent = g_entityManager->transformComponents.getComponent(lightID);
-        if (!lightComponent || !transformComponent)
-            continue;
-
-        GPULight &light = gpuLights.emplace_back();
-        light.position = math::getPosition(transformComponent->transform);
-        light.color = lightComponent->color;
-        light.lightType = lightComponent->lightType;
-    }
+    updateGPULights();
     device.uploadBufferData(lightsBuffer, gpuLights.data(), sizeof(GPULight) * gpuLights.size());
 
     SceneInfo sceneInfo = {};
@@ -453,4 +447,22 @@ void Renderer::updateDynamicResources()
     sceneInfo.lightsCount = gpuLights.size();
     sceneInfo.skyboxTexID = (uint32_t)g_textureManager->getTextureIDByName("skybox");
     device.uploadBufferData(sceneInfoBuffer, &sceneInfo, sizeof(sceneInfo));
+}
+
+void Renderer::updateGPULights()
+{
+    gpuLights.clear();
+    for (EntityID lightID : lightEntities) {
+        LightComponent     *lightComponent = g_entityManager->lights.getComponent(lightID);
+        TransformComponent *transformComponent = g_entityManager->transforms.getComponent(lightID);
+        if (!lightComponent || !transformComponent)
+            continue;
+
+        GPULight &light = gpuLights.emplace_back();
+        light.intensity = 1.0f;
+        light.position = math::getPosition(transformComponent->transform);
+        light.direction = lightComponent->direction;
+        light.color = lightComponent->color;
+        light.type = lightComponent->lightType;
+    }
 }
