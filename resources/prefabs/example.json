@@ -1,0 +1,30 @@
+{
+	"name": {
+		"name": "cube"
+	},
+	"transform": {
+		"matrix": [
+			1.0, 0.0, 0.0, 0.0,
+			0.0, 0.0, 0.0, 0.0,
+			0.0, 1.0, 0.0, 0.0,
+			0.0, 0.0, 1.0, 1.0
+		],
+		"position": [0.0, 0.0, 0.0], // [optional] if matrix is not set
+		"rotation": [1.0, 0.0, 0.0, 0.0], // [optional] if matrix is not set (4 component quaternion)
+		"scale": [0.0, 0.0, 0.0]
+	},
+	"light": {
+		"type": "directional",
+		"color": [1.0, 0.0, 0.0],
+		"direction": [0.0, 0.0, 0.0]
+	},
+	"model": {
+		"file": "resources/models/cube.gltf"
+	},
+	"rigid_body": {
+		"is_dynamic": false,
+		"type": "box",
+		"half_extent": [1.0, 1.0, 1.0], // [optional] if type == "box"
+		"radius": 1.0					// [optional] if type == "sphere"
+	}
+}

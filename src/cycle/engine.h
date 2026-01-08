@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SDL3/SDL_video.h"
+#include "cycle/level.h"
 #include "cycle/types/camera.h"
 
 class Engine
@@ -17,7 +18,6 @@ public:
     double getTime() { return time; }
 
 private:
-    void createEntities();
     void processEvents();
     void update();
 
@@ -26,6 +26,7 @@ private:
     bool   minimized = false;
     bool   running = false;
 
+    Level level;
     Camera camera;
 
     SDL_Window *window;

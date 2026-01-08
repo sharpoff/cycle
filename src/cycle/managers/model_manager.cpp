@@ -54,9 +54,8 @@ void ModelManager::uploadMeshData(Mesh &mesh, Vector<Vertex> &vertices, Vector<u
 
 const ModelID ModelManager::addModel(Model &model, String name)
 {
-    if (ModelID id = getModelIDByName(name); id != ModelID::Invalid) {
+    if (ModelID id = getModelIDByName(name); id != ModelID::Invalid)
         return id;
-    }
 
     ModelID id = (ModelID)models.size();
     models.push_back(model);
@@ -67,6 +66,9 @@ const ModelID ModelManager::addModel(Model &model, String name)
 
 const ModelID ModelManager::loadModel(String filename, String name)
 {
+    if (ModelID id = getModelIDByName(name); id != ModelID::Invalid)
+        return id;
+
     Model model = {};
     if (!gltf::load(model, filename)) {
         LOGE("Failed to load model from '%s'", filename.c_str());

@@ -1,0 +1,17 @@
+{
+	"name": {
+		"name": "light"
+	},
+	"transform": {
+		"position": [0.0, 23.0, 0.0],
+		"scale": [0.2, 0.2, 0.2]
+	},
+	"light": {
+		"type": "directional",
+		"color": [1.0, 1.0, 1.0],
+		"direction": [0.0, -1.0, 0.0]
+	},
+	"model": {
+		"file": "resources/models/cube.gltf"
+	}
+}

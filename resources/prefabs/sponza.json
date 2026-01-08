@@ -1,0 +1,11 @@
+{
+	"name": {
+		"name": "sponza"
+	},
+	"transform": {
+		"scale": [0.01, 0.01, 0.01]
+	},
+	"model": {
+		"file": "resources/models/sponza/Sponza.gltf"
+	}
+}

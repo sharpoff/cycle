@@ -12,6 +12,7 @@ const std::filesystem::path shadersDir = "resources/shaders/";
 const std::filesystem::path shadersBinaryDir = "resources/shaders/bin/";
 const std::filesystem::path texturesDir = "resources/textures/";
 const std::filesystem::path modelsDir = "resources/models/";
+const std::filesystem::path prefabsDir = "resources/prefabs/";
 
 #define DEFAULT_TEXTURE_ID 0
 #define DEFAULT_MATERIAL_ID 0

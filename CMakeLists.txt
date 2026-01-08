@@ -20,7 +20,7 @@ add_executable(engine
     ${EXTERNAL_SOURCES}
 )
 
-target_include_directories(engine PUBLIC "src/" "external/stb/" "external/cgltf/" "external/imgui/")
+target_include_directories(engine PUBLIC "src/" "external/stb/" "external/cgltf/" "external/imgui/" "external/nlohmann/")
 
 target_link_libraries(engine
     SDL3-static

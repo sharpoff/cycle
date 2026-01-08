@@ -1,0 +1,16 @@
+{
+	"name": {
+		"name": "cube"
+	},
+	"transform": {
+		"matrix": [
+			1.0, 0.0, 0.0, 0.0,
+			0.0, 1.0, 0.0, 0.0,
+			0.0, 0.0, 1.0, 0.0,
+			0.0, 0.0, 0.0, 1.0
+		]
+	},
+	"model": {
+		"file": "resources/models/cube.gltf"
+	}
+}

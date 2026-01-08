@@ -3,7 +3,6 @@
 #include <filesystem>
 #include <fstream>
 
-#include "cycle/logger.h"
 #include "cycle/containers.h"
 
 #ifdef __linux__
@@ -33,23 +32,27 @@ namespace filesystem
         std::filesystem::current_path(path);
     }
 
-    inline Vector<char> readBinaryFile(std::filesystem::path path)
+    inline bool readFile(Vector<char> &out, std::filesystem::path path, bool binary = false)
     {
-        std::ifstream file(path, std::ios::ate | std::ios::binary);
+        if (!std::filesystem::exists(path))
+            return false;
 
-        if (!file.is_open()) {
-            LOGE("Failed to open file %s", path.c_str());
-            return {};
-        }
+        auto mode = std::ios::ate;
+        if (binary)
+            mode |= std::ios::binary;
 
-        Vector<char> buffer;
+        std::ifstream file(path, mode);
+
+        if (!file.is_open())
+            return false;
+
         size_t size = file.tellg();
-        buffer.resize(size);
+        out.resize(size);
         file.seekg(0);
-        file.read(buffer.data(), size);
+        file.read(out.data(), size);
         file.close();
 
-        return buffer;
+        return true;
     }
 
 } // namespace filesystem

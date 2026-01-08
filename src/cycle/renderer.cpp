@@ -395,7 +395,7 @@ void Renderer::compileShaders()
 void Renderer::createPipelines()
 {
     { // mesh pipeline
-        const RenderPipelineCreateInfo createInfo = {
+        RenderPipelineCreateInfo createInfo = {
             .cullMode = VK_CULL_MODE_BACK_BIT,
             .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
             .sampleCount = device.maxSampleCount,
@@ -404,14 +404,18 @@ void Renderer::createPipelines()
             .colorAttachmentFormats = {VK_FORMAT_B8G8R8A8_SRGB},
             .depthAttachmentFormat = VK_FORMAT_D32_SFLOAT,
             .pipelineLayout = &meshPipelineLayout,
-            .vertexCode = filesystem::readBinaryFile(shadersBinaryDir / "mesh.vert.spv"),
-            .fragmentCode = filesystem::readBinaryFile(shadersBinaryDir / "mesh.frag.spv"),
         };
+
+        bool ok = filesystem::readFile(createInfo.vertexCode, shadersBinaryDir / "mesh.vert.spv", true);
+        assert(ok);
+        ok = filesystem::readFile(createInfo.fragmentCode, shadersBinaryDir / "mesh.frag.spv", true),
+        assert(ok);
+
         device.createRenderPipeline(meshPipeline, createInfo);
     }
 
     { // skybox pipeline
-        const RenderPipelineCreateInfo createInfo = {
+        RenderPipelineCreateInfo createInfo = {
             .cullMode = VK_CULL_MODE_FRONT_BIT,
             .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
             .sampleCount = device.maxSampleCount,
@@ -420,9 +424,13 @@ void Renderer::createPipelines()
             .colorAttachmentFormats = {VK_FORMAT_B8G8R8A8_SRGB},
             .depthAttachmentFormat = VK_FORMAT_D32_SFLOAT,
             .pipelineLayout = &meshPipelineLayout,
-            .vertexCode = filesystem::readBinaryFile(shadersBinaryDir / "cubemap.vert.spv"),
-            .fragmentCode = filesystem::readBinaryFile(shadersBinaryDir / "cubemap.frag.spv"),
         };
+
+        bool ok = filesystem::readFile(createInfo.vertexCode, shadersBinaryDir / "cubemap.vert.spv", true);
+        assert(ok);
+        ok = filesystem::readFile(createInfo.fragmentCode, shadersBinaryDir / "cubemap.frag.spv", true),
+        assert(ok);
+
         device.createRenderPipeline(skyboxPipeline, createInfo);
     }
 }

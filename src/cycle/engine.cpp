@@ -62,21 +62,22 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
     g_renderer->setCamera(&camera);
     g_editor->setCamera(&camera);
 
-    // load textures
+    // load common textures
     {
         TextureID texID = TextureID::Invalid;
         texID = g_textureManager->createTexture("resources/textures/sky_cubemap/sky_cubemap.ktx", "skybox");
     }
 
-    // load models
+    // load common models
     {
         ModelID modelID = ModelID::Invalid;
-        modelID = g_modelManager->loadModel(modelsDir / "sponza/Sponza.gltf", "sponza");
         modelID = g_modelManager->loadModel(modelsDir / "monkey.gltf", "monkey");
         modelID = g_modelManager->loadModel(modelsDir / "cube.gltf", "cube");
     }
 
-    createEntities();
+    level.loadPrefab(prefabsDir / "cube.json");
+    level.loadPrefab(prefabsDir / "sponza.json");
+    level.loadPrefab(prefabsDir / "light.json");
 
     g_renderer->loadDynamicResources();
     g_physics->createBodies();
@@ -113,89 +114,6 @@ void Engine::run()
         if (!minimized) {
             g_renderer->draw();
         }
-    }
-}
-
-void Engine::createEntities()
-{
-    // sponza
-    {
-        const EntityID      sponza = g_entityManager->createEntity();
-        TransformComponent &transform = g_entityManager->transforms.addComponent(sponza);
-        transform.transform = glm::scale(vec3(0.01f));
-
-        NameComponent &nameComponent = g_entityManager->names.addComponent(sponza);
-        nameComponent.name = "sponza";
-
-        ModelComponent &modelComponent = g_entityManager->models.addComponent(sponza);
-        modelComponent.modelID = g_modelManager->getModelIDByName("sponza");
-    }
-
-    // monkeys
-    // for (int i = 0; i <= 5; i++)
-    // {
-    //     const EntityID monkey = g_entityManager->createEntity();
-    //     TransformComponent &transform = g_entityManager->transforms.addComponent(monkey);
-    //     transform.transform = glm::translate(vec3(0.0f, 30.0f * i, 0.0f));
-
-    //     NameComponent &nameComponent = g_entityManager->names.addComponent(monkey);
-    //     nameComponent.name = "monkey" + std::to_string(i);
-
-    //     ModelComponent &modelComponent = g_entityManager->models.addComponent(monkey);
-    //     modelComponent.modelID = g_modelManager->getModelIDByName("monkey");
-
-    //     RigidBodyComponent &rigidbodyComponent = g_entityManager->rigidBodies.addComponent(monkey);
-    //     rigidbodyComponent.isDynamic = true;
-    //     rigidbodyComponent.type = RigidBodyType::FromModel;
-    // }
-
-    // floor
-    // {
-    //     const EntityID box = g_entityManager->createEntity();
-    //     TransformComponent &transform = g_entityManager->transforms.addComponent(box);
-    //     transform.transform = glm::translate(vec3(0.0f, -5.0f, 0.0f)) * glm::scale(vec3(10.0f, 0.1f, 10.0f));
-
-    //     NameComponent &nameComponent = g_entityManager->names.addComponent(box);
-    //     nameComponent.name = "floor";
-
-    //     ModelComponent &modelComponent = g_entityManager->models.addComponent(box);
-    //     modelComponent.modelID = g_modelManager->getModelIDByName("cube");
-
-    //     RigidBodyComponent &rigidbodyComponent = g_entityManager->rigidBodies.addComponent(box);
-    //     rigidbodyComponent.isDynamic = false;
-    //     rigidbodyComponent.type = RigidBodyType::Box;
-    //     rigidbodyComponent.halfExtent = g_modelManager->getHalfExtent(modelComponent.modelID, math::getScale(transform.transform));
-    // }
-
-    // box
-    {
-        const EntityID box = g_entityManager->createEntity();
-        TransformComponent &transformComponent = g_entityManager->transforms.addComponent(box);
-        transformComponent.transform = mat4(1.0f);
-
-        NameComponent &nameComponent = g_entityManager->names.addComponent(box);
-        nameComponent.name = "box";
-
-        ModelComponent &modelComponent = g_entityManager->models.addComponent(box);
-        modelComponent.modelID = g_modelManager->getModelIDByName("cube");
-    }
-
-    // light
-    {
-        const EntityID light = g_entityManager->createEntity();
-        TransformComponent &transformComponent = g_entityManager->transforms.addComponent(light);
-        transformComponent.transform = glm::translate(vec3(0.0f, 23.0f, 0.0f)) * glm::scale(vec3(0.2f));
-
-        LightComponent &lightComponent = g_entityManager->lights.addComponent(light);
-        lightComponent.lightType = LIGHT_TYPE_DIRECTIONAL;
-        lightComponent.direction = vec3(0.0f, -1.0f, 0.0f);
-        lightComponent.color = vec3(1.0f);
-
-        NameComponent &nameComponent = g_entityManager->names.addComponent(light);
-        nameComponent.name = "light";
-
-        ModelComponent &modelComponent = g_entityManager->models.addComponent(light);
-        modelComponent.modelID = g_modelManager->getModelIDByName("cube");
     }
 }
 
