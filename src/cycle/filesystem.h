@@ -32,10 +32,10 @@ namespace filesystem
         std::filesystem::current_path(path);
     }
 
-    inline bool readFile(Vector<char> &out, std::filesystem::path path, bool binary = false)
+    inline Vector<char> readFile(std::filesystem::path path, bool binary = false)
     {
         if (!std::filesystem::exists(path))
-            return false;
+            return {};
 
         auto mode = std::ios::ate;
         if (binary)
@@ -44,15 +44,15 @@ namespace filesystem
         std::ifstream file(path, mode);
 
         if (!file.is_open())
-            return false;
+            return {};
 
         size_t size = file.tellg();
-        out.resize(size);
+        Vector<char> buffer(size);
         file.seekg(0);
-        file.read(out.data(), size);
+        file.read(buffer.data(), size);
         file.close();
 
-        return true;
+        return buffer;
     }
 
 } // namespace filesystem

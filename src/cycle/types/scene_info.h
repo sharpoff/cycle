@@ -9,8 +9,8 @@ struct SceneInfo
     vec3 cameraPos;
     unsigned int lightsCount;
     unsigned int skyboxTexID;
+    unsigned int shadowmapTexID;
 
-    float _pad0;
     float _pad1;
     float _pad2;
 };

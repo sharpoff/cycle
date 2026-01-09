@@ -68,12 +68,7 @@ const TextureID TextureManager::createTexture(std::filesystem::path filepath, St
         .format = VK_FORMAT_R8G8B8A8_SRGB,
     };
 
-    Image image;
-    if (!renderDevice->createImage(image, createInfo)) {
-        LOGE("Failed to create texture from path '%s'", filepath.c_str());
-        return TextureID::Invalid;
-    }
-
+    Image image = renderDevice->createImage(createInfo);
     renderDevice->uploadImage(image, info);
     freeImageInfo(info);
 

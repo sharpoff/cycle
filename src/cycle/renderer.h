@@ -6,20 +6,8 @@
 #include "cycle/graphics/render_device.h"
 #include "cycle/types/gpu_light.h"
 #include "cycle/types/id.h"
-#include <filesystem>
-
-const std::filesystem::path shadersDir = "resources/shaders/";
-const std::filesystem::path shadersBinaryDir = "resources/shaders/bin/";
-const std::filesystem::path texturesDir = "resources/textures/";
-const std::filesystem::path modelsDir = "resources/models/";
-const std::filesystem::path prefabsDir = "resources/prefabs/";
-
-#define DEFAULT_TEXTURE_ID 0
-#define DEFAULT_MATERIAL_ID 0
-#define SAMPLER_LINEAR_ID 0
-#define SAMPLER_NEAREST_ID 1
-
-class Model;
+#include "cycle/types/model.h"
+#include "cycle/constants.h"
 
 class Renderer
 {
@@ -45,7 +33,7 @@ private:
 
     void initInternal(SDL_Window *window);
 
-    void drawModel(CommandEncoder &encoder, Model *model, mat4 worldMatrix);
+    void drawModel(VkCommandBuffer cmd, Model *model, mat4 worldMatrix);
 
     void resizeWindow();
     void createAttachmentImages();
@@ -53,9 +41,11 @@ private:
 
     void compileShaders();
     void createPipelines();
+    
     void destroyPipelines();
 
-    void updateDynamicResources();
+    void update();
+    void updateShadowmapCascades(vec3 lightDir);
     void updateGPULights();
 
     RenderDevice device;
@@ -64,10 +54,12 @@ private:
 
     Image colorImage;
     Image depthImage;
+    Image shadowmapImage;
 
-    Buffer sceneInfoBuffer;
+    Array<Buffer, FRAMES_IN_FLIGHT> sceneInfoBuffers;
     Buffer materialsBuffer;
     Buffer lightsBuffer;
+    Buffer cascadesBuffer;
 
     Vector<GPULight> gpuLights;
     Vector<EntityID> lightEntities;
@@ -75,9 +67,13 @@ private:
     Sampler linearSampler;
     Sampler nearestSampler;
 
-    PipelineLayout meshPipelineLayout;
     RenderPipeline meshPipeline;
     RenderPipeline skyboxPipeline;
+    RenderPipeline shadowmapPipeline;
 
     BarrierMerger barriers;
+
+    Array<mat4, SHADOWMAP_CASCADES> cascadeMatrices;
+    Array<float, SHADOWMAP_CASCADES> cascadeDepths;
+    float cascadeSplitLambda = 0.95f;
 };

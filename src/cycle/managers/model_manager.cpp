@@ -33,10 +33,10 @@ void ModelManager::uploadMeshData(Mesh &mesh, Vector<Vertex> &vertices, Vector<u
     {
         BufferCreateInfo createInfo = {
             .size = mesh.vertices.size() * sizeof(Vertex),
-            .usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            .usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
-        renderDevice->createBuffer(mesh.vertexBuffer, createInfo);
+        mesh.vertexBuffer = renderDevice->createBuffer(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
         renderDevice->uploadBufferData(mesh.vertexBuffer, vertices.data(), createInfo.size);
     }
 
@@ -47,7 +47,7 @@ void ModelManager::uploadMeshData(Mesh &mesh, Vector<Vertex> &vertices, Vector<u
             .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
-        renderDevice->createBuffer(mesh.indexBuffer, createInfo);
+        mesh.indexBuffer = renderDevice->createBuffer(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
         renderDevice->uploadBufferData(mesh.indexBuffer, indices.data(), createInfo.size);
     }
 }

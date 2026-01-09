@@ -1,0 +1,15 @@
+{
+	"name": {
+		"name": "ground"
+	},
+	"transform": {
+		"scale": [10.0, 0.1, 10.0]
+	},
+	"model": {
+		"file": "resources/models/cube.gltf"
+	},
+	"rigid_body": {
+		"is_dynamic": false,
+		"type": "from_model"
+	}
+}

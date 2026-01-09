@@ -97,7 +97,8 @@ void Physics::createBodies()
                 for (Mesh &mesh : model->meshes) {
                     assert(mesh.indices.size() > 0 && mesh.indices.size() % 3 == 0);
                     for (size_t i = 0; i < mesh.indices.size(); i++) {
-                        points.push_back(JPH::Vec3(math::toJolt(mesh.vertices[mesh.indices[i]].position)));
+                        vec3 pos = transformComponent->transform * vec4(mesh.vertices[mesh.indices[i]].position, 0.0f);
+                        points.push_back(JPH::Vec3(math::toJolt(pos)));
                     }
                 }
 

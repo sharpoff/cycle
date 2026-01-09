@@ -24,7 +24,8 @@ public:
 
     float getFov() { return fov; }
     float getAspectRatio() { return aspectRatio; }
-    float getZNear() { return zNear; }
+    float getNearClip() { return zNear; }
+    float getFarClip() { return zFar; }
 
 private:
     void updateView();
@@ -35,6 +36,7 @@ private:
     float fov = 60.0f;
     float aspectRatio = 0.0f;
     float zNear = 0.0f;
+    float zFar = 10000.0f;
 
     vec3 position = vec3(0.0f);
     vec3 rotation = vec3(0.0f);

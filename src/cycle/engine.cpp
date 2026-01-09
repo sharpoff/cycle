@@ -75,9 +75,15 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
         modelID = g_modelManager->loadModel(modelsDir / "cube.gltf", "cube");
     }
 
-    level.loadPrefab(prefabsDir / "cube.json");
-    level.loadPrefab(prefabsDir / "sponza.json");
     level.loadPrefab(prefabsDir / "light.json");
+
+    // level.loadPrefab(prefabsDir / "sponza.json");
+    // level.loadPrefab(prefabsDir / "cube.json");
+
+    level.loadPrefab(prefabsDir / "ground.json", "ground", vec3(0.0f, -2.0f, 0.0f));
+    level.loadPrefab(prefabsDir / "monkey.json", "monkey", vec3(0.0f, 10.0f, 0.0f));
+    level.loadPrefab(prefabsDir / "monkey.json", "monkey1", vec3(0.0f, 30.0f, 0.0f));
+    level.loadPrefab(prefabsDir / "monkey.json", "monkey2", vec3(0.0f, 60.0f, 0.0f));
 
     g_renderer->loadDynamicResources();
     g_physics->createBodies();

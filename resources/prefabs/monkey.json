@@ -1,0 +1,14 @@
+{
+	"name": {
+		"name": "monkey"
+	},
+	"transform": {
+	},
+	"model": {
+		"file": "resources/models/monkey.gltf"
+	},
+	"rigid_body": {
+		"is_dynamic": true,
+		"type": "from_model"
+	}
+}

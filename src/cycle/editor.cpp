@@ -42,7 +42,8 @@ void Editor::processInput()
         if (g_input->isMouseButtonDown(MouseButton::RIGHT)) { // raycast to find an entity at mouse position
             vec3 direction = math::mouseToDirection(g_input->getMousePosition(), g_renderer->getScreenSize(), camera->getView(), camera->getProjection());
             direction *= 1000.0f;
-            selectedEntityID = g_physics->castRay(camera->getPosition(), direction);
+            const EntityID entityID = g_physics->castRay(camera->getPosition(), direction);
+            selectedEntityID = entityID;
         }
     }
 }
@@ -95,7 +96,7 @@ void Editor::updateGizmo()
 
         mat4 view = camera->getView();
         // NOTE: ImGuizmo does not support reverse depth perspective so recreate it
-        mat4 projection = glm::perspective(camera->getFov(), camera->getAspectRatio(), camera->getZNear(), 1000.0f);
+        mat4 projection = glm::perspective(camera->getFov(), camera->getAspectRatio(), camera->getNearClip(), 1000.0f);
 
         if (ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection), gizmoOperation, gizmoMode, glm::value_ptr(transformComponent->transform), NULL, NULL)) {
             lastFrameManipulated = true;

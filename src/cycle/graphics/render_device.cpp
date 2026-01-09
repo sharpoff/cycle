@@ -100,6 +100,33 @@ void RenderDevice::init(SDL_Window *window)
         vulkan::setDebugName(device, (uint64_t)descriptorPool, VK_OBJECT_TYPE_DESCRIPTOR_POOL, "main VkDescriptorPool");
     }
 
+    // create bindless descriptor set
+    {
+        const Vector<VkDescriptorSetLayoutBinding> bindings = {
+            {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT}, // scene data
+            {1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1024, VK_SHADER_STAGE_FRAGMENT_BIT}, // textures
+            {2, VK_DESCRIPTOR_TYPE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT},          // samplers
+            {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT},   // materials
+            {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT},   // lights
+            {5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT},   // shadowmap cascade matrices
+        };
+        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        descriptorSetLayoutCreateInfo.bindingCount = bindings.size();
+        descriptorSetLayoutCreateInfo.pBindings = bindings.data();
+
+        VK_CHECK(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout));
+
+        // allocate descriptor set
+        VkDescriptorSetAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &descriptorSetLayout;
+
+        for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+            VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &bindlessDescriptorSets[i]));
+        }
+    }
+
     setupImGui();
 }
 
@@ -111,6 +138,7 @@ void RenderDevice::shutdown()
 
     destroySwapchain();
 
+    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
     vkDestroyCommandPool(device, commandPool, nullptr);
@@ -136,7 +164,7 @@ void RenderDevice::shutdown()
     vkDestroyInstance(instance, nullptr);
 }
 
-bool RenderDevice::createBuffer(Buffer &buffer, const BufferCreateInfo &createInfo)
+Buffer RenderDevice::createBuffer(const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage)
 {
     assert(createInfo.size > 0);
 
@@ -146,10 +174,11 @@ bool RenderDevice::createBuffer(Buffer &buffer, const BufferCreateInfo &createIn
     bufferInfo.usage = createInfo.usage;
 
     VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    allocInfo.usage = memoryUsage;
     allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
     allocInfo.priority = 1.0;
 
+    Buffer buffer = {};
     buffer.size = createInfo.size;
     buffer.usage = createInfo.usage;
     VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer.buffer, &buffer.allocation.handle, &buffer.allocation.info));
@@ -160,10 +189,10 @@ bool RenderDevice::createBuffer(Buffer &buffer, const BufferCreateInfo &createIn
         buffer.address = vkGetBufferDeviceAddress(device, &deviceAddressInfo);
     }
 
-    return true;
+    return buffer;
 }
 
-bool RenderDevice::createImage(Image &image, const ImageCreateInfo &createInfo)
+Image RenderDevice::createImage(const ImageCreateInfo &createInfo)
 {
     assert(createInfo.width != 0 && createInfo.height != 0);
 
@@ -182,6 +211,7 @@ bool RenderDevice::createImage(Image &image, const ImageCreateInfo &createInfo)
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.flags = (imageInfo.arrayLayers == 6) ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0; // cubemap
 
+    Image image = {};
     image.width = createInfo.width;
     image.height = createInfo.height;
     image.arrayLayers = createInfo.arrayLayers;
@@ -212,10 +242,10 @@ bool RenderDevice::createImage(Image &image, const ImageCreateInfo &createInfo)
 
     VK_CHECK(vkCreateImageView(device, &imageViewInfo, nullptr, &image.view));
 
-    return true;
+    return image;
 }
 
-bool RenderDevice::createSampler(Sampler &sampler, const SamplerCreateInfo &createInfo)
+Sampler RenderDevice::createSampler(const SamplerCreateInfo &createInfo)
 {
     VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     samplerCreateInfo.minFilter = createInfo.minFilter;
@@ -228,6 +258,7 @@ bool RenderDevice::createSampler(Sampler &sampler, const SamplerCreateInfo &crea
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerCreateInfo.maxLod = createInfo.maxLod;
 
+    Sampler sampler = {};
     sampler.mipLodBias = createInfo.mipLodBias;
     sampler.minLod = createInfo.minLod;
     sampler.maxLod = createInfo.maxLod;
@@ -241,36 +272,20 @@ bool RenderDevice::createSampler(Sampler &sampler, const SamplerCreateInfo &crea
     sampler.compareOp = createInfo.compareOp;
     VK_CHECK(vkCreateSampler(device, &samplerCreateInfo, nullptr, &sampler.sampler));
 
-    return true;
+    return sampler;
 }
 
-bool RenderDevice::createPipelineLayout(PipelineLayout &pipelineLayout, const PipelineLayoutCreateInfo &createInfo)
+RenderPipeline RenderDevice::createRenderPipeline(const RenderPipelineCreateInfo &createInfo)
 {
-    VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-    layoutCreateInfo.bindingCount = createInfo.descriptorSetLayoutBindings.size();
-    layoutCreateInfo.pBindings = createInfo.descriptorSetLayoutBindings.data();
-
-    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutCreateInfo, nullptr, &pipelineLayout.descriptorSetLayout));
-
-    // allocate descriptor set
-    VkDescriptorSetAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-    allocInfo.descriptorPool = descriptorPool;
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &pipelineLayout.descriptorSetLayout;
-    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &pipelineLayout.descriptorSet));
-
     VkPipelineLayoutCreateInfo vkLayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     vkLayoutCreateInfo.setLayoutCount = 1;
-    vkLayoutCreateInfo.pSetLayouts = &pipelineLayout.descriptorSetLayout;
+    vkLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
     vkLayoutCreateInfo.pushConstantRangeCount = createInfo.pushConstantRanges.size();
     vkLayoutCreateInfo.pPushConstantRanges = createInfo.pushConstantRanges.data();
-    VK_CHECK(vkCreatePipelineLayout(device, &vkLayoutCreateInfo, nullptr, &pipelineLayout.layout));
 
-    return true;
-}
+    VkPipelineLayout vkPipelineLayout;
+    VK_CHECK(vkCreatePipelineLayout(device, &vkLayoutCreateInfo, nullptr, &vkPipelineLayout));
 
-bool RenderDevice::createRenderPipeline(RenderPipeline &renderPipeline, const RenderPipelineCreateInfo &createInfo)
-{
     Vector<VkPipelineShaderStageCreateInfo> stages;
 
     VkShaderModule vertexModule = VK_NULL_HANDLE;
@@ -439,10 +454,10 @@ bool RenderDevice::createRenderPipeline(RenderPipeline &renderPipeline, const Re
     pipelineCreateInfo.pDepthStencilState = &depthStencilState;
     pipelineCreateInfo.pColorBlendState = &colorBlendState;
     pipelineCreateInfo.pDynamicState = &dynamicState;
-    pipelineCreateInfo.layout = createInfo.pipelineLayout->layout;
+    pipelineCreateInfo.layout = vkPipelineLayout;
 
-    renderPipeline.layout = createInfo.pipelineLayout;
-    VK_CHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &renderPipeline.pipeline));
+    VkPipeline vkPipeline;
+    VK_CHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &vkPipeline));
 
     if (vertexModule)
         vkDestroyShaderModule(device, vertexModule, nullptr);
@@ -453,11 +468,24 @@ bool RenderDevice::createRenderPipeline(RenderPipeline &renderPipeline, const Re
     if (tessellationEvaluationModule)
         vkDestroyShaderModule(device, tessellationEvaluationModule, nullptr);
 
-    return true;
+    RenderPipeline renderPipeline;
+    renderPipeline.layout = vkPipelineLayout;
+    renderPipeline.pipeline = vkPipeline;
+
+    return renderPipeline;
 }
 
-bool RenderDevice::createComputePipeline(ComputePipeline &computePipeline, const ComputePipelineCreateInfo &createInfo)
+ComputePipeline RenderDevice::createComputePipeline(const ComputePipelineCreateInfo &createInfo)
 {
+    VkPipelineLayoutCreateInfo vkLayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    vkLayoutCreateInfo.setLayoutCount = 1;
+    vkLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
+    vkLayoutCreateInfo.pushConstantRangeCount = createInfo.pushConstantRanges.size();
+    vkLayoutCreateInfo.pPushConstantRanges = createInfo.pushConstantRanges.data();
+
+    VkPipelineLayout vkPipelineLayout;
+    VK_CHECK(vkCreatePipelineLayout(device, &vkLayoutCreateInfo, nullptr, &vkPipelineLayout));
+
     VkPipelineShaderStageCreateInfo computeStage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
     VkShaderModule computeModule = VK_NULL_HANDLE;
 
@@ -476,12 +504,16 @@ bool RenderDevice::createComputePipeline(ComputePipeline &computePipeline, const
 
     VkComputePipelineCreateInfo pipelineCreateInfo = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
     pipelineCreateInfo.stage = computeStage;
-    pipelineCreateInfo.layout = createInfo.pipelineLayout->layout;
+    pipelineCreateInfo.layout = vkPipelineLayout;
 
-    computePipeline.layout = createInfo.pipelineLayout;
-    VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &computePipeline.pipeline));
+    VkPipeline vkPipeline;
+    VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &vkPipeline));
 
-    return true;
+    ComputePipeline computePipeline = {};
+    computePipeline.layout = vkPipelineLayout;
+    computePipeline.pipeline = vkPipeline;
+
+    return computePipeline;
 }
 
 void RenderDevice::destroyBuffer(Buffer &buffer)
@@ -505,22 +537,20 @@ void RenderDevice::destroySampler(Sampler &sampler)
         vkDestroySampler(device, sampler.sampler, nullptr);
 }
 
-void RenderDevice::destroyPipelineLayout(PipelineLayout &layout)
-{
-    vkDestroyDescriptorSetLayout(device, layout.descriptorSetLayout, nullptr);
-
-    if (layout.layout != VK_NULL_HANDLE)
-        vkDestroyPipelineLayout(device, layout.layout, nullptr);
-}
-
 void RenderDevice::destroyRenderPipeline(RenderPipeline &pipeline)
 {
+    if (pipeline.layout != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(device, pipeline.layout, nullptr);
+
     if (pipeline.pipeline != VK_NULL_HANDLE)
         vkDestroyPipeline(device, pipeline.pipeline, nullptr);
 }
 
 void RenderDevice::destroyComputePipeline(ComputePipeline &pipeline)
 {
+    if (pipeline.layout != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(device, pipeline.layout, nullptr);
+
     if (pipeline.pipeline != VK_NULL_HANDLE)
         vkDestroyPipeline(device, pipeline.pipeline, nullptr);
 }
@@ -541,8 +571,7 @@ void RenderDevice::uploadBufferData(Buffer &buffer, void *data, uint64_t size)
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     };
 
-    Buffer staging;
-    createBuffer(staging, createInfo);
+    Buffer staging = createBuffer(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
     memcpy(staging.allocation.info.pMappedData, data, size);
 
     VK_CHECK(vmaFlushAllocation(allocator, staging.allocation.handle, 0, VK_WHOLE_SIZE));
@@ -559,12 +588,11 @@ void RenderDevice::uploadImage(Image &image, ImageLoadInfo &info)
 {
     const uint32_t bufsize = info.textureKTX ? info.size : info.size * image.arrayLayers;
 
-    Buffer staging;
     const BufferCreateInfo createInfo = {
         .size = bufsize,
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     };
-    createBuffer(staging, createInfo);
+    Buffer staging = createBuffer(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
     uploadBufferData(staging, info.data, info.size);
 
     immediateSubmit([&staging, &image, &info](VkCommandBuffer cmd) -> void {
@@ -776,7 +804,7 @@ void RenderDevice::immediateSubmit(Func<void(VkCommandBuffer cmd)> &&function)
     VK_CHECK(vkWaitForFences(device, 1, &immediateFence, VK_TRUE, ~0L));
 }
 
-bool RenderDevice::beginCommandBuffer(CommandEncoder &encoder)
+VkCommandBuffer RenderDevice::beginCommandBuffer()
 {
     VK_CHECK(vkWaitForFences(device, 1, &finishRenderFences[currentFrame], VK_TRUE, ~0ull));
     VK_CHECK(vkResetFences(device, 1, &finishRenderFences[currentFrame]));
@@ -784,25 +812,25 @@ bool RenderDevice::beginCommandBuffer(CommandEncoder &encoder)
     VkResult result = vkAcquireNextImageKHR(device, swapchain, ~0ull, acquireSemaphores[currentFrame], nullptr, &imageIndex);
     if (resizeRequested || result == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateSwapchain();
-        return false;
+        return VK_NULL_HANDLE;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         LOGE("%s", "Failed to acquire swapchain image.");
         exit(EXIT_FAILURE);
     }
 
-    encoder.cmd = commandBuffers[currentFrame];
-    VK_CHECK(vkResetCommandBuffer(encoder.cmd, 0));
+    VkCommandBuffer cmd = commandBuffers[currentFrame];
+    VK_CHECK(vkResetCommandBuffer(cmd, 0));
 
     VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CHECK(vkBeginCommandBuffer(encoder.cmd, &beginInfo));
+    VK_CHECK(vkBeginCommandBuffer(cmd, &beginInfo));
 
-    return true;
+    return cmd;
 }
 
-void RenderDevice::endCommandBuffer(CommandEncoder &encoder)
+void RenderDevice::endCommandBuffer(VkCommandBuffer cmd)
 {
-    VK_CHECK(vkEndCommandBuffer(encoder.cmd));
+    VK_CHECK(vkEndCommandBuffer(cmd));
 
     VkPipelineStageFlags stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
@@ -812,7 +840,7 @@ void RenderDevice::endCommandBuffer(CommandEncoder &encoder)
     submit.pWaitSemaphores = &acquireSemaphores[currentFrame];
     submit.pWaitDstStageMask = stages;
     submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &encoder.cmd;
+    submit.pCommandBuffers = &cmd;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &submitSemaphores[imageIndex];
 
@@ -859,9 +887,11 @@ void RenderDevice::writeDescriptor(uint32_t binding, Sampler &sampler, VkDescrip
     descriptorSetWriter.write(binding, sampler.sampler, type, dstArrayElement);
 }
 
-void RenderDevice::updateDescriptors(PipelineLayout &layout)
+void RenderDevice::updateDescriptors()
 {
-    descriptorSetWriter.update(device, layout.descriptorSet);
+    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        descriptorSetWriter.update(device, bindlessDescriptorSets[i]);
+    }
     descriptorSetWriter.clear();
 }
 

@@ -10,16 +10,15 @@
 extern EntityManager *g_entityManager;
 extern ModelManager *g_modelManager;
 
-void Level::loadPrefab(std::filesystem::path path)
+void Level::loadPrefab(std::filesystem::path path, String prefabName, vec3 prefabPosition)
 {
     if (!std::filesystem::exists(path)) {
         LOGE("Failed to load prefab from path '%s'", path.c_str());
         return;
     }
 
-    Vector<char> fileDataBuf;
-    bool ok = filesystem::readFile(fileDataBuf, path);
-    if (!ok) {
+    Vector<char> fileDataBuf = filesystem::readFile(path);
+    if (fileDataBuf.empty()) {
         LOGE("Failed to load prefab from path '%s'", path.c_str());
         return;
     }
@@ -35,10 +34,15 @@ void Level::loadPrefab(std::filesystem::path path)
 
     if (j.contains("name")) { // Name component
         auto jsonNameComponent = j.at("name");
-        String name = jsonNameComponent.value("name", "");
-        if (!name.empty()) {
-            NameComponent &nameComponent = g_entityManager->names.addComponent(entityID);
-            nameComponent.name = name;
+        NameComponent &nameComponent = g_entityManager->names.addComponent(entityID);
+
+        if (prefabName.empty()) {
+            String name = jsonNameComponent.value("name", "");
+            if (!name.empty()) {
+                nameComponent.name = name;
+            }
+        } else {
+            nameComponent.name = prefabName;
         }
     }
 
@@ -59,6 +63,8 @@ void Level::loadPrefab(std::filesystem::path path)
             Vector<float> positionVec3 = jsonTransformComponent.value("position", Vector<float>());
             if (!positionVec3.empty() && positionVec3.size() == 3) {
                 position = glm::make_vec3(positionVec3.data());
+            } else {
+                position = prefabPosition;
             }
 
             Vector<float> rotationQuat = jsonTransformComponent.value("rotation", Vector<float>());

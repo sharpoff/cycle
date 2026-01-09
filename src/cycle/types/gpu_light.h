@@ -4,10 +4,10 @@
 
 struct GPULight
 {
-    vec3         position;
-    float        intensity;
-    vec3         direction;
+    vec3 position;
+    float intensity;
+    vec3 direction;
     unsigned int type;
-    vec3         color;
-    float        _pad0;
+    vec3 color;
+    float _pad0;
 };
