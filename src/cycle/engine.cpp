@@ -19,16 +19,6 @@
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 
-extern Input *g_input;
-extern Physics *g_physics;
-extern GamepadInput *g_gamepadInput;
-extern EntityManager *g_entityManager;
-extern ModelManager *g_modelManager;
-extern TextureManager *g_textureManager;
-extern Editor *g_editor;
-extern Audio *g_audio;
-extern Renderer *g_renderer;
-
 Engine *g_engine;
 
 void Engine::init(const char *title, uint32_t width, uint32_t height)
@@ -49,46 +39,68 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
     SDL_RaiseWindow(window);
 
-    g_renderer->init(window);
-    g_input->init();
-    g_gamepadInput->init();
-    g_physics->init();
-    g_audio->init();
-    g_editor->init();
-    g_entityManager->init();
+    Renderer::init(window);
+    Input::init();
+    GamepadInput::init();
+    Physics::init();
+    Audio::init();
+    Editor::init();
+    EntityManager::init();
 
-    camera.setPerspective(glm::radians(60.0f), float(width) / height, 0.01f);
+    camera.setPerspective(glm::radians(60.0f), float(width) / height, 0.01f, 1000.0f);
     camera.setPosition(vec3(0.0f, 0.0f, 1.0f));
-    g_renderer->setCamera(&camera);
-    g_editor->setCamera(&camera);
+    camera.setRotation(vec3(glm::radians(10.0f), 0.0f, 0.0f));
+    Renderer::get()->setCamera(&camera);
+    Editor::get()->setCamera(&camera);
 
     // load common textures
     {
         TextureID texID = TextureID::Invalid;
-        texID = g_textureManager->createTexture("resources/textures/sky_cubemap/sky_cubemap.ktx", "skybox");
+        texID = TextureManager::get()->createTexture("resources/textures/sky_cubemap/sky_cubemap.ktx", VK_FORMAT_R8G8B8A8_SRGB, "skybox");
     }
 
     // load common models
     {
         ModelID modelID = ModelID::Invalid;
-        modelID = g_modelManager->loadModel(modelsDir / "monkey.gltf", "monkey");
-        modelID = g_modelManager->loadModel(modelsDir / "cube.gltf", "cube");
+        modelID = ModelManager::get()->loadModel(modelsDir / "monkey.gltf", "monkey");
+        modelID = ModelManager::get()->loadModel(modelsDir / "cube.gltf", "cube");
     }
 
     level.loadPrefab(prefabsDir / "light.json");
 
-    // level.loadPrefab(prefabsDir / "sponza.json");
+    level.loadPrefab(prefabsDir / "sponza.json");
+
+    // {
+    //     auto helmet = level.loadPrefab(prefabsDir / "helmet.json");
+    //     TransformComponent *transform = g_entityManager->transforms.getComponent(helmet);
+    //     if (transform)
+    //         transform->transform = glm::rotate(glm::radians(90.0f), vec3(1.0f, 0.0f, 0.0f));
+    // }
+
     // level.loadPrefab(prefabsDir / "cube.json");
 
-    level.loadPrefab(prefabsDir / "ground.json", "ground", vec3(0.0f, -2.0f, 0.0f));
-    level.loadPrefab(prefabsDir / "monkey.json", "monkey", vec3(0.0f, 10.0f, 0.0f));
-    level.loadPrefab(prefabsDir / "monkey.json", "monkey1", vec3(0.0f, 30.0f, 0.0f));
-    level.loadPrefab(prefabsDir / "monkey.json", "monkey2", vec3(0.0f, 60.0f, 0.0f));
+    // {
+    //     auto ground = level.loadPrefab(prefabsDir / "ground.json");
+    //     TransformComponent *transform = g_entityManager->transforms.getComponent(ground);
+    //     if (transform)
+    //         transform->transform *= glm::translate(vec3(0.0f, -10.0f, 0.0f));
+    // }
 
-    g_renderer->loadDynamicResources();
-    g_physics->createBodies();
+    // for (int i = 0; i < 3; i++) {
+    //     auto monkey = level.loadPrefab(prefabsDir / "monkey.json");
+    //     TransformComponent *transform = g_entityManager->transforms.getComponent(monkey);
+    //     if (transform)
+    //         transform->transform *= glm::translate(vec3(0.0f, 20.0f * i, 0.0f));
 
-    g_entityManager->destroyEntity(g_entityManager->getEntityIDByName("box"));
+    //     NameComponent *name = g_entityManager->names.getComponent(monkey);
+    //     if (name)
+    //         name->name = "monkey" + std::to_string(i);
+    // }
+
+    Renderer::get()->loadDynamicResources();
+    Physics::get()->createBodies();
+
+    EntityManager::get()->destroyEntity(EntityManager::get()->getEntityIDByName("box"));
 
     // g_audio->load(audioDir / "ambient_drums.wav", "ambient_drums");
     // g_audio->play("ambient_drums", true);
@@ -96,9 +108,9 @@ void Engine::init(const char *title, uint32_t width, uint32_t height)
 
 void Engine::shutdown()
 {
-    g_physics->shutdown();
-    g_audio->shutdown();
-    g_renderer->shutdown();
+    Physics::get()->shutdown();
+    Audio::get()->shutdown();
+    Renderer::get()->shutdown();
 
     g_engine = nullptr;
 }
@@ -118,7 +130,7 @@ void Engine::run()
         update();
 
         if (!minimized) {
-            g_renderer->draw();
+            Renderer::get()->draw();
         }
     }
 }
@@ -148,16 +160,16 @@ void Engine::processEvents()
             minimized = false;
         }
 
-        g_input->processEvent(&event);
-        g_gamepadInput->processEvent(&event);
+        Input::get()->processEvent(&event);
+        GamepadInput::get()->processEvent(&event);
 
         ImGuiIO &io = ImGui::GetIO();
         if (io.WantCaptureMouse)
             continue; // skip mouse handling
 
         // gamepad right axis movement
-        if (g_gamepadInput->isConnected()) {
-            const GamepadState &gamepadState = g_gamepadInput->getGamepadState();
+        if (GamepadInput::get()->isConnected()) {
+            const GamepadState &gamepadState = GamepadInput::get()->getGamepadState();
             vec2 relPos = vec2(0.0f);
             if (abs(gamepadState.rightAxisX) > gamepadState.deadZone) {
                 relPos.x = gamepadState.rightAxisX / 32767.0f;
@@ -170,30 +182,30 @@ void Engine::processEvents()
         }
 
         // mouse movement
-        if (g_input->isMouseButtonDown(MouseButton::LEFT) && g_input->isMouseMoving()) {
-            vec2 relPos = g_input->getMouseRelativePosition();
+        if (Input::get()->isMouseButtonDown(MouseButton::LEFT) && Input::get()->isMouseMoving()) {
+            vec2 relPos = Input::get()->getMouseRelativePosition();
             camera.rotate(vec3(-glm::radians(relPos.y) * camRotationSpeed, glm::radians(relPos.x) * camRotationSpeed, 0.0f));
         }
     }
 
-    if (g_input->isKeyDown(KeyboardKey::ESCAPE)) {
+    if (Input::get()->isKeyDown(KeyboardKey::ESCAPE)) {
         running = false;
     }
 
-    if (g_input->isKeyDown(KeyboardKey::P)) {
+    if (Input::get()->isKeyDown(KeyboardKey::P)) {
         LOGI("%s", "Reloading shaders");
-        g_renderer->reloadShaders();
+        Renderer::get()->reloadShaders();
     }
 
-    g_editor->processInput();
+    Editor::get()->processInput();
 
     ImGuiIO &io = ImGui::GetIO();
     if (io.WantCaptureKeyboard)
         return; // skip keyboard handling
 
     // gamepad left axis movement
-    if (g_gamepadInput->isConnected()) {
-        const GamepadState &gamepadState = g_gamepadInput->getGamepadState();
+    if (GamepadInput::get()->isConnected()) {
+        const GamepadState &gamepadState = GamepadInput::get()->getGamepadState();
         if (abs(gamepadState.leftAxisX) > gamepadState.deadZone) {
             if (gamepadState.leftAxisX > 0)
                 camTranslation.x += camMovementSpeed;
@@ -210,22 +222,22 @@ void Engine::processEvents()
     }
 
     // camera movement
-    if (g_input->isKeyDown(KeyboardKey::LSHIFT)) {
+    if (Input::get()->isKeyDown(KeyboardKey::LSHIFT)) {
         camMovementSpeed *= 5;
     }
-    if (g_input->isKeyDown(KeyboardKey::A)) {
+    if (Input::get()->isKeyDown(KeyboardKey::A)) {
         camTranslation.x -= camMovementSpeed;
     }
-    if (g_input->isKeyDown(KeyboardKey::D)) {
+    if (Input::get()->isKeyDown(KeyboardKey::D)) {
         camTranslation.x += camMovementSpeed;
     }
-    if (g_input->isKeyDown(KeyboardKey::W)) {
+    if (Input::get()->isKeyDown(KeyboardKey::W)) {
         camTranslation.z -= camMovementSpeed;
     }
-    if (g_input->isKeyDown(KeyboardKey::S)) {
+    if (Input::get()->isKeyDown(KeyboardKey::S)) {
         camTranslation.z += camMovementSpeed;
     }
-    if (g_input->isKeyDown(KeyboardKey::SPACE)) {
+    if (Input::get()->isKeyDown(KeyboardKey::SPACE)) {
         camTranslation.y += camMovementSpeed;
     }
 
@@ -234,5 +246,5 @@ void Engine::processEvents()
 
 void Engine::update()
 {
-    g_physics->update();
+    Physics::get()->update();
 }

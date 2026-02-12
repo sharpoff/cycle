@@ -14,9 +14,6 @@
 #include "cycle/managers/entity_manager.h"
 #include "cycle/managers/model_manager.h"
 
-extern EntityManager *g_entityManager;
-extern ModelManager *g_modelManager;
-
 Physics *g_physics;
 
 void Physics::init()
@@ -25,6 +22,11 @@ void Physics::init()
     g_physics = &instance;
 
     instance.initInternal();
+}
+
+Physics *Physics::get()
+{
+    return g_physics;
 }
 
 void Physics::initInternal()
@@ -64,9 +66,9 @@ void Physics::createBodies()
 
     Vector<JPH::BodyID> newBodyIDs;
 
-    for (const EntityID entityID : g_entityManager->rigidBodies.getEntities()) {
-        RigidBodyComponent *rigidBodyComponent = g_entityManager->rigidBodies.getComponent(entityID);
-        TransformComponent *transformComponent = g_entityManager->transforms.getComponent(entityID);
+    for (const EntityID entityID : EntityManager::get()->rigidBodies.getEntities()) {
+        RigidBodyComponent *rigidBodyComponent = EntityManager::get()->rigidBodies.getComponent(entityID);
+        TransformComponent *transformComponent = EntityManager::get()->transforms.getComponent(entityID);
         if (!rigidBodyComponent || !transformComponent)
             continue;
 
@@ -85,11 +87,11 @@ void Physics::createBodies()
                 break;
             }
             case RigidBodyType::FromModel: {
-                ModelComponent *modelComponent = g_entityManager->models.getComponent(entityID);
+                ModelComponent *modelComponent = EntityManager::get()->models.getComponent(entityID);
                 if (!modelComponent)
                     break;
 
-                Model *model = g_modelManager->getModelByID(modelComponent->modelID);
+                Model *model = ModelManager::get()->getModelByID(modelComponent->modelID);
                 if (!model)
                     break;
 
@@ -183,9 +185,9 @@ void Physics::update()
     const float deltaTime = 1.0f / 60.0f;
 
     bool activeBodyExist = false;
-    for (const EntityID entityID : g_entityManager->rigidBodies.getEntities()) {
-        RigidBodyComponent *rigidBodyComponent = g_entityManager->rigidBodies.getComponent(entityID);
-        TransformComponent *transformComponent = g_entityManager->transforms.getComponent(entityID);
+    for (const EntityID entityID : EntityManager::get()->rigidBodies.getEntities()) {
+        RigidBodyComponent *rigidBodyComponent = EntityManager::get()->rigidBodies.getComponent(entityID);
+        TransformComponent *transformComponent = EntityManager::get()->transforms.getComponent(entityID);
         if (!rigidBodyComponent || !transformComponent)
             continue;
 

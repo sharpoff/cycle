@@ -8,10 +8,6 @@
 #include "cycle/managers/texture_manager.h"
 #include "cycle/managers/material_manager.h"
 
-extern ModelManager *g_modelManager;
-extern TextureManager *g_textureManager;
-extern MaterialManager *g_materialManager;
-
 namespace gltf
 {
     static void processNode(Model &model, cgltf_data *data, cgltf_node *gltfNode, String baseDir);
@@ -55,32 +51,48 @@ namespace gltf
 
             // load vertices
             Vector<Vertex> vertices(vertexSize);
+            
+            // position
             if (auto accessor = cgltf_find_accessor(&primitive, cgltf_attribute_type_position, 0); accessor) {
                 cgltf_accessor_unpack_floats(accessor, &temp[0], vertexSize * 3);
 
                 for (size_t j = 0; j < vertexSize; j++) {
-                    vertices[j].position.x = temp[j * 3 + 0];
-                    vertices[j].position.y = temp[j * 3 + 1];
-                    vertices[j].position.z = temp[j * 3 + 2];
+                    vertices[j].position[0] = temp[j * 3 + 0];
+                    vertices[j].position[1] = temp[j * 3 + 1];
+                    vertices[j].position[2] = temp[j * 3 + 2];
                 }
             }
 
+            // normal
             if (auto accessor = cgltf_find_accessor(&primitive, cgltf_attribute_type_normal, 0); accessor) {
                 cgltf_accessor_unpack_floats(accessor, &temp[0], vertexSize * 3);
 
                 for (size_t j = 0; j < vertexSize; j++) {
-                    vertices[j].normal.x = temp[j * 3 + 0];
-                    vertices[j].normal.y = temp[j * 3 + 1];
-                    vertices[j].normal.z = temp[j * 3 + 2];
+                    vertices[j].normal[0] = temp[j * 3 + 0];
+                    vertices[j].normal[1] = temp[j * 3 + 1];
+                    vertices[j].normal[2] = temp[j * 3 + 2];
                 }
             }
 
+            // uv
             if (auto accessor = cgltf_find_accessor(&primitive, cgltf_attribute_type_texcoord, 0); accessor) {
                 cgltf_accessor_unpack_floats(accessor, &temp[0], vertexSize * 2);
 
                 for (size_t j = 0; j < vertexSize; j++) {
                     vertices[j].uv_x = temp[j * 2 + 0];
                     vertices[j].uv_y = temp[j * 2 + 1];
+                }
+            }
+
+            // tangent
+            if (auto accessor = cgltf_find_accessor(&primitive, cgltf_attribute_type_tangent, 0); accessor) {
+                cgltf_accessor_unpack_floats(accessor, &temp[0], vertexSize * 4);
+
+                for (size_t j = 0; j < vertexSize; j++) {
+                    vertices[j].tangent[0] = temp[j * 4 + 0];
+                    vertices[j].tangent[1] = temp[j * 4 + 1];
+                    vertices[j].tangent[2] = temp[j * 4 + 2];
+                    vertices[j].tangent[3] = temp[j * 4 + 3];
                 }
             }
 
@@ -97,48 +109,62 @@ namespace gltf
                     // base color
                     if (gltfMaterial->pbr_metallic_roughness.base_color_texture.texture) {
                         cgltf_image *gltfImage = gltfMaterial->pbr_metallic_roughness.base_color_texture.texture->image;
-                        const char *uri = gltfImage->uri;
 
-                        if (uri) {
-                            material.baseColorTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
+                        if (gltfImage->uri) {
+                            material.baseColorTexID = TextureManager::get()->createTexture(baseDir / std::filesystem::path(gltfImage->uri));
+                        } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
+                            unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
+                            material.baseColorTexID = TextureManager::get()->createTextureFromMem(data, gltfImage->buffer_view->buffer->size);
                         }
                     }
 
                     // metallic roughness
                     if (gltfMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture) {
                         cgltf_image *gltfImage = gltfMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image;
-                        const char *uri = gltfImage->uri;
 
-                        if (uri) {
-                            material.metallicRoughnessTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
+                        if (gltfImage->uri) {
+                            material.metallicRoughnessTexID = TextureManager::get()->createTexture(baseDir / std::filesystem::path(gltfImage->uri));
+                        } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
+                            unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
+                            material.metallicRoughnessTexID = TextureManager::get()->createTextureFromMem(data, gltfImage->buffer_view->buffer->size);
                         }
-                    }
-
-                    // normal
-                    if (gltfMaterial->normal_texture.texture) {
-                        cgltf_image *gltfImage = gltfMaterial->normal_texture.texture->image;
-                        const char *uri = gltfImage->uri;
-
-                        if (uri) {
-                            material.normalTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
-                        }
-                    }
-
-                    // emissive
-                    if (gltfMaterial->emissive_texture.texture) {
-                        cgltf_image *gltfImage = gltfMaterial->emissive_texture.texture->image;
-                        const char *uri = gltfImage->uri;
-
-                        if (uri) {
-                            material.emissiveTexID = g_textureManager->createTexture(baseDir / std::filesystem::path(uri));
-                        }
+    
+                        material.metallicFactor = gltfMaterial->pbr_metallic_roughness.metallic_factor;
+                        material.roughnessFactor = gltfMaterial->pbr_metallic_roughness.roughness_factor;
                     }
                 }
 
-                mesh.materialID = g_materialManager->addMaterial(material);
+                // normal
+                if (gltfMaterial->normal_texture.texture) {
+                    cgltf_image *gltfImage = gltfMaterial->normal_texture.texture->image;
+
+                    if (gltfImage->uri) {
+                        material.normalTexID = TextureManager::get()->createTexture(baseDir / std::filesystem::path(gltfImage->uri), VK_FORMAT_R8G8B8A8_UNORM);
+                    } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
+                        unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
+                        material.normalTexID = TextureManager::get()->createTextureFromMem(data, gltfImage->buffer_view->buffer->size, VK_FORMAT_R8G8B8A8_UNORM);
+                    }
+                }
+
+                // emissive
+                if (gltfMaterial->emissive_texture.texture) {
+                    cgltf_image *gltfImage = gltfMaterial->emissive_texture.texture->image;
+                    const char *uri = gltfImage->uri;
+
+                    if (uri) {
+                        material.emissiveTexID = TextureManager::get()->createTexture(baseDir / std::filesystem::path(uri));
+                    } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
+                        unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
+                        material.emissiveTexID = TextureManager::get()->createTextureFromMem(data, gltfImage->buffer_view->buffer->size);
+                    }
+
+                    // material.emissiveFactor = glm::make_vec3(gltfMaterial->emissive_factor);
+                }
+
+                mesh.materialID = MaterialManager::get()->addMaterial(material);
             }
 
-            g_modelManager->uploadMeshData(mesh, vertices, indices);
+            ModelManager::get()->uploadMeshData(mesh, vertices, indices);
             model.meshes.push_back(mesh);
         }
 

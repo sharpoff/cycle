@@ -19,6 +19,11 @@ void TextureManager::init(RenderDevice *renderDevice)
     instance.renderDevice = renderDevice;
 }
 
+TextureManager *TextureManager::get()
+{
+    return g_textureManager;
+}
+
 void TextureManager::release()
 {
     assert(renderDevice);
@@ -28,7 +33,7 @@ void TextureManager::release()
     }
 }
 
-const TextureID TextureManager::createTexture(std::filesystem::path filepath, String name)
+const TextureID TextureManager::createTexture(std::filesystem::path filepath, VkFormat format, String name)
 {
     if (auto id = getTextureIDByName(name); id != TextureID::Invalid)
         return id;
@@ -65,7 +70,7 @@ const TextureID TextureManager::createTexture(std::filesystem::path filepath, St
         .mipLevels = info.mipLevels,
         .type = info.arrayLayers == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D,
         .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .format = format,
     };
 
     Image image = renderDevice->createImage(createInfo);
@@ -78,6 +83,43 @@ const TextureID TextureManager::createTexture(std::filesystem::path filepath, St
 
     TextureID id = (TextureID)textures.size();
     filenameTextureMap[std::filesystem::absolute(filepath)] = id;
+    if (!name.empty())
+        nameTextureMap[name] = id;
+
+    textures.push_back(image);
+    return id;
+}
+
+const TextureID TextureManager::createTextureFromMem(unsigned char *data, uint32_t size, VkFormat format, String name)
+{
+    if (auto id = getTextureIDByName(name); id != TextureID::Invalid)
+        return id;
+
+    ImageLoadInfo info = {};
+    if (!loadImageInfo(data, size, info)) {
+        LOGE("%s", "Failed to load a texture from memory");
+        return TextureID::Invalid;
+    }
+
+    const ImageCreateInfo createInfo = {
+        .width = info.width,
+        .height = info.height,
+        .arrayLayers = info.arrayLayers,
+        .mipLevels = info.mipLevels,
+        .type = info.arrayLayers == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .format = format,
+    };
+
+    Image image = renderDevice->createImage(createInfo);
+    renderDevice->uploadImage(image, info);
+    freeImageInfo(info);
+
+    // generate mipmaps for non ktx images
+    if (!info.textureKTX && createInfo.mipLevels > 1)
+        renderDevice->generateMipmaps(image);
+
+    TextureID id = (TextureID)textures.size();
     if (!name.empty())
         nameTextureMap[name] = id;
 
@@ -140,6 +182,24 @@ bool TextureManager::loadImageInfo(std::filesystem::path filepath, ImageLoadInfo
     return true;
 }
 
+bool TextureManager::loadImageInfo(unsigned char *data, uint32_t size, ImageLoadInfo &info, bool flip)
+{
+    int loadedChannels;
+    info.data = stbi_load_from_memory(data, size, (int *)&info.width, (int *)&info.height, (int *)&loadedChannels, STBI_rgb_alpha);
+    stbi_set_flip_vertically_on_load(flip);
+    if (!info.data) {
+        freeImageInfo(info);
+        return false;
+    }
+
+    info.channels = STBI_rgb_alpha;
+    info.arrayLayers = 1;
+    info.size = info.width * info.height * STBI_rgb_alpha;
+    info.mipLevels = renderDevice->calculateMipLevels(info.width, info.height);
+
+    return true;
+}
+
 void TextureManager::freeImageInfo(ImageLoadInfo &info)
 {
     if (info.textureKTX) {
@@ -147,10 +207,4 @@ void TextureManager::freeImageInfo(ImageLoadInfo &info)
     } else {
         stbi_image_free(info.data);
     }
-}
-
-void TextureManager::freeImageInfos(Vector<ImageLoadInfo> &infos)
-{
-    for (auto &info : infos)
-        freeImageInfo(info);
 }

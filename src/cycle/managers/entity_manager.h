@@ -13,6 +13,8 @@ class EntityManager
 {
 public:
     static void    init();
+    static EntityManager *get();
+
     const EntityID createEntity();
     void destroyEntity(const EntityID id);
 

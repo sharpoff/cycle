@@ -240,7 +240,11 @@ Image RenderDevice::createImage(const ImageCreateInfo &createInfo)
     imageViewInfo.format = image.format;
     imageViewInfo.subresourceRange = {image.aspect, 0, image.mipLevels, 0, image.arrayLayers};
 
+    VkImageView view;
     VK_CHECK(vkCreateImageView(device, &imageViewInfo, nullptr, &image.view));
+
+    if (createInfo.debugName)
+        vulkan::setDebugName(device, uint64_t(image.image), VK_OBJECT_TYPE_IMAGE, createInfo.debugName);
 
     return image;
 }

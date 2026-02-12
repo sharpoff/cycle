@@ -8,6 +8,7 @@ class Editor
 {
 public:
     static void init();
+    static Editor *get();
     void processInput();
     void draw();
 

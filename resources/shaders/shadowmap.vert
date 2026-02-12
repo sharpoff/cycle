@@ -17,10 +17,10 @@ layout(push_constant) uniform DepthPushConstants
     uint cascadeIndex;
 } pcs;
 
-layout(set = 0, binding = 5) uniform CascadeMatricesBuffer
+layout(set = 0, binding = 5) uniform CascadesBuffer
 {
-    mat4 viewProj[SHADOW_MAP_CASCADES];
-} cascadeMatrices;
+    Cascade cascades[SHADOWMAP_CASCADES];
+};
 
 layout(location = 0) out vec2 outUV;
 
@@ -30,5 +30,5 @@ void main()
 
     outUV = vec2(vertex.uv_x, vertex.uv_y);
     vec4 world = pcs.worldMatrix * vec4(vertex.position, 1.0);
-    gl_Position = cascadeMatrices.viewProj[pcs.cascadeIndex] * world;
+    gl_Position = cascades[pcs.cascadeIndex].viewProjection * world;
 }

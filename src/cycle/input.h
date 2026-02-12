@@ -9,6 +9,7 @@ class Input
 {
 public:
     static void init();
+    static Input *get();
 
     void processEvent(SDL_Event *event);
 

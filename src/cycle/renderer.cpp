@@ -20,13 +20,6 @@
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
 
-extern TextureManager *g_textureManager;
-extern ModelManager *g_modelManager;
-extern MaterialManager *g_materialManager;
-extern EntityManager *g_entityManager;
-
-extern Editor *g_editor;
-
 Renderer *g_renderer;
 
 void Renderer::init(SDL_Window *window)
@@ -37,6 +30,11 @@ void Renderer::init(SDL_Window *window)
     instance.initInternal(window);
 }
 
+Renderer *Renderer::get()
+{
+    return g_renderer;
+}
+
 void Renderer::initInternal(SDL_Window *window)
 {
     assert(window);
@@ -45,25 +43,27 @@ void Renderer::initInternal(SDL_Window *window)
     device.init(window);
 
     // init all resource managers
-    g_textureManager->init(&device);
-    g_modelManager->init(&device);
-    g_materialManager->init();
+    TextureManager::init(&device);
+    ModelManager::init(&device);
+    MaterialManager::init();
 
     createAttachmentImages();
 
     { // shadowmap image
         ImageCreateInfo createInfo = {
-            .width = 4096,
-            .height = 4096,
-            // .arrayLayers = SHADOWMAP_CASCADES,
+            .width = SHADOWMAP_DIM,
+            .height = SHADOWMAP_DIM,
             .mipLevels = 1,
             .sampleCount = device.maxSampleCount,
+            .type = VK_IMAGE_VIEW_TYPE_2D,
             .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             .format = VK_FORMAT_D32_SFLOAT,
             .aspect = VK_IMAGE_ASPECT_DEPTH_BIT,
         };
 
-        shadowmapImage = device.createImage(createInfo);
+        for (uint32_t i = 0; i < SHADOWMAP_CASCADES; i++) {
+            shadowmapImages[i] = device.createImage(createInfo);
+        }
     }
 
     // create global data buffer
@@ -81,7 +81,7 @@ void Renderer::initInternal(SDL_Window *window)
     // create cascades matrices buffer
     {
         const BufferCreateInfo createInfo = {
-            .size = sizeof(mat4) * SHADOWMAP_CASCADES,
+            .size = sizeof(Cascade) * cascades.size(),
             .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         };
 
@@ -118,11 +118,11 @@ void Renderer::initInternal(SDL_Window *window)
     // create default resources
     {
         // create default texture
-        auto texID = g_textureManager->createTexture(texturesDir / "compressed/checkerboard.ktx", "default");
+        auto texID = TextureManager::get()->createTexture(texturesDir / "compressed/checkerboard.ktx", VK_FORMAT_R8G8B8A8_SRGB, "default");
         assert(texID != TextureID::Invalid);
 
         // add default material
-        g_materialManager->addMaterial(Material{.baseColorTexID = texID}, "default");
+        MaterialManager::get()->addMaterial(Material{.baseColorTexID = texID}, "default");
     }
 
     createPipelines();
@@ -142,10 +142,13 @@ void Renderer::shutdown()
     device.waitIdle();
 
     destroyAttachmentImages();
-    device.destroyImage(shadowmapImage);
+    
+    for (auto &shadowmap : shadowmapImages) {
+        device.destroyImage(shadowmap);
+    }
 
-    g_textureManager->release();
-    g_modelManager->release();
+    TextureManager::get()->release();
+    ModelManager::get()->release();
 
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
         device.destroyBuffer(sceneInfoBuffers[i]);
@@ -164,9 +167,9 @@ void Renderer::shutdown()
 
 void Renderer::loadDynamicResources()
 {
-    auto &materials = g_materialManager->getMaterials();
-    auto &textures = g_textureManager->getTextures();
-    lightEntities = g_entityManager->lights.getEntities();
+    auto &materials = MaterialManager::get()->getMaterials();
+    auto &textures = TextureManager::get()->getTextures();
+    lightEntities = EntityManager::get()->lights.getEntities();
 
     // create materials buffer
     if (materials.size() > 0) {
@@ -239,20 +242,22 @@ void Renderer::draw()
 
     barriers.transitionImage2(colorImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
     barriers.transitionImage2(depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
-    barriers.transitionImage2(shadowmapImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
+    for (auto &shadowmap : shadowmapImages)
+        barriers.transitionImage2(shadowmap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
     barriers.transitionImage2(device.getSwapchainImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
     barriers.flushBarriers(cmd);
 
     const uint32_t currentFrame = device.getCurrentFrame();
     VkExtent2D renderArea = {device.getSwapchainWidth(), device.getSwapchainHeight()};
+    const float color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 
     VkRenderingAttachmentInfo depthAttachment = vulkan::createAttachmentInfo(depthImage.view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, false, true);
-    VkRenderingAttachmentInfo shadowmapAttachment = vulkan::createAttachmentInfo(shadowmapImage.view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, false, true);
 
     //===========================
-    // Render cubemap
+    // Render skybox
     //===========================
     {
+        vulkan::beginDebugLabel(cmd, "skybox");
         Vector<VkRenderingAttachmentInfo> colorAttachments = {
             vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, false, true),
         };
@@ -274,28 +279,36 @@ void Renderer::draw()
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline.pipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline.layout, 0, 1, &device.getBindlessDescriptor(), 0, 0);
 
-        Model *model = g_modelManager->getModelByName("cube");
+        Model *model = ModelManager::get()->getModelByName("cube");
         drawModel(cmd, model, mat4(1.0f));
 
         vkCmdEndRendering(cmd);
+        vulkan::endDebugLabel(cmd);
     }
 
     //===========================
     // Render shadowmap
     //===========================
-#if 0
+    vulkan::beginDebugLabel(cmd, "shadowmapping");
+    for (uint32_t i = 0; i < shadowmapImages.size(); i++)
     {
-        VkRenderingInfo renderingInfo = vulkan::createRenderingInfo({shadowmapImage.width, shadowmapImage.height}, {}, &shadowmapAttachment);
+        Image &shadowmap = shadowmapImages[i];
+
+        VkRenderingAttachmentInfo shadowmapDepthAttachment = vulkan::createAttachmentInfo(shadowmap.view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, false, true);
+
+        VkRenderingInfo renderingInfo = vulkan::createRenderingInfo({shadowmap.width, shadowmap.height}, {}, &shadowmapDepthAttachment);
         vkCmdBeginRendering(cmd, &renderingInfo);
 
         VkViewport viewport = {};
-        viewport.width = shadowmapImage.width;
-        viewport.height = shadowmapImage.height;
+        viewport.width = shadowmap.width;
+        viewport.height = shadowmap.height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &viewport);
 
         VkRect2D scissor = {};
+        scissor.offset.x = 0.0f;
+        scissor.offset.y = 0.0f;
         scissor.extent.width = renderArea.width;
         scissor.extent.height = renderArea.height;
         vkCmdSetScissor(cmd, 0, 1, &scissor);
@@ -303,23 +316,35 @@ void Renderer::draw()
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowmapPipeline.pipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowmapPipeline.layout, 0, 1, &device.getBindlessDescriptor(), 0, 0);
 
-        for (EntityID entity : g_entityManager->models.getEntities()) {
-            ModelComponent    *modelComponent = g_entityManager->models.getComponent(entity);
-            TransformComponent *transformComponent = g_entityManager->transforms.getComponent(entity);
+        for (EntityID entity : EntityManager::get()->models.getEntities()) {
+            ModelComponent    *modelComponent = EntityManager::get()->models.getComponent(entity);
+            TransformComponent *transformComponent = EntityManager::get()->transforms.getComponent(entity);
             if (!modelComponent || !transformComponent)
                 continue;
 
-            Model *model = g_modelManager->getModelByID(modelComponent->modelID);
-            drawModel(cmd, model, transformComponent->transform);
+            Model *model = ModelManager::get()->getModelByID(modelComponent->modelID);
+            if (!model) continue;
+
+            for (Mesh &mesh : model->meshes) {
+                DepthPushConstants push = {};
+                push.worldMatrix = transformComponent->transform * mesh.worldMatrix;
+                push.vertexBufferAddress = mesh.vertexBuffer.address;
+                push.cascadeIndex = i;
+                vkCmdPushConstants(cmd, shadowmapPipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+
+                vkCmdBindIndexBuffer(cmd, mesh.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+                vkCmdDrawIndexed(cmd, mesh.indices.size(), 1, 0, 0, 0);
+            }
         }
         vkCmdEndRendering(cmd);
     }
-#endif
+    vulkan::endDebugLabel(cmd);
 
     //===========================
     // Render meshes
     //===========================
     {
+        vulkan::beginDebugLabel(cmd, "mesh");
         Vector<VkRenderingAttachmentInfo> colorAttachments = {
             vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, true),
         };
@@ -342,22 +367,24 @@ void Renderer::draw()
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline.pipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline.layout, 0, 1, &device.getBindlessDescriptor(), 0, 0);
 
-        for (EntityID entity : g_entityManager->models.getEntities()) {
-            ModelComponent    *modelComponent = g_entityManager->models.getComponent(entity);
-            TransformComponent *transformComponent = g_entityManager->transforms.getComponent(entity);
+        for (EntityID entity : EntityManager::get()->models.getEntities()) {
+            ModelComponent    *modelComponent = EntityManager::get()->models.getComponent(entity);
+            TransformComponent *transformComponent = EntityManager::get()->transforms.getComponent(entity);
             if (!modelComponent || !transformComponent)
                 continue;
 
-            Model *model = g_modelManager->getModelByID(modelComponent->modelID);
+            Model *model = ModelManager::get()->getModelByID(modelComponent->modelID);
             drawModel(cmd, model, transformComponent->transform);
         }
         vkCmdEndRendering(cmd);
+        vulkan::endDebugLabel(cmd);
     }
 
     //===========================
     // Render imgui
     //===========================
     {
+        vulkan::beginDebugLabel(cmd, "imgui");
         Vector<VkRenderingAttachmentInfo> colorAttachments = {
             vulkan::createAttachmentInfo(colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, true, device.getSwapchainImageView(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
         };
@@ -377,10 +404,11 @@ void Renderer::draw()
         scissor.extent.height = renderArea.height;
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-        g_editor->draw();
+        Editor::get()->draw();
         ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
         vkCmdEndRendering(cmd);
+        vulkan::endDebugLabel(cmd);
     }
 
     barriers.transitionImage2(device.getSwapchainImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
@@ -432,6 +460,7 @@ void Renderer::createAttachmentImages()
             .sampleCount = device.maxSampleCount,
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             .format = device.getSurfaceFormat().format,
+            .debugName = "color"
         };
 
         colorImage = device.createImage(createInfo);
@@ -446,6 +475,7 @@ void Renderer::createAttachmentImages()
             .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             .format = VK_FORMAT_D32_SFLOAT,
             .aspect = VK_IMAGE_ASPECT_DEPTH_BIT,
+            .debugName = "depth"
         };
 
         depthImage = device.createImage(createInfo);
@@ -514,8 +544,8 @@ void Renderer::createPipelines()
             .depthWriteEnable = true,
             .colorAttachmentFormats = {VK_FORMAT_B8G8R8A8_SRGB},
             .depthAttachmentFormat = VK_FORMAT_D32_SFLOAT,
-            .vertexCode = filesystem::readFile( shadersBinaryDir / "cubemap.vert.spv", true),
-            .fragmentCode = filesystem::readFile( shadersBinaryDir / "cubemap.frag.spv", true),
+            .vertexCode = filesystem::readFile( shadersBinaryDir / "skybox.vert.spv", true),
+            .fragmentCode = filesystem::readFile( shadersBinaryDir / "skybox.frag.spv", true),
         };
 
         skyboxPipeline = device.createRenderPipeline(createInfo);
@@ -533,7 +563,7 @@ void Renderer::createPipelines()
             .depthCompareOp = VK_COMPARE_OP_GREATER,
             .depthWriteEnable = true,
             .depthAttachmentFormat = VK_FORMAT_D32_SFLOAT,
-            .vertexCode = filesystem::readFile(shadersBinaryDir / "depth.vert.spv", true),
+            .vertexCode = filesystem::readFile(shadersBinaryDir / "shadowmap.vert.spv", true),
         };
 
         shadowmapPipeline = device.createRenderPipeline(createInfo);
@@ -555,8 +585,9 @@ void Renderer::update()
     if (gpuLights.size() > 0) {
         device.uploadBufferData(lightsBuffer, gpuLights.data(), sizeof(GPULight) * gpuLights.size());
 
-        updateShadowmapCascades(gpuLights[0].type == LIGHT_TYPE_DIRECTIONAL ? gpuLights[0].direction : vec3(0.0f, -1.0f, 0.1f));
-        device.uploadBufferData(cascadesBuffer, cascadeMatrices.data(), cascadeMatrices.size() * sizeof(mat4));
+        // HACK
+        updateShadowmapCascades(gpuLights[0].direction);
+        device.uploadBufferData(cascadesBuffer, cascades.data(), cascades.size() * sizeof(Cascade));
     }
 
     SceneInfo sceneInfo = {};
@@ -564,7 +595,7 @@ void Renderer::update()
     sceneInfo.projection = camera->getProjection();
     sceneInfo.cameraPos = camera->getPosition();
     sceneInfo.lightsCount = gpuLights.size();
-    sceneInfo.skyboxTexID = (uint32_t)g_textureManager->getTextureIDByName("skybox");
+    sceneInfo.skyboxTexID = (uint32_t)TextureManager::get()->getTextureIDByName("skybox");
     
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         device.uploadBufferData(sceneInfoBuffers[i], &sceneInfo, sizeof(sceneInfo));
@@ -574,8 +605,8 @@ void Renderer::updateGPULights()
 {
     gpuLights.clear();
     for (EntityID lightID : lightEntities) {
-        LightComponent     *lightComponent = g_entityManager->lights.getComponent(lightID);
-        TransformComponent *transformComponent = g_entityManager->transforms.getComponent(lightID);
+        LightComponent     *lightComponent = EntityManager::get()->lights.getComponent(lightID);
+        TransformComponent *transformComponent = EntityManager::get()->transforms.getComponent(lightID);
         if (!lightComponent || !transformComponent)
             continue;
 
@@ -604,7 +635,8 @@ void Renderer::updateShadowmapCascades(vec3 lightDir)
     float range = maxZ - minZ;
     float ratio = maxZ / minZ;
 
-    // reference: https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch10.html
+    // Calculate split depths based on view camera frustum
+    // Based on method presented in https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch10.html
     for (uint32_t i = 0; i < SHADOWMAP_CASCADES; i++) {
         float p = (i + 1) / static_cast<float>(SHADOWMAP_CASCADES);
         float log = minZ * std::pow(ratio, p);
@@ -618,32 +650,33 @@ void Renderer::updateShadowmapCascades(vec3 lightDir)
     for (uint32_t i = 0; i < SHADOWMAP_CASCADES; i++) {
         float splitDist = cascadeSplits[i];
 
-        vec3 frustumCorners[8] = {
-            vec3(-1.0f, 1.0f, 0.0f),
-            vec3(1.0f, 1.0f, 0.0f),
-            vec3(1.0f, -1.0f, 0.0f),
-            vec3(-1.0f, -1.0f, 0.0f),
-            vec3(-1.0f, 1.0f, 1.0f),
-            vec3(1.0f, 1.0f, 1.0f),
-            vec3(1.0f, -1.0f, 1.0f),
-            vec3(-1.0f, -1.0f, 1.0f),
+        glm::vec3 frustumCorners[8] = {
+            glm::vec3(-1.0f, 1.0f, 0.0f),
+            glm::vec3(1.0f, 1.0f, 0.0f),
+            glm::vec3(1.0f, -1.0f, 0.0f),
+            glm::vec3(-1.0f, -1.0f, 0.0f),
+            glm::vec3(-1.0f, 1.0f, 1.0f),
+            glm::vec3(1.0f, 1.0f, 1.0f),
+            glm::vec3(1.0f, -1.0f, 1.0f),
+            glm::vec3(-1.0f, -1.0f, 1.0f),
         };
 
         // Project frustum corners into world space
-        mat4 invCam = glm::inverse(camera->getProjection() * camera->getView());
+        glm::mat4 invCam = glm::inverse(camera->getProjection() * camera->getView());
+
         for (uint32_t j = 0; j < 8; j++) {
-            vec4 invCorner = invCam * vec4(frustumCorners[j], 1.0f);
+            glm::vec4 invCorner = invCam * glm::vec4(frustumCorners[j], 1.0f);
             frustumCorners[j] = invCorner / invCorner.w;
         }
 
         for (uint32_t j = 0; j < 4; j++) {
-            vec3 dist = frustumCorners[j + 4] - frustumCorners[j];
+            glm::vec3 dist = frustumCorners[j + 4] - frustumCorners[j];
             frustumCorners[j + 4] = frustumCorners[j] + (dist * splitDist);
             frustumCorners[j] = frustumCorners[j] + (dist * lastSplitDist);
         }
 
         // Get frustum center
-        vec3 frustumCenter = glm::vec3(0.0f);
+        glm::vec3 frustumCenter = glm::vec3(0.0f);
         for (uint32_t j = 0; j < 8; j++) {
             frustumCenter += frustumCorners[j];
         }
@@ -656,16 +689,17 @@ void Renderer::updateShadowmapCascades(vec3 lightDir)
         }
         radius = std::ceil(radius * 16.0f) / 16.0f;
 
-        vec3 maxExtents = vec3(radius);
-        vec3 minExtents = -maxExtents;
+        glm::vec3 maxExtents = glm::vec3(radius);
+        glm::vec3 minExtents = -maxExtents;
 
-        vec3 lightDir = normalize(lightDir);
-        mat4 lightViewMatrix = glm::lookAt(frustumCenter - lightDir * -minExtents.z, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
-        mat4 lightOrthoMatrix = glm::ortho(minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z - minExtents.z);
+        glm::vec3 lightDir = glm::normalize(vec3(-0.1f, -0.5f, 0.0f));
+        vec3 eye = frustumCenter - lightDir * -minExtents.z;
+        glm::mat4 lightViewMatrix = glm::lookAt(eye, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 lightOrthoMatrix = glm::ortho(minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z - minExtents.z);
 
         // Store split distance and matrix in cascade
-        cascadeDepths[i] = (camera->getNearClip() + splitDist * clipRange) * -1.0f;
-        cascadeMatrices[i] = lightOrthoMatrix * lightViewMatrix;
+        cascades[i].depth = (camera->getNearClip() + splitDist * clipRange) * -1.0f;
+        cascades[i].viewProjection = lightOrthoMatrix * lightViewMatrix;
 
         lastSplitDist = cascadeSplits[i];
     }

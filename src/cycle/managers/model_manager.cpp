@@ -14,6 +14,11 @@ void ModelManager::init(RenderDevice *renderDevice)
     instance.renderDevice = renderDevice;
 }
 
+ModelManager *ModelManager::get()
+{
+    return g_modelManager;
+}
+
 void ModelManager::release()
 {
     for (Model &model : models) {

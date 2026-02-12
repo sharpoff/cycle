@@ -12,6 +12,7 @@ class Audio
 {
 public:
     static void init();
+    static Audio *get();
     void shutdown();
 
     void load(std::filesystem::path filepath, String name);

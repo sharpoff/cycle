@@ -8,11 +8,6 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_vulkan.h"
 
-extern Input *g_input;
-extern EntityManager *g_entityManager;
-extern Physics *g_physics;
-extern Renderer *g_renderer;
-
 Editor *g_editor;
 
 void Editor::init()
@@ -21,28 +16,33 @@ void Editor::init()
     g_editor = &instance;
 }
 
+Editor *Editor::get()
+{
+    return g_editor;
+}
+
 void Editor::processInput()
 {
     if (isKeyboardProcessed) {
-        if (g_input->isKeyDown(KeyboardKey::T)) {
+        if (Input::get()->isKeyDown(KeyboardKey::T)) {
             gizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
         }
-        if (g_input->isKeyDown(KeyboardKey::E)) {
+        if (Input::get()->isKeyDown(KeyboardKey::E)) {
             gizmoOperation = ImGuizmo::OPERATION::SCALE;
         }
-        if (g_input->isKeyDown(KeyboardKey::R)) {
+        if (Input::get()->isKeyDown(KeyboardKey::R)) {
             gizmoOperation = ImGuizmo::OPERATION::ROTATE;
         }
-        if (g_input->isKeyDown(KeyboardKey::Y)) {
+        if (Input::get()->isKeyDown(KeyboardKey::Y)) {
             gizmoOperation = ImGuizmo::OPERATION::UNIVERSAL;
         }
     }
 
     if (isMouseProcessed) {
-        if (g_input->isMouseButtonDown(MouseButton::RIGHT)) { // raycast to find an entity at mouse position
-            vec3 direction = math::mouseToDirection(g_input->getMousePosition(), g_renderer->getScreenSize(), camera->getView(), camera->getProjection());
+        if (Input::get()->isMouseButtonDown(MouseButton::RIGHT)) { // raycast to find an entity at mouse position
+            vec3 direction = math::mouseToDirection(Input::get()->getMousePosition(), Renderer::get()->getScreenSize(), camera->getView(), camera->getProjection());
             direction *= 1000.0f;
-            const EntityID entityID = g_physics->castRay(camera->getPosition(), direction);
+            const EntityID entityID = Physics::get()->castRay(camera->getPosition(), direction);
             selectedEntityID = entityID;
         }
     }
@@ -61,9 +61,9 @@ void Editor::draw()
     {
         ImGui::Begin("Entities");
 
-        for (EntityID entity : g_entityManager->transforms.getEntities()) {
-            TransformComponent *transformComponent = g_entityManager->transforms.getComponent(entity);
-            NameComponent *nameComponent = g_entityManager->names.getComponent(entity);
+        for (EntityID entity : EntityManager::get()->transforms.getEntities()) {
+            TransformComponent *transformComponent = EntityManager::get()->transforms.getComponent(entity);
+            NameComponent *nameComponent = EntityManager::get()->names.getComponent(entity);
             if (!transformComponent || !nameComponent)
                 continue;
 
@@ -90,7 +90,7 @@ void Editor::updateGizmo()
     ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
     if (selectedEntityID != EntityID::Invalid) {
-        TransformComponent *transformComponent = g_entityManager->transforms.getComponent(selectedEntityID);
+        TransformComponent *transformComponent = EntityManager::get()->transforms.getComponent(selectedEntityID);
         if (!transformComponent)
             return;
 
@@ -103,8 +103,8 @@ void Editor::updateGizmo()
         }
 
         if (!ImGuizmo::IsUsingAny() && lastFrameManipulated) {
-            if (g_entityManager->rigidBodies.has(selectedEntityID)) {
-                g_physics->setBodyPosition(selectedEntityID, math::getPosition(transformComponent->transform));
+            if (EntityManager::get()->rigidBodies.has(selectedEntityID)) {
+                Physics::get()->setBodyPosition(selectedEntityID, math::getPosition(transformComponent->transform));
             }
 
             lastFrameManipulated = false;

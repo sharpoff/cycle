@@ -8,6 +8,11 @@ void MaterialManager::init()
     g_materialManager = &instance;
 }
 
+MaterialManager *MaterialManager::get()
+{
+    return g_materialManager;
+}
+
 const MaterialID MaterialManager::addMaterial(const Material &material, String name)
 {
     if (!name.empty()) {

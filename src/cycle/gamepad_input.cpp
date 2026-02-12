@@ -11,6 +11,11 @@ void GamepadInput::init()
     g_gamepadInput = &instance;
 }
 
+GamepadInput *GamepadInput::get()
+{
+    return g_gamepadInput;
+}
+
 void GamepadInput::processEvent(SDL_Event *event)
 {
     assert(event);

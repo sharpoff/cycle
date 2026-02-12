@@ -22,6 +22,6 @@ namespace vulkan
     const char *toString(VkFormat format);
 
     void setDebugName(VkDevice device, uint64_t objectHandle, VkObjectType objectType, const char *name);
-    void beginDebugLabel(VkCommandBuffer cmd, const char *name, float color[4]);
+    void beginDebugLabel(VkCommandBuffer cmd, const char *name);
     void endDebugLabel(VkCommandBuffer cmd);
 } // namespace vulkan

@@ -22,6 +22,7 @@ class GamepadInput
 {
 public:
     static void init();
+    static GamepadInput *get();
     void processEvent(SDL_Event *event);
 
     bool isConnected() { return gamepad != nullptr; }

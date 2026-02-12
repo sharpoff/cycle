@@ -34,17 +34,26 @@ void Camera::setRotation(vec3 rotation)
     updateView();
 }
 
-void Camera::setPerspective(float fov, float aspectRatio, float near)
+void Camera::setPerspectiveInf(float fov, float aspectRatio, float near)
 {
     this->fov = fov;
     this->aspectRatio = aspectRatio;
-    this->zNear = near;
+    this->nearClip = near;
     this->projection = math::perspectiveInf(fov, aspectRatio, near);
+}
+
+void Camera::setPerspective(float fov, float aspectRatio, float near, float far)
+{
+    this->fov = fov;
+    this->aspectRatio = aspectRatio;
+    this->nearClip = near;
+    this->farClip = far;
+    this->projection = math::perspective(fov, aspectRatio, near, far);
 }
 
 void Camera::setAspectRatio(float aspectRatio)
 {
-    setPerspective(fov, aspectRatio, zNear);
+    setPerspective(fov, aspectRatio, nearClip, farClip);
 }
 
 void Camera::updateView()

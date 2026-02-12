@@ -172,6 +172,7 @@ class Physics
 {
 public:
     static void init();
+    static Physics *get();
     void shutdown();
 
     // should be called *after* creating entities, to affect physics entity components

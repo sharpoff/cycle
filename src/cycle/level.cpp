@@ -7,48 +7,41 @@
 #define JSON_NOEXCEPTION 1 // NOTE: comment this to debug json issues
 #include <nlohmann/json.hpp>
 
-extern EntityManager *g_entityManager;
-extern ModelManager *g_modelManager;
-
-void Level::loadPrefab(std::filesystem::path path, String prefabName, vec3 prefabPosition)
+const EntityID Level::loadPrefab(std::filesystem::path path)
 {
     if (!std::filesystem::exists(path)) {
         LOGE("Failed to load prefab from path '%s'", path.c_str());
-        return;
+        return EntityID::Invalid;
     }
 
     Vector<char> fileDataBuf = filesystem::readFile(path);
     if (fileDataBuf.empty()) {
         LOGE("Failed to load prefab from path '%s'", path.c_str());
-        return;
+        return EntityID::Invalid;
     }
 
-    const EntityID entityID = g_entityManager->createEntity();
+    const EntityID entityID = EntityManager::get()->createEntity();
 
     String jsonStr = String(fileDataBuf.begin(), fileDataBuf.end());
     auto j = nlohmann::json::parse(jsonStr, nullptr, false);
     if (j.is_discarded()) {
         LOGE("Failed to parse prefab json from path '%s'", path.c_str());
-        return;
+        return EntityID::Invalid;
     }
 
     if (j.contains("name")) { // Name component
         auto jsonNameComponent = j.at("name");
-        NameComponent &nameComponent = g_entityManager->names.addComponent(entityID);
+        NameComponent &nameComponent = EntityManager::get()->names.addComponent(entityID);
 
-        if (prefabName.empty()) {
-            String name = jsonNameComponent.value("name", "");
-            if (!name.empty()) {
-                nameComponent.name = name;
-            }
-        } else {
-            nameComponent.name = prefabName;
+        String name = jsonNameComponent.value("name", "");
+        if (!name.empty()) {
+            nameComponent.name = name;
         }
     }
 
     if (j.contains("transform")) { // Transform component
         auto jsonTransformComponent = j.at("transform");
-        TransformComponent &transformComponent = g_entityManager->transforms.addComponent(entityID);
+        TransformComponent &transformComponent = EntityManager::get()->transforms.addComponent(entityID);
 
         Vector<float> matrixMat4 = jsonTransformComponent.value("matrix", Vector<float>());
         if (!matrixMat4.empty() && matrixMat4.size() == 16) {
@@ -63,8 +56,6 @@ void Level::loadPrefab(std::filesystem::path path, String prefabName, vec3 prefa
             Vector<float> positionVec3 = jsonTransformComponent.value("position", Vector<float>());
             if (!positionVec3.empty() && positionVec3.size() == 3) {
                 position = glm::make_vec3(positionVec3.data());
-            } else {
-                position = prefabPosition;
             }
 
             Vector<float> rotationQuat = jsonTransformComponent.value("rotation", Vector<float>());
@@ -83,7 +74,7 @@ void Level::loadPrefab(std::filesystem::path path, String prefabName, vec3 prefa
 
     if (j.contains("light")) { // Light component
         auto jsonLightComponent = j.at("light");
-        LightComponent &lightComponent = g_entityManager->lights.addComponent(entityID);
+        LightComponent &lightComponent = EntityManager::get()->lights.addComponent(entityID);
 
         String type = jsonLightComponent.value("type", "directional");
         if (!type.empty()) {
@@ -108,17 +99,17 @@ void Level::loadPrefab(std::filesystem::path path, String prefabName, vec3 prefa
 
     if (j.contains("model")) { // Model component
         auto jsonModelComponent = j.at("model");
-        ModelComponent &modelComponent = g_entityManager->models.addComponent(entityID);
+        ModelComponent &modelComponent = EntityManager::get()->models.addComponent(entityID);
 
         String file = jsonModelComponent.value("file", "");
         if (!file.empty()) {
-            modelComponent.modelID = g_modelManager->loadModel(file);
+            modelComponent.modelID = ModelManager::get()->loadModel(file);
         }
     }
 
     if (j.contains("rigid_body")) { // Rigid body component
         auto jsonRigidBodyComponent = j.at("rigid_body");
-        RigidBodyComponent &rigidBodyComponent = g_entityManager->rigidBodies.addComponent(entityID);
+        RigidBodyComponent &rigidBodyComponent = EntityManager::get()->rigidBodies.addComponent(entityID);
 
         rigidBodyComponent.isDynamic = jsonRigidBodyComponent.value("is_dynamic", false);
         String type = jsonRigidBodyComponent.value("type", "from_model");
@@ -136,4 +127,6 @@ void Level::loadPrefab(std::filesystem::path path, String prefabName, vec3 prefa
             rigidBodyComponent.type = RigidBodyType::FromModel;
         }
     }
+
+    return entityID;
 }

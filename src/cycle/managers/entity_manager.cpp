@@ -8,6 +8,11 @@ void EntityManager::init()
     g_entityManager = &instance;
 }
 
+EntityManager *EntityManager::get()
+{
+    return g_entityManager;
+}
+
 const EntityID EntityManager::createEntity()
 {
     if (!freeList.empty()) {

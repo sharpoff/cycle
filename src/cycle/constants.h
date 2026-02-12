@@ -15,3 +15,4 @@ const int SAMPLER_LINEAR_ID = 0;
 const int SAMPLER_NEAREST_ID = 1;
 
 const int SHADOWMAP_CASCADES = 4;
+const int SHADOWMAP_DIM = 4096;

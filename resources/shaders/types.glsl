@@ -10,16 +10,17 @@ const uint RENDERING_SHADOWS = 1 << 2;
 const uint RENDERING_MATERIAL = 1 << 3;
 const uint RENDERING_ALL = RENDERING_FILL | RENDERING_LIGHTING | RENDERING_SHADOWS | RENDERING_MATERIAL;
 
-const int SHADOW_MAP_CASCADES = 4;
+const int SHADOWMAP_CASCADES = 4;
 
 const int INVALID_ID = 4294967295;
 
 struct Vertex
 {
-    vec3  position;
+    vec3 position;
     float uv_x;
-    vec3  normal;
+    vec3 normal;
     float uv_y;
+    vec4 tangent;
 };
 
 struct Material
@@ -28,6 +29,8 @@ struct Material
     uint metallicRoughnessTexID;
     uint normalTexID;
     uint emissiveTexID;
+    float roughnessFactor;
+    float metallicFactor;
 };
 
 // Light types
@@ -37,11 +40,17 @@ const uint LIGHT_TYPE_SPOT = 2;
 
 struct Light
 {
-    vec3  position;
+    vec3 position;
     float intensity;
-    vec3  direction;
-    uint  type;
-    vec3  color;
+    vec3 direction;
+    uint type;
+    vec3 color;
+};
+
+struct Cascade
+{
+    mat4 viewProjection;
+    float depth;
 };
 
 #endif

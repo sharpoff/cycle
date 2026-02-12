@@ -7,12 +7,14 @@
 #include "cycle/types/gpu_light.h"
 #include "cycle/types/id.h"
 #include "cycle/types/model.h"
+#include "cycle/types/shadowmap_cascade.h"
 #include "cycle/constants.h"
 
 class Renderer
 {
 public:
     static void init(SDL_Window *window);
+    static Renderer *get();
     void shutdown();
 
     // should be called *after* loading entities/materials/textures/models/etc.
@@ -54,7 +56,6 @@ private:
 
     Image colorImage;
     Image depthImage;
-    Image shadowmapImage;
 
     Array<Buffer, FRAMES_IN_FLIGHT> sceneInfoBuffers;
     Buffer materialsBuffer;
@@ -73,7 +74,8 @@ private:
 
     BarrierMerger barriers;
 
-    Array<mat4, SHADOWMAP_CASCADES> cascadeMatrices;
-    Array<float, SHADOWMAP_CASCADES> cascadeDepths;
+    Array<Cascade, SHADOWMAP_CASCADES> cascades;
+    Array<Image, SHADOWMAP_CASCADES> shadowmapImages;
+
     float cascadeSplitLambda = 0.95f;
 };

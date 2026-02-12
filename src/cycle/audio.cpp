@@ -11,6 +11,11 @@ void Audio::init()
     instance.initInternal();
 }
 
+Audio *Audio::get()
+{
+    return g_audio;
+}
+
 void Audio::initInternal()
 {
     soloud.init();

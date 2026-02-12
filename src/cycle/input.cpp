@@ -11,6 +11,11 @@ void Input::init()
     g_input = &instance;
 }
 
+Input *Input::get()
+{
+    return g_input;
+}
+
 void Input::processEvent(SDL_Event *event)
 {
     mouseMoving = false;

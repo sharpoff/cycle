@@ -12,7 +12,8 @@ public:
 
     void setPosition(vec3 position);
     void setRotation(vec3 rotation);
-    void setPerspective(float fov, float aspectRatio, float near);
+    void setPerspectiveInf(float fov, float aspectRatio, float near);
+    void setPerspective(float fov, float aspectRatio, float near, float far);
     void setAspectRatio(float aspectRatio);
 
     mat4 getProjection() { return projection; }
@@ -24,8 +25,8 @@ public:
 
     float getFov() { return fov; }
     float getAspectRatio() { return aspectRatio; }
-    float getNearClip() { return zNear; }
-    float getFarClip() { return zFar; }
+    float getNearClip() { return nearClip; }
+    float getFarClip() { return farClip; }
 
 private:
     void updateView();
@@ -35,8 +36,8 @@ private:
 
     float fov = 60.0f;
     float aspectRatio = 0.0f;
-    float zNear = 0.0f;
-    float zFar = 10000.0f;
+    float nearClip = 0.01f;
+    float farClip = 1000.0f;
 
     vec3 position = vec3(0.0f);
     vec3 rotation = vec3(0.0f);

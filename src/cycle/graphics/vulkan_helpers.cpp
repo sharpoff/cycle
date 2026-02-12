@@ -68,15 +68,15 @@ namespace vulkan
 #endif
     }
 
-    void beginDebugLabel(VkCommandBuffer cmd, const char *name, float color[4])
+    void beginDebugLabel(VkCommandBuffer cmd, const char *name)
     {
 #ifndef NDEBUG
         VkDebugUtilsLabelEXT label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
         label.pLabelName = name;
-        label.color[0] = color[0];
-        label.color[1] = color[1];
-        label.color[2] = color[2];
-        label.color[3] = color[3];
+        label.color[0] = 0.0f;
+        label.color[1] = 0.0f;
+        label.color[2] = 0.0f;
+        label.color[3] = 1.0f;
 
         vkCmdBeginDebugUtilsLabelEXT(cmd, &label);
 #endif

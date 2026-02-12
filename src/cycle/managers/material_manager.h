@@ -8,6 +8,7 @@ class MaterialManager
 {
 public:
     static void init();
+    static MaterialManager *get();
     const MaterialID addMaterial(const Material &material, String name = "");
 
     Vector<Material> &getMaterials() { return materials; }

@@ -50,6 +50,7 @@ struct ImageCreateInfo
     VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
     VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    const char *debugName = "";
 };
 
 struct Image

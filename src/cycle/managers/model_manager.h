@@ -11,6 +11,7 @@ class ModelManager
 {
 public:
     static void init(RenderDevice *renderDevice);
+    static ModelManager *get();
     void release();
 
     const ModelID addModel(Model &model, String name = "");
