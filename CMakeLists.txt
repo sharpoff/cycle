@@ -23,16 +23,17 @@ add_executable(engine
 target_include_directories(engine PUBLIC "src/" "external/stb/" "external/cgltf/" "external/imgui/" "external/nlohmann/")
 
 target_link_libraries(engine
-    SDL3-static
+    SDL3-shared
     glm
     volk
     GPUOpen::VulkanMemoryAllocator
 	Jolt
     ktx
+    EnTT::EnTT
     soloud
 )
 
-set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders")
+set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")
 
 #============= compile shaders =============
 file(GLOB_RECURSE GLSL_SOURCE_FILES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.tesc" "${SHADERS_DIR}/*.tese" "${SHADERS_DIR}/*.comp")

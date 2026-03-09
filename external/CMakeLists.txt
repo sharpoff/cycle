@@ -1,8 +1,9 @@
 # sdl
 set(SDL_TESTS OFF)
 set(SDL_TEST_LIBRARY OFF)
-set(SDL_SHARED OFF)
-set(SDL_STATIC ON)
+set(SDL_SHARED ON) # enable dynamic lib
+set(SDL_STATIC OFF)
+set(SDL_GPU OFF)
 set(SDL_DISABLE_INSTALL OFF)
 set(SDL_DISABLE_INSTALL_DOCS OFF)
 set(SDL_INSTALL_TESTS OFF)
@@ -33,6 +34,9 @@ set(KTX_FEATURE_TESTS OFF)
 set(KTX_FEATURE_JS OFF)
 set(LIBKTX_FEATURE_GL_UPLOAD OFF)
 add_subdirectory(KTX-Software)
+
+# entt
+add_subdirectory(entt)
 
 # soloud + miniaudio backend
 file(GLOB_RECURSE SOLOUD_SOURCES "soloud/src/audiosource/*.cpp" "soloud/src/audiosource/*.c" "soloud/src/backend/miniaudio/*.cpp" "soloud/src/core/*.cpp" "soloud/src/filter/*.cpp")
