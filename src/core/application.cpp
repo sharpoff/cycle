@@ -50,21 +50,24 @@ Application::Application(const char *title, uint32_t width, uint32_t height)
 
     // load models
     ModelCache &modelCache = cacheMgr.getModelCache();
-    auto monkeyModelID = modelCache.loadFromFile(modelsDir / "monkey.gltf", "monkey");
-    modelCache.loadFromFile(modelsDir / "sponza/Sponza.gltf", "sponza");
+    modelCache.loadFromFile(modelsDir / "monkey.gltf", "monkey");
+    auto objectID = modelCache.loadFromFile(modelsDir / "sponza/Sponza.gltf", "sponza");
     modelCache.loadFromFile(modelsDir / "de_dust2/de_dust2.gltf", "de_dust2");
     modelCache.loadFromFile(modelsDir / "ak47/v_ak47.gltf", "ak47");
 
-    Object *monkey = new Object();
-    monkey->setModelID(monkeyModelID);
-    world.addObject(monkey, "monkey");
-
     renderer->loadDynamicResources();
+
+    // add objects to the world
+    Object *object = new Object();
+    object->setModelID(objectID);
+    object->setScale(0.01f);
+
+    world.addObject(object, "object");
 }
 
 Application::~Application()
 {
-    world.freeObject("monkey");
+    world.freeObject("object");
     physics->shutdown();
     audio->shutdown();
     renderer->shutdown();

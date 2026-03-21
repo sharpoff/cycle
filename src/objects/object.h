@@ -25,6 +25,7 @@ public:
     DrawFlags &getDrawFlags() { return drawFlags_; }
     Vector<Object *> &getChildren() { return children; }
     const ModelID &getModelID() { return modelID_; }
+    mat4 getWorldMatrix() { return glm::translate(position_) * mat4(rotation_) * glm::scale(vec3(scale_)); }
 
     void setPosition(vec3 position) { position_ = position; }
     void setRotation(quat rotation) { rotation_ = rotation; }

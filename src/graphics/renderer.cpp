@@ -345,7 +345,7 @@ void Renderer::drawFrame(World &world, Camera &camera)
             if (!model)
                 continue;
 
-            drawModel(cmd, model, mat4(1.0f));
+            drawModel(cmd, model, object->getWorldMatrix());
         }
 
         vkCmdEndRendering(cmd);
