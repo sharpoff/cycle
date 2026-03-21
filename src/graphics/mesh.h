@@ -1,8 +1,8 @@
 #pragma once
 
-#include "types/id.h"
+#include "graphics/id.h"
 #include "graphics/vulkan_types.h"
-#include "types/vertex.h"
+#include "graphics/vertex.h"
 
 struct MeshPrimitive
 {
@@ -18,6 +18,5 @@ struct MeshPrimitive
 
 struct Mesh
 {
-    String name = "";
     Vector<MeshPrimitive> primitives;
 };

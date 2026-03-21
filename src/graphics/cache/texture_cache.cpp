@@ -4,7 +4,7 @@
 #include <assert.h>
 
 #include "core/logger.h"
-#include "types/id.h"
+#include "graphics/id.h"
 
 #include "ktx.h"
 #include "stb_image.h"
@@ -21,7 +21,7 @@ void TextureCache::release()
     }
 }
 
-const TextureID TextureCache::loadTexture(std::filesystem::path filepath, VkFormat format, String name)
+const TextureID TextureCache::loadFromFile(std::filesystem::path filepath, VkFormat format, String name)
 {
     if (auto id = getTextureIDByName(name); id != TextureID::Invalid)
         return id;
@@ -79,7 +79,7 @@ const TextureID TextureCache::loadTexture(std::filesystem::path filepath, VkForm
     return id;
 }
 
-const TextureID TextureCache::loadTextureFromMem(unsigned char *data, uint32_t size, VkFormat format, String name)
+const TextureID TextureCache::loadFromMem(unsigned char *data, uint32_t size, VkFormat format, String name)
 {
     if (auto id = getTextureIDByName(name); id != TextureID::Invalid)
         return id;

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "core/containers.h"
-#include "types/id.h"
-#include "types/material.h"
+#include "graphics/id.h"
+#include "graphics/material.h"
 
 class MaterialCache
 {

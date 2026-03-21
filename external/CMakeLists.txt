@@ -35,9 +35,6 @@ set(KTX_FEATURE_JS OFF)
 set(LIBKTX_FEATURE_GL_UPLOAD OFF)
 add_subdirectory(KTX-Software)
 
-# entt
-add_subdirectory(entt)
-
 # soloud + miniaudio backend
 file(GLOB_RECURSE SOLOUD_SOURCES "soloud/src/audiosource/*.cpp" "soloud/src/audiosource/*.c" "soloud/src/backend/miniaudio/*.cpp" "soloud/src/core/*.cpp" "soloud/src/filter/*.cpp")
 add_library(soloud STATIC ${SOLOUD_SOURCES})

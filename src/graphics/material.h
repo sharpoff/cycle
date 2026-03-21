@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types/id.h"
+#include "graphics/id.h"
 
 struct Material
 {

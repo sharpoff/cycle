@@ -3,7 +3,7 @@
 #include "core/containers.h"
 #include "graphics/vulkan_types.h"
 #include "graphics/render_device.h"
-#include "types/id.h"
+#include "graphics/id.h"
 #include <filesystem>
 
 class TextureCache
@@ -14,8 +14,8 @@ public:
     void init();
     void release();
 
-    const TextureID loadTexture(std::filesystem::path filepath, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB, String name = "");
-    const TextureID loadTextureFromMem(unsigned char *data, uint32_t size, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB, String name = "");
+    const TextureID loadFromFile(std::filesystem::path filepath, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB, String name = "");
+    const TextureID loadFromMem(unsigned char *data, uint32_t size, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB, String name = "");
 
     const TextureID getTextureIDByName(String name);
     Vector<Image> &getTextures() { return textures; }

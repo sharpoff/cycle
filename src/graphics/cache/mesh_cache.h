@@ -2,8 +2,8 @@
 
 #include "core/containers.h"
 #include "math/math_types.h"
-#include "types/id.h"
-#include "types/mesh.h"
+#include "graphics/id.h"
+#include "graphics/mesh.h"
 
 class RenderDevice;
 
@@ -28,7 +28,6 @@ private:
     void operator=(MeshCache const &) = delete;
 
     Vector<Mesh> meshes;
-
     UnorderedMap<String, MeshID> nameMeshMap;
 
     RenderDevice &renderDevice;

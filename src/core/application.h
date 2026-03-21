@@ -2,12 +2,12 @@
 
 #include "SDL3/SDL_video.h"
 #include "core/audio.h"
-#include "types/scene.h"
+#include "core/world.h"
 #include "input/keyboard_input.h"
 #include "input/mouse_input.h"
 #include "physics/physics.h"
 #include "graphics/renderer.h"
-#include "types/camera.h"
+#include "core/camera.h"
 
 class Application
 {
@@ -38,9 +38,8 @@ private:
 
     KeyboardInput keyboardInput;
     MouseInput mouseInput;
-
-    Scene scene;
     Camera camera;
+    World world;
 
     SDL_Window *window;
 };

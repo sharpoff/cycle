@@ -23,7 +23,7 @@ const MeshID MeshCache::addMesh(Mesh &mesh, String name)
         return id;
 
     MeshID id = (MeshID)meshes.size();
-    meshes.push_back(mesh);
+    meshes.push_back(std::move(mesh));
     if (!name.empty())
         nameMeshMap[name] = id;
     return id;

@@ -29,7 +29,6 @@ target_link_libraries(engine
     GPUOpen::VulkanMemoryAllocator
 	Jolt
     ktx
-    EnTT::EnTT
     soloud
 )
 

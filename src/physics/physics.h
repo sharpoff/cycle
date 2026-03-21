@@ -6,8 +6,7 @@
 #include "Jolt/Physics/Body/BodyActivationListener.h"
 #include "Jolt/Physics/PhysicsSystem.h"
 #include "core/containers.h"
-#include "math/math_types.h"
-#include "types/id.h"
+// #include "math/math_types.h"
 
 #include "physics/physics_layers.h"
 #include "physics/physics_listeners.h"
@@ -21,20 +20,10 @@ public:
 
     void init();
     void shutdown();
-
-    // should be called *after* creating entities, to affect physics entity components
-    void createBodies();
     
-    // should be called *before* update
-    const EntityID castRay(vec3 origin, vec3 direction);
-
     void update();
 
-    void setBodyPosition(const EntityID entityID, const vec3 &position);
-
 private:
-    JPH::BodyID getBodyID(const EntityID entityID);
-
     JPH::JobSystemThreadPool *jobSystem;
     JPH::TempAllocatorImpl   *tempAllocator;
 
@@ -65,7 +54,4 @@ private:
     ContactListener contactListener;
 
     Vector<JPH::BodyID> bodyIDs;
-
-    UnorderedMap<EntityID, size_t> entityBodyMap;
-    UnorderedMap<JPH::BodyID, EntityID> bodyEntityMap;
 };

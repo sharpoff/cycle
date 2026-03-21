@@ -5,17 +5,17 @@
 #include "core/filesystem.h"
 #include "graphics/render_device.h"
 #include "graphics/vulkan_helpers.h"
-#include "types/gpu_light.h"
-#include "types/id.h"
-#include "types/push_constants.h"
-#include "types/scene_info.h"
-#include "types/material.h"
+#include "graphics/gpu_light.h"
+#include "graphics/id.h"
+#include "graphics/push_constants.h"
+#include "graphics/scene_info.h"
+#include "graphics/material.h"
 
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
 
 Renderer::Renderer(SDL_Window *window)
-    : window(window), device(window), cacheManager(device)
+    : window(window), device(window), cacheManager(*this)
 {
 }
 
@@ -92,12 +92,15 @@ void Renderer::init()
 
     // create default resources
     {
+        TextureCache &textureCache = cacheManager.getTextureCache();
+        MaterialCache &materialCache = cacheManager.getMaterialCache();
+
         // create default texture
-        auto texID = cacheManager.getTextureCache().loadTexture(texturesDir / "compressed/checkerboard.ktx", VK_FORMAT_R8G8B8A8_SRGB, "default");
+        auto texID = textureCache.loadFromFile(texturesDir / "compressed/checkerboard.ktx", VK_FORMAT_R8G8B8A8_SRGB, "default");
         assert(texID != TextureID::Invalid);
 
         // add default material
-        cacheManager.getMaterialCache().addMaterial(Material{.baseColorTexID = texID}, "default");
+        materialCache.addMaterial(Material{.baseColorTexID = texID}, "default");
     }
 
     createPipelines();
@@ -141,7 +144,6 @@ void Renderer::shutdown()
 
 void Renderer::loadDynamicResources()
 {
-
     // create materials buffer
     auto &materials = cacheManager.getMaterialCache().getMaterials();
     if (materials.size() > 0) {
@@ -204,7 +206,7 @@ void Renderer::reloadShaders()
     createPipelines();
 }
 
-void Renderer::renderFrame(Camera &camera)
+void Renderer::drawFrame(World &world, Camera &camera)
 {
     VkCommandBuffer cmd = VK_NULL_HANDLE;
     if (cmd = device.beginCommandBuffer(); cmd == VK_NULL_HANDLE) {
@@ -331,11 +333,20 @@ void Renderer::renderFrame(Camera &camera)
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline.pipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline.layout, 0, 1, &device.getBindlessDescriptor(), 0, 0);
 
-        // render all entities that are renderable
-        Mesh *mesh = cacheManager.getMeshCache().getMeshByName("de_dust2");
-        drawMesh(cmd, mesh, mat4(glm::angleAxis(glm::radians(180.0f), vec3(1, 0, 0))) * glm::scale(vec3(0.01f)));
+        ModelCache &modelCache = cacheManager.getModelCache();
 
-        // printf("%s", glm::to_string(glm::angleAxis(glm::radians(180.0f), vec3(1, 0, 0)) * quat(0, 1, 0, 0)).c_str());
+        // render all entities that are renderable
+        for (Object *object : world.getObjects()) {
+            if (!object || (object->getDrawFlags() & Object::kVisible) != Object::kVisible)
+                continue;
+        
+            const ModelID modelID = object->getModelID();
+            Model *model = modelCache.getModel(modelID);
+            if (!model)
+                continue;
+
+            drawModel(cmd, model, mat4(1.0f));
+        }
 
         vkCmdEndRendering(cmd);
         vulkan::endDebugLabel(cmd);
@@ -390,6 +401,17 @@ void Renderer::renderFrame(Camera &camera)
     if (!device.swapchainPresent()) {
         resizeWindow();
         return;
+    }
+}
+
+void Renderer::drawModel(VkCommandBuffer cmd, Model *model, mat4 worldMatrix)
+{
+    auto &mc = cacheManager.getMeshCache();
+
+    for (auto &meshID : model->meshIDs) {
+        if (meshID != MeshID::Invalid) {
+            drawMesh(cmd, mc.getMeshByID(meshID), worldMatrix);
+        }
     }
 }
 

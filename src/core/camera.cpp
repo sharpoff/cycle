@@ -1,4 +1,4 @@
-#include "types/camera.h"
+#include "core/camera.h"
 #include "math/math_helpers.h"
 
 Camera::Camera()

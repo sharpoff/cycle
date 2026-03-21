@@ -6,7 +6,7 @@
 #include "math/math_types.h"
 
 #include "graphics/cache/texture_cache.h"
-#include "gltf_loader.h"
+#include "core/gltf_loader.h"
 #include "core/logger.h"
 
 #include <SDL3/SDL.h>
@@ -42,25 +42,29 @@ Application::Application(const char *title, uint32_t width, uint32_t height)
     camera.setPosition(vec3(0.0f, 0.0f, 1.0f));
     camera.setRotation(vec3(glm::radians(10.0f), 0.0f, 0.0f));
 
+    CacheManager &cacheMgr = renderer->getCacheManager();
+
     // load common textures
-    auto &cacheMgr = renderer->getCacheManager();
-    cacheMgr.getTextureCache().loadTexture(texturesDir / "sky_cubemap/sky_cubemap.ktx", VK_FORMAT_R8G8B8A8_SRGB, "skybox");
+    TextureCache &textureCache = cacheMgr.getTextureCache();
+    textureCache.loadFromFile(texturesDir / "sky_cubemap/sky_cubemap.ktx", VK_FORMAT_R8G8B8A8_SRGB, "skybox");
 
     // load models
-    if (!GLTFLoader::load(cacheMgr, scene, modelsDir / "monkey.gltf") ||
-        !GLTFLoader::load(cacheMgr, scene, modelsDir / "cube.gltf") ||
-        !GLTFLoader::load(cacheMgr, scene, modelsDir / "sponza/Sponza.gltf") ||
-        !GLTFLoader::load(cacheMgr, scene, modelsDir / "de_dust2/de_dust2.gltf")
-    ) {
-        LOGE("Failed to load gltf models!", NULL);
-    }
+    ModelCache &modelCache = cacheMgr.getModelCache();
+    auto monkeyModelID = modelCache.loadFromFile(modelsDir / "monkey.gltf", "monkey");
+    modelCache.loadFromFile(modelsDir / "sponza/Sponza.gltf", "sponza");
+    modelCache.loadFromFile(modelsDir / "de_dust2/de_dust2.gltf", "de_dust2");
+    modelCache.loadFromFile(modelsDir / "ak47/v_ak47.gltf", "ak47");
+
+    Object *monkey = new Object();
+    monkey->setModelID(monkeyModelID);
+    world.addObject(monkey, "monkey");
 
     renderer->loadDynamicResources();
-    physics->createBodies();
 }
 
 Application::~Application()
 {
+    world.freeObject("monkey");
     physics->shutdown();
     audio->shutdown();
     renderer->shutdown();
@@ -82,7 +86,7 @@ void Application::run()
 
         if (!minimized) {
             ImGui_ImplSDL3_NewFrame();
-            renderer->renderFrame(camera);
+            renderer->drawFrame(world, camera);
         }
     }
 }
@@ -154,24 +158,6 @@ void Application::processEvents()
             camTranslation.y += camMovementSpeed;
         }
     }
-
-    // // gamepad left axis movement
-    // if (gamepadInput.isConnected()) {
-    //     const GamepadState &gamepadState = gamepadInput.getGamepadState();
-    //     if (abs(gamepadState.leftAxisX) > gamepadState.deadZone) {
-    //         if (gamepadState.leftAxisX > 0)
-    //             camTranslation.x += camMovementSpeed;
-    //         else
-    //             camTranslation.x -= camMovementSpeed;
-    //     }
-
-    //     if (abs(gamepadState.leftAxisY) > gamepadState.deadZone) {
-    //         if (gamepadState.leftAxisY > 0)
-    //             camTranslation.z += camMovementSpeed;
-    //         else
-    //             camTranslation.z -= camMovementSpeed;
-    //     }
-    // }
 
     camera.move(mat3(camera.getRotation()) * camTranslation);
 }

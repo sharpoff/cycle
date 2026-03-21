@@ -1,9 +1,9 @@
 #include "graphics/cache/cache_manager.h"
 
-#include "graphics/render_device.h"
+#include "graphics/renderer.h"
 
-CacheManager::CacheManager(RenderDevice &renderDevice)
-    : textureCache(renderDevice), materialCache(), meshCache(renderDevice)
+CacheManager::CacheManager(Renderer &renderer)
+    : textureCache(renderer.getRenderDevice()), meshCache(renderer.getRenderDevice()), modelCache(renderer)
 {
 }
 

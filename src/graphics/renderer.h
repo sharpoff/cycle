@@ -1,14 +1,15 @@
 #pragma once
 
+#include "core/world.h"
 #include "graphics/barrier_merger.h"
 #include "graphics/cache/cache_manager.h"
 
-#include "types/camera.h"
-#include "graphics/vulkan_types.h"
-#include "graphics/render_device.h"
-#include "types/gpu_light.h"
-#include "types/shadowmap_cascade.h"
+#include "core/camera.h"
 #include "core/constants.h"
+#include "graphics/render_device.h"
+#include "graphics/vulkan_types.h"
+#include "graphics/gpu_light.h"
+#include "graphics/cascade.h"
 
 class Renderer
 {
@@ -22,7 +23,7 @@ public:
     void loadDynamicResources();
 
     void reloadShaders();
-    void renderFrame(Camera &camera);
+    void drawFrame(World &world, Camera &camera);
 
     vec2 getScreenSize() { return vec2(device.getSwapchainWidth(), device.getSwapchainHeight()); }
 
@@ -30,6 +31,7 @@ public:
     RenderDevice &getRenderDevice() { return device; }
 
 private:
+    void drawModel(VkCommandBuffer cmd, Model *model, mat4 worldMatrix);
     void drawMesh(VkCommandBuffer cmd, Mesh *mesh, mat4 worldMatrix);
 
     void resizeWindow();
@@ -38,7 +40,7 @@ private:
 
     void compileShaders();
     void createPipelines();
-    
+
     void destroyPipelines();
 
     void updateDynamicData(Camera &camera);
