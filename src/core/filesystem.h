@@ -9,50 +9,48 @@
 #include <unistd.h>
 #endif
 
-namespace filesystem
+using FilePath = std::filesystem::path;
+
+inline FilePath GetExecutablePath()
 {
-    inline std::filesystem::path getExecutablePath()
-    {
-        // TODO: add windows support
+    // TODO: add windows support
 #ifdef __linux__
-        const int maxPath = 100;
+    const int maxPath = 100;
 
-        char    path[maxPath];
-        ssize_t count = readlink("/proc/self/exe", path, maxPath);
-        if (count > 0)
-            return std::filesystem::path(path).parent_path();
+    char path[maxPath];
+    ssize_t count = readlink("/proc/self/exe", path, maxPath);
+    if (count > 0)
+        return FilePath(path).parent_path();
 #else
-        LOGE("%s", "getExecutablePath() - platform is not supported!!");
+    LOGE("%s", "getExecutablePath() - platform is not supported!!");
 #endif
-        return "";
-    }
+    return "";
+}
 
-    inline void setCurrentPath(std::filesystem::path path)
-    {
-        std::filesystem::current_path(path);
-    }
+inline void SetCurrentPath(FilePath path)
+{
+    std::filesystem::current_path(path);
+}
 
-    inline Vector<char> readFile(std::filesystem::path path, bool binary = false)
-    {
-        if (!std::filesystem::exists(path))
-            return {};
+inline Vector<char> ReadFile(FilePath path, bool binary = false)
+{
+    if (!std::filesystem::exists(path))
+        return {};
 
-        auto mode = std::ios::ate;
-        if (binary)
-            mode |= std::ios::binary;
+    auto mode = std::ios::ate;
+    if (binary)
+        mode |= std::ios::binary;
 
-        std::ifstream file(path, mode);
+    std::ifstream file(path, mode);
 
-        if (!file.is_open())
-            return {};
+    if (!file.is_open())
+        return {};
 
-        size_t size = file.tellg();
-        Vector<char> buffer(size);
-        file.seekg(0);
-        file.read(buffer.data(), size);
-        file.close();
+    size_t size = file.tellg();
+    Vector<char> buffer(size);
+    file.seekg(0);
+    file.read(buffer.data(), size);
+    file.close();
 
-        return buffer;
-    }
-
-} // namespace filesystem
+    return buffer;
+}

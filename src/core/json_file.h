@@ -1,11 +1,11 @@
 #pragma once
 
-#include <filesystem>
+#include "core/filesystem.h"
 
 class JsonFile
 {
 public:
-    JsonFile(std::filesystem::path path);
+    JsonFile(FilePath path);
 
 private:
 };

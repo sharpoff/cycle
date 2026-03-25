@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SDL3/SDL_events.h"
+#include "core/containers.h"
 
 struct GamepadState
 {
@@ -21,12 +22,30 @@ struct GamepadState
 class GamepadInput
 {
 public:
-    void processEvent(SDL_Event *event);
+    void ProcessEvent(SDL_Event *event);
 
-    bool isConnected() { return gamepad != nullptr; }
-    const GamepadState &getGamepadState() { return state; }
+    // SDL_GamepadButton button
+    bool WasJustPressed(int button);
+
+    // SDL_GamepadButton button
+    bool IsPressed(int button);
+
+    // SDL_GamepadButton button
+    bool IsReleased(int button);
+
+    // SDL_GamepadAxis axis
+    float GetAxisState(int axis);
+
+    bool IsConnected() { return gamepad != nullptr; }
 
 private:
-    SDL_Gamepad *gamepad;
-    GamepadState state;
+    struct KeyState
+    {
+        bool current = false;
+        bool previous = false;
+    };
+
+    SDL_Gamepad *gamepad = nullptr;
+    UnorderedMap<int, float> axes; // SDL_GamepadAxis
+    UnorderedMap<int, KeyState> buttons; // SDL_GamepadButton
 };

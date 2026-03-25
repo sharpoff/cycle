@@ -3,7 +3,7 @@
 
 int main()
 {
-    filesystem::setCurrentPath(filesystem::getExecutablePath().parent_path());
+    setCurrentPath(getExecutablePath().parent_path());
 
     Application *app = new Application("Application", 1280, 720);
     app->run();

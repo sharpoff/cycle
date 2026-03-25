@@ -14,13 +14,9 @@
 static const char *imguiConfigFile = "assets/config/imgui.ini";
 static const char *imguiLogFile = "assets/config/imgui_log.txt";
 
-RenderDevice::RenderDevice(SDL_Window *window)
-    : window(window)
+void RenderDevice::init(SDL_Window *window)
 {
-}
-
-void RenderDevice::init()
-{
+    this->window = window;
     createInstance();
 
     SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface);
@@ -170,7 +166,7 @@ void RenderDevice::shutdown()
     vkDestroyInstance(instance, nullptr);
 }
 
-Buffer RenderDevice::createBuffer(const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage)
+BufferPtr RenderDevice::createBuffer(const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage)
 {
     assert(createInfo.size > 0);
 
@@ -184,21 +180,21 @@ Buffer RenderDevice::createBuffer(const BufferCreateInfo &createInfo, VmaMemoryU
     allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
     allocInfo.priority = 1.0;
 
-    Buffer buffer = {};
-    buffer.size = createInfo.size;
-    buffer.usage = createInfo.usage;
-    VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer.buffer, &buffer.allocation.handle, &buffer.allocation.info));
+    BufferPtr buffer = std::make_shared<Buffer>();
+    buffer->size = createInfo.size;
+    buffer->usage = createInfo.usage;
+    VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer->buffer, &buffer->allocation.handle, &buffer->allocation.info));
 
     if (bufferInfo.usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
         VkBufferDeviceAddressInfo deviceAddressInfo = {VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_KHR};
-        deviceAddressInfo.buffer = buffer.buffer;
-        buffer.address = vkGetBufferDeviceAddress(device, &deviceAddressInfo);
+        deviceAddressInfo.buffer = buffer->buffer;
+        buffer->address = vkGetBufferDeviceAddress(device, &deviceAddressInfo);
     }
 
     return buffer;
 }
 
-Image RenderDevice::createImage(const ImageCreateInfo &createInfo)
+TexturePtr RenderDevice::createTexture(const TextureCreateInfo &createInfo)
 {
     assert(createInfo.width != 0 && createInfo.height != 0);
 
@@ -217,45 +213,45 @@ Image RenderDevice::createImage(const ImageCreateInfo &createInfo)
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.flags = (imageInfo.arrayLayers == 6) ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0; // cubemap
 
-    Image image = {};
-    image.width = createInfo.width;
-    image.height = createInfo.height;
-    image.arrayLayers = createInfo.arrayLayers;
-    image.mipLevels = createInfo.mipLevels;
-    image.sampleCount = createInfo.sampleCount;
-    image.type = createInfo.type;
-    image.usage = createInfo.usage;
-    image.format = createInfo.format;
-    image.aspect = createInfo.aspect;
+    TexturePtr texture = std::make_shared<Texture>();
+    texture->width = createInfo.width;
+    texture->height = createInfo.height;
+    texture->arrayLayers = createInfo.arrayLayers;
+    texture->mipLevels = createInfo.mipLevels;
+    texture->sampleCount = createInfo.sampleCount;
+    texture->type = createInfo.type;
+    texture->usage = createInfo.usage;
+    texture->format = createInfo.format;
+    texture->aspect = createInfo.aspect;
 
     VmaAllocationCreateInfo allocInfo = {};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
     allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
-    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocInfo, &image.image, &image.allocation.handle, &image.allocation.info));
-    assert(image.image != VK_NULL_HANDLE);
+    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocInfo, &texture->image, &texture->allocation.handle, &texture->allocation.info));
+    assert(texture->image != VK_NULL_HANDLE);
 
     // Create image view
     VkImageViewCreateInfo imageViewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-    imageViewInfo.image = image.image;
-    imageViewInfo.viewType = image.type;
+    imageViewInfo.image = texture->image;
+    imageViewInfo.viewType = texture->type;
     imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
     imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
     imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.format = image.format;
-    imageViewInfo.subresourceRange = {image.aspect, 0, image.mipLevels, 0, image.arrayLayers};
+    imageViewInfo.format = texture->format;
+    imageViewInfo.subresourceRange = {texture->aspect, 0, texture->mipLevels, 0, texture->arrayLayers};
 
     VkImageView view;
-    VK_CHECK(vkCreateImageView(device, &imageViewInfo, nullptr, &image.view));
+    VK_CHECK(vkCreateImageView(device, &imageViewInfo, nullptr, &texture->view));
 
     if (createInfo.debugName)
-        vulkan::setDebugName(device, uint64_t(image.image), VK_OBJECT_TYPE_IMAGE, createInfo.debugName);
+        vulkan::setDebugName(device, uint64_t(texture->image), VK_OBJECT_TYPE_IMAGE, createInfo.debugName);
 
-    return image;
+    return texture;
 }
 
-Sampler RenderDevice::createSampler(const SamplerCreateInfo &createInfo)
+SamplerPtr RenderDevice::createSampler(const SamplerCreateInfo &createInfo)
 {
     VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     samplerCreateInfo.minFilter = createInfo.minFilter;
@@ -268,24 +264,24 @@ Sampler RenderDevice::createSampler(const SamplerCreateInfo &createInfo)
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerCreateInfo.maxLod = createInfo.maxLod;
 
-    Sampler sampler = {};
-    sampler.mipLodBias = createInfo.mipLodBias;
-    sampler.minLod = createInfo.minLod;
-    sampler.maxLod = createInfo.maxLod;
-    sampler.maxAnisotropy = createInfo.maxAnisotropy;
-    sampler.magFilter = createInfo.magFilter;
-    sampler.minFilter = createInfo.minFilter;
-    sampler.mipmapMode = createInfo.mipmapMode;
-    sampler.addressModeU = createInfo.addressModeU;
-    sampler.addressModeV = createInfo.addressModeV;
-    sampler.addressModeW = createInfo.addressModeW;
-    sampler.compareOp = createInfo.compareOp;
-    VK_CHECK(vkCreateSampler(device, &samplerCreateInfo, nullptr, &sampler.sampler));
+    SamplerPtr sampler = std::make_shared<Sampler>();
+    sampler->mipLodBias = createInfo.mipLodBias;
+    sampler->minLod = createInfo.minLod;
+    sampler->maxLod = createInfo.maxLod;
+    sampler->maxAnisotropy = createInfo.maxAnisotropy;
+    sampler->magFilter = createInfo.magFilter;
+    sampler->minFilter = createInfo.minFilter;
+    sampler->mipmapMode = createInfo.mipmapMode;
+    sampler->addressModeU = createInfo.addressModeU;
+    sampler->addressModeV = createInfo.addressModeV;
+    sampler->addressModeW = createInfo.addressModeW;
+    sampler->compareOp = createInfo.compareOp;
+    VK_CHECK(vkCreateSampler(device, &samplerCreateInfo, nullptr, &sampler->sampler));
 
     return sampler;
 }
 
-RenderPipeline RenderDevice::createRenderPipeline(const RenderPipelineCreateInfo &createInfo)
+RenderPipelinePtr RenderDevice::createRenderPipeline(const RenderPipelineCreateInfo &createInfo)
 {
     VkPipelineLayoutCreateInfo vkLayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     vkLayoutCreateInfo.setLayoutCount = 1;
@@ -478,14 +474,14 @@ RenderPipeline RenderDevice::createRenderPipeline(const RenderPipelineCreateInfo
     if (tessellationEvaluationModule)
         vkDestroyShaderModule(device, tessellationEvaluationModule, nullptr);
 
-    RenderPipeline renderPipeline;
-    renderPipeline.layout = vkPipelineLayout;
-    renderPipeline.pipeline = vkPipeline;
+    RenderPipelinePtr renderPipeline = std::make_shared<RenderPipeline>();
+    renderPipeline->layout = vkPipelineLayout;
+    renderPipeline->pipeline = vkPipeline;
 
     return renderPipeline;
 }
 
-ComputePipeline RenderDevice::createComputePipeline(const ComputePipelineCreateInfo &createInfo)
+ComputePipelinePtr RenderDevice::createComputePipeline(const ComputePipelineCreateInfo &createInfo)
 {
     VkPipelineLayoutCreateInfo vkLayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     vkLayoutCreateInfo.setLayoutCount = 1;
@@ -519,59 +515,68 @@ ComputePipeline RenderDevice::createComputePipeline(const ComputePipelineCreateI
     VkPipeline vkPipeline;
     VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &vkPipeline));
 
-    ComputePipeline computePipeline = {};
-    computePipeline.layout = vkPipelineLayout;
-    computePipeline.pipeline = vkPipeline;
+    ComputePipelinePtr computePipeline = std::make_shared<ComputePipeline>();
+    computePipeline->layout = vkPipelineLayout;
+    computePipeline->pipeline = vkPipeline;
 
     return computePipeline;
 }
 
-void RenderDevice::destroyBuffer(Buffer &buffer)
+void RenderDevice::destroyBuffer(BufferPtr buffer)
 {
-    if (buffer.buffer != VK_NULL_HANDLE)
-        vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation.handle);
+    if (buffer && buffer->buffer != VK_NULL_HANDLE)
+        vmaDestroyBuffer(allocator, buffer->buffer, buffer->allocation.handle);
 }
 
-void RenderDevice::destroyImage(Image &image)
+void RenderDevice::destroyTexture(TexturePtr texture)
 {
-    if (image.view != VK_NULL_HANDLE)
-        vkDestroyImageView(device, image.view, nullptr);
+    if (!texture)
+        return;
 
-    if (image.image != VK_NULL_HANDLE)
-        vmaDestroyImage(allocator, image.image, image.allocation.handle);
+    if (texture->view != VK_NULL_HANDLE)
+        vkDestroyImageView(device, texture->view, nullptr);
+
+    if (texture->image != VK_NULL_HANDLE)
+        vmaDestroyImage(allocator, texture->image, texture->allocation.handle);
 }
 
-void RenderDevice::destroySampler(Sampler &sampler)
+void RenderDevice::destroySampler(SamplerPtr sampler)
 {
-    if (sampler.sampler != VK_NULL_HANDLE)
-        vkDestroySampler(device, sampler.sampler, nullptr);
+    if (sampler && sampler->sampler != VK_NULL_HANDLE)
+        vkDestroySampler(device, sampler->sampler, nullptr);
 }
 
-void RenderDevice::destroyRenderPipeline(RenderPipeline &pipeline)
+void RenderDevice::destroyRenderPipeline(RenderPipelinePtr pipeline)
 {
-    if (pipeline.layout != VK_NULL_HANDLE)
-        vkDestroyPipelineLayout(device, pipeline.layout, nullptr);
+    if (!pipeline)
+        return;
 
-    if (pipeline.pipeline != VK_NULL_HANDLE)
-        vkDestroyPipeline(device, pipeline.pipeline, nullptr);
+    if (pipeline->layout != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(device, pipeline->layout, nullptr);
+
+    if (pipeline->pipeline != VK_NULL_HANDLE)
+        vkDestroyPipeline(device, pipeline->pipeline, nullptr);
 }
 
-void RenderDevice::destroyComputePipeline(ComputePipeline &pipeline)
+void RenderDevice::destroyComputePipeline(ComputePipelinePtr pipeline)
 {
-    if (pipeline.layout != VK_NULL_HANDLE)
-        vkDestroyPipelineLayout(device, pipeline.layout, nullptr);
+    if (!pipeline)
+        return;
 
-    if (pipeline.pipeline != VK_NULL_HANDLE)
-        vkDestroyPipeline(device, pipeline.pipeline, nullptr);
+    if (pipeline->layout != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(device, pipeline->layout, nullptr);
+
+    if (pipeline->pipeline != VK_NULL_HANDLE)
+        vkDestroyPipeline(device, pipeline->pipeline, nullptr);
 }
 
-void RenderDevice::uploadBufferData(Buffer &buffer, void *data, uint64_t size)
+void RenderDevice::uploadBufferData(BufferPtr buffer, void *data, uint64_t size)
 {
-    assert(data && size > 0);
+    assert(buffer && data && size > 0);
 
     // using mapped data
-    if (buffer.allocation.info.pMappedData) {
-        memcpy(buffer.allocation.info.pMappedData, data, size);
+    if (buffer->allocation.info.pMappedData) {
+        memcpy(buffer->allocation.info.pMappedData, data, size);
         return;
     }
 
@@ -581,31 +586,31 @@ void RenderDevice::uploadBufferData(Buffer &buffer, void *data, uint64_t size)
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     };
 
-    Buffer staging = createBuffer(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
-    memcpy(staging.allocation.info.pMappedData, data, size);
+    BufferPtr staging = createBuffer(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
+    memcpy(staging->allocation.info.pMappedData, data, size);
 
-    VK_CHECK(vmaFlushAllocation(allocator, staging.allocation.handle, 0, VK_WHOLE_SIZE));
+    VK_CHECK(vmaFlushAllocation(allocator, staging->allocation.handle, 0, VK_WHOLE_SIZE));
 
     immediateSubmit([size, &staging, &buffer](VkCommandBuffer cmd) -> void {
         VkBufferCopy copyRegion = {0, 0, size};
-        vkCmdCopyBuffer(cmd, staging.buffer, buffer.buffer, 1, &copyRegion);
+        vkCmdCopyBuffer(cmd, staging->buffer, buffer->buffer, 1, &copyRegion);
     });
 
     destroyBuffer(staging);
 }
 
-void RenderDevice::uploadImage(Image &image, ImageLoadInfo &info)
+void RenderDevice::uploadTexture(TexturePtr texture, TextureLoadInfo &info)
 {
-    const uint32_t bufsize = info.textureKTX ? info.size : info.size * image.arrayLayers;
+    const uint32_t bufsize = info.textureKTX ? info.size : info.size * texture->arrayLayers;
 
     const BufferCreateInfo createInfo = {
         .size = bufsize,
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     };
-    Buffer staging = createBuffer(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
+    BufferPtr staging = createBuffer(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
     uploadBufferData(staging, info.data, info.size);
 
-    immediateSubmit([&staging, &image, &info](VkCommandBuffer cmd) -> void {
+    immediateSubmit([&staging, &texture, &info](VkCommandBuffer cmd) -> void {
         // transition image to transfer
         VkImageMemoryBarrier transferBarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         transferBarrier.srcAccessMask = 0;
@@ -614,8 +619,8 @@ void RenderDevice::uploadImage(Image &image, ImageLoadInfo &info)
         transferBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         transferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         transferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        transferBarrier.image = image.image;
-        transferBarrier.subresourceRange = {image.aspect, 0, image.mipLevels, 0, image.arrayLayers};
+        transferBarrier.image = texture->image;
+        transferBarrier.subresourceRange = {texture->aspect, 0, texture->mipLevels, 0, texture->arrayLayers};
 
         vkCmdPipelineBarrier(cmd,
             VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, // stages
@@ -628,25 +633,25 @@ void RenderDevice::uploadImage(Image &image, ImageLoadInfo &info)
         // copy
         Vector<VkBufferImageCopy> copyRegions{};
         if (info.textureKTX) { // copy image and all faces and mip levels
-            for (uint32_t j = 0; j < image.mipLevels; j++) {
+            for (uint32_t j = 0; j < texture->mipLevels; j++) {
                 ktx_size_t     offset = 0;
                 KTX_error_code ret = ktxTexture_GetImageOffset(info.textureKTX, j, 0, 0, &offset);
                 assert(ret == KTX_SUCCESS);
 
                 VkBufferImageCopy copyRegion = {};
-                copyRegion.imageSubresource = {image.aspect, j, 0, image.arrayLayers};
-                copyRegion.imageExtent = {image.width >> j, image.height >> j, 1};
+                copyRegion.imageSubresource = {texture->aspect, j, 0, texture->arrayLayers};
+                copyRegion.imageExtent = {texture->width >> j, texture->height >> j, 1};
                 copyRegion.bufferOffset = offset;
                 copyRegions.push_back(copyRegion);
             }
         } else { // generate mip levels later if needed.
             VkBufferImageCopy copyRegion = {};
-            copyRegion.imageSubresource = {image.aspect, 0, 0, 1};
-            copyRegion.imageExtent = {image.width, image.height, 1};
+            copyRegion.imageSubresource = {texture->aspect, 0, 0, 1};
+            copyRegion.imageExtent = {texture->width, texture->height, 1};
             copyRegions.push_back(copyRegion);
         }
 
-        vkCmdCopyBufferToImage(cmd, staging.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, copyRegions.size(), copyRegions.data());
+        vkCmdCopyBufferToImage(cmd, staging->buffer, texture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, copyRegions.size(), copyRegions.data());
 
         // transition image to fragment shader
         VkImageMemoryBarrier fragmentBarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
@@ -656,8 +661,8 @@ void RenderDevice::uploadImage(Image &image, ImageLoadInfo &info)
         fragmentBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         fragmentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         fragmentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        fragmentBarrier.image = image.image;
-        fragmentBarrier.subresourceRange = {image.aspect, 0, image.mipLevels, 0, image.arrayLayers};
+        fragmentBarrier.image = texture->image;
+        fragmentBarrier.subresourceRange = {texture->aspect, 0, texture->mipLevels, 0, texture->arrayLayers};
 
         vkCmdPipelineBarrier(cmd,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, // stages
@@ -671,14 +676,39 @@ void RenderDevice::uploadImage(Image &image, ImageLoadInfo &info)
     destroyBuffer(staging);
 }
 
-void RenderDevice::generateMipmaps(Image &image)
+void RenderDevice::uploadMeshGPUData(BufferPtr vertexBuffer, Vector<Vertex> &vertices, BufferPtr indexBuffer, Vector<uint32_t> &indices)
 {
-    if (image.mipLevels <= 1) {
-        LOGW("%s", "Failed to generate mipmaps. image.mipLevels <= 1");
+    // vertex buffer
+    {
+        BufferCreateInfo createInfo = {
+            .size = vertices.size() * sizeof(Vertex),
+            .usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        };
+
+        vertexBuffer = createBuffer(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+        uploadBufferData(vertexBuffer, vertices.data(), createInfo.size);
+    }
+
+    // index buffer
+    {
+        BufferCreateInfo createInfo = {
+            .size = indices.size() * sizeof(uint32_t),
+            .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        };
+
+        indexBuffer = createBuffer(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+        uploadBufferData(indexBuffer, indices.data(), createInfo.size);
+    }
+}
+
+void RenderDevice::generateMipmaps(TexturePtr texture)
+{
+    if (texture->mipLevels <= 1) {
+        LOGW("%s", "Failed to generate mipmaps. image->mipLevels <= 1");
         return;
     }
 
-    immediateSubmit([&image](VkCommandBuffer cmd) -> void {
+    immediateSubmit([&texture](VkCommandBuffer cmd) -> void {
         // transition first mip
         {
             VkImageMemoryBarrier barrier = {
@@ -689,8 +719,8 @@ void RenderDevice::generateMipmaps(Image &image)
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = image.image,
-                .subresourceRange = {image.aspect, 0, 1, 0, image.arrayLayers}
+                .image = texture->image,
+                .subresourceRange = {texture->aspect, 0, 1, 0, texture->arrayLayers}
             };
 
             vkCmdPipelineBarrier(cmd,
@@ -703,22 +733,22 @@ void RenderDevice::generateMipmaps(Image &image)
         }
 
         // copy mips from n-1 to n
-        for (uint32_t i = 1; i < image.mipLevels; i++) {
+        for (uint32_t i = 1; i < texture->mipLevels; i++) {
             VkImageBlit blit{};
 
             // src
-            blit.srcSubresource = {image.aspect, i - 1, 0, image.arrayLayers};
-            blit.srcOffsets[1].x = static_cast<int32_t>(image.width >> (i - 1));
-            blit.srcOffsets[1].y = static_cast<int32_t>(image.height >> (i - 1));
+            blit.srcSubresource = {texture->aspect, i - 1, 0, texture->arrayLayers};
+            blit.srcOffsets[1].x = static_cast<int32_t>(texture->width >> (i - 1));
+            blit.srcOffsets[1].y = static_cast<int32_t>(texture->height >> (i - 1));
             blit.srcOffsets[1].z = 1;
 
             // dst
-            blit.dstSubresource = {image.aspect, i, 0, image.arrayLayers};
-            blit.dstOffsets[1].x = static_cast<int32_t>(image.width >> i);
-            blit.dstOffsets[1].y = static_cast<int32_t>(image.height >> i);
+            blit.dstSubresource = {texture->aspect, i, 0, texture->arrayLayers};
+            blit.dstOffsets[1].x = static_cast<int32_t>(texture->width >> i);
+            blit.dstOffsets[1].y = static_cast<int32_t>(texture->height >> i);
             blit.dstOffsets[1].z = 1;
 
-            VkImageSubresourceRange subresourceRange = {image.aspect, i, 1, 0, image.arrayLayers};
+            VkImageSubresourceRange subresourceRange = {texture->aspect, i, 1, 0, texture->arrayLayers};
 
             // transition mip level to transfer dst
             VkImageMemoryBarrier barrier0 = {
@@ -729,7 +759,7 @@ void RenderDevice::generateMipmaps(Image &image)
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = image.image,
+                .image = texture->image,
                 .subresourceRange = subresourceRange
             };
 
@@ -743,8 +773,8 @@ void RenderDevice::generateMipmaps(Image &image)
 
             // blit from previous mip level
             vkCmdBlitImage(cmd,
-                image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                texture->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                texture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 1, &blit,
                 VK_FILTER_LINEAR
             );
@@ -758,7 +788,7 @@ void RenderDevice::generateMipmaps(Image &image)
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = image.image,
+                .image = texture->image,
                 .subresourceRange = subresourceRange
             };
 
@@ -780,8 +810,8 @@ void RenderDevice::generateMipmaps(Image &image)
             .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = image.image,
-            .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, image.mipLevels, 0, image.arrayLayers}
+            .image = texture->image,
+            .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, texture->mipLevels, 0, texture->arrayLayers}
         };
 
         vkCmdPipelineBarrier(cmd,
@@ -877,24 +907,24 @@ bool RenderDevice::swapchainPresent()
     return true;
 }
 
-void RenderDevice::writeDescriptor(uint32_t binding, Buffer &buffer, VkDescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::writeDescriptor(uint32_t binding, BufferPtr buffer, VkDescriptorType type, uint32_t dstArrayElement)
 {
-    descriptorSetWriter.write(binding, buffer.buffer, buffer.size, type, dstArrayElement);
+    descriptorSetWriter.write(binding, buffer->buffer, buffer->size, type, dstArrayElement);
 }
 
-void RenderDevice::writeDescriptor(uint32_t binding, Image &image, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::writeDescriptor(uint32_t binding, TexturePtr texture, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement)
 {
-    descriptorSetWriter.write(binding, image.view, sampler.sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, type, dstArrayElement);
+    descriptorSetWriter.write(binding, texture->view, sampler.sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, type, dstArrayElement);
 }
 
-void RenderDevice::writeDescriptor(uint32_t binding, Image &image, VkDescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::writeDescriptor(uint32_t binding, TexturePtr texture, VkDescriptorType type, uint32_t dstArrayElement)
 {
-    descriptorSetWriter.write(binding, image.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, type, dstArrayElement);
+    descriptorSetWriter.write(binding, texture->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, type, dstArrayElement);
 }
 
-void RenderDevice::writeDescriptor(uint32_t binding, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::writeDescriptor(uint32_t binding, SamplerPtr sampler, VkDescriptorType type, uint32_t dstArrayElement)
 {
-    descriptorSetWriter.write(binding, sampler.sampler, type, dstArrayElement);
+    descriptorSetWriter.write(binding, sampler->sampler, type, dstArrayElement);
 }
 
 void RenderDevice::updateDescriptors()

@@ -21,12 +21,12 @@ struct Allocation
 };
 
 //========================
-//         Image
+//        Texture
 //========================
 
 struct ktxTexture;
 
-struct ImageLoadInfo
+struct TextureLoadInfo
 {
     uint32_t width = 0;
     uint32_t height = 0;
@@ -39,7 +39,7 @@ struct ImageLoadInfo
     ktxTexture *textureKTX = nullptr; // if ktx
 };
 
-struct ImageCreateInfo
+struct TextureCreateInfo
 {
     uint32_t width = 0;
     uint32_t height = 0;
@@ -53,7 +53,7 @@ struct ImageCreateInfo
     const char *debugName = "";
 };
 
-struct Image
+struct Texture
 {
     uint32_t width = 0;
     uint32_t height = 0;

@@ -2,16 +2,15 @@
 
 #include <chrono>
 
+#include "core/asset_manager.h"
+#include "core/audio.h"
 #include "core/logger.h"
-#include "math/math_types.h"
+#include "game/world.h"
+#include "input/input_manager.h"
+#include "physics/physics.h"
 
-#include "graphics/cache/texture_cache.h"
-#include "core/gltf_loader.h"
-#include "core/logger.h"
-
-#include <SDL3/SDL.h>
-#include "imgui.h"
 #include "imgui_impl_sdl3.h"
+#include <SDL3/SDL.h>
 
 Application::Application(const char *title, uint32_t width, uint32_t height)
 {
@@ -20,152 +19,123 @@ Application::Application(const char *title, uint32_t width, uint32_t height)
         exit(EXIT_FAILURE);
     }
 
-    window = SDL_CreateWindow(title, width, height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-    if (!window) {
+    window_ = SDL_CreateWindow(title, width, height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    if (!window_) {
         LOGE("Failed to create SDL window: %s", SDL_GetError());
         exit(EXIT_FAILURE);
     }
 
-    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-    SDL_RaiseWindow(window);
+    SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    SDL_RaiseWindow(window_);
 
-    renderer = std::make_unique<Renderer>(window);
-    renderer->init();
+    gInput = new InputManager();
+    gInput->Init();
 
-    physics = std::make_unique<PhysicsSystem>();
-    physics->init();
+    gRenderer = new Renderer();
+    gRenderer->Init(window_);
 
-    audio = std::make_unique<AudioSystem>();
-    audio->init();
+    gAssetManager = new AssetManager();
+    gAssetManager->Init();
 
-    camera.setPerspective(glm::radians(60.0f), float(width) / height, 0.01f, 1000.0f);
-    camera.setPosition(vec3(0.0f, 0.0f, 1.0f));
-    camera.setRotation(vec3(glm::radians(10.0f), 0.0f, 0.0f));
+    gPhysics = new Physics();
+    gPhysics->Init();
 
-    CacheManager &cacheMgr = renderer->getCacheManager();
+    gAudio = new Audio();
+    gAudio->Init();
 
     // load common textures
-    TextureCache &textureCache = cacheMgr.getTextureCache();
-    textureCache.loadFromFile(texturesDir / "sky_cubemap/sky_cubemap.ktx", VK_FORMAT_R8G8B8A8_SRGB, "skybox");
+    gAssetManager->CreateTexture(texturesDir / "sky_cubemap/sky_cubemap.ktx", "skybox");
 
     // load models
-    ModelCache &modelCache = cacheMgr.getModelCache();
-    modelCache.loadFromFile(modelsDir / "monkey.gltf", "monkey");
-    auto objectID = modelCache.loadFromFile(modelsDir / "sponza/Sponza.gltf", "sponza");
-    modelCache.loadFromFile(modelsDir / "de_dust2/de_dust2.gltf", "de_dust2");
-    modelCache.loadFromFile(modelsDir / "ak47/v_ak47.gltf", "ak47");
+    gAssetManager->CreateModel(modelsDir / "monkey.gltf", "monkey");
+    gAssetManager->CreateModel(modelsDir / "cube.gltf", "cube");
+    gAssetManager->CreateModel(modelsDir / "sponza/Sponza.gltf", "sponza");
+    gAssetManager->CreateModel(modelsDir / "de_dust2/de_dust2.gltf", "de_dust2");
+    gAssetManager->CreateModel(modelsDir / "ak47/v_ak47.gltf", "ak47");
 
-    renderer->loadDynamicResources();
+    gRenderer->LoadDynamicResources();
 
-    // add objects to the world
-    Object *object = new Object();
-    object->setModelID(objectID);
-    object->setScale(0.01f);
-
-    world.addObject(object, "object");
+    // create and add objects to the world
+    gWorld = new World();
+    gWorld->Init();
 }
 
 Application::~Application()
 {
-    world.freeObject("object");
-    physics->shutdown();
-    audio->shutdown();
-    renderer->shutdown();
+    gWorld->Shutdown();
+    gAudio->Shutdown();
+    gPhysics->Shutdown();
+    gAssetManager->Shutdown();
+    gRenderer->Shutdown();
+    gInput->Shutdown();
+
+    delete gWorld;
+    delete gPhysics;
+    delete gAudio;
+    delete gRenderer;
+    delete gInput;
 }
 
-void Application::run()
+void Application::Run()
 {
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    running = true;
-    while (running) {
+    running_ = true;
+    while (running_) {
         auto endTime = std::chrono::high_resolution_clock::now();
-        deltaTime = std::chrono::duration<float, std::milli>(endTime - startTime).count() / 1000.0;
+        double deltaTime = std::chrono::duration<double, std::milli>(endTime - startTime).count() / 1000.0;
         startTime = endTime;
-        time += deltaTime;
+        time_ += deltaTime;
 
-        processEvents();
-        update();
+        ProcessEvents(deltaTime);
+        Update(deltaTime);
 
-        if (!minimized) {
+        if (!minimized_) {
             ImGui_ImplSDL3_NewFrame();
-            renderer->drawFrame(world, camera);
+            gRenderer->DrawFrame();
         }
     }
 }
 
-void Application::processEvents()
+float Application::GetTime()
 {
-    vec3 camTranslation = vec3(0.0f);
-    float camMovementSpeed = 2.0f * deltaTime;
-    float camRotationSpeed = 0.2f;
-    float camRotationSpeedGamepad = 0.2f;
+    return time_;
+}
 
-    bool cameraMoved = false;
+vec2 Application::GetSize()
+{
+    return gRenderer->GetScreenSize();
+}
 
+float Application::GetAspectRatio()
+{
+    return gRenderer->GetAspectRatio();
+}
+
+void Application::ProcessEvents(float deltaTime)
+{
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
-            running = false;
-        }
-
-        if (event.type == SDL_EVENT_WINDOW_MINIMIZED) {
-            minimized = true;
-        }
-
-        if (event.type == SDL_EVENT_WINDOW_RESTORED) {
-            minimized = false;
+            running_ = false;
         }
 
         ImGui_ImplSDL3_ProcessEvent(&event);
-        keyboardInput.processEvent(&event);
-        mouseInput.processEvent(&event);
-
-        ImGuiIO &io = ImGui::GetIO();
-        if (!io.WantCaptureMouse) {
-            // mouse movement
-            if (mouseInput.isPressed(SDL_BUTTON_LEFT) && event.type == SDL_EVENT_MOUSE_MOTION) {
-                camera.rotate(vec3(-glm::radians(event.motion.yrel) * camRotationSpeed, glm::radians(event.motion.xrel) * camRotationSpeed, 0.0f));
-            }
-        }
+        gInput->ProcessEvent(&event);
     }
 
-    if (keyboardInput.isPressed(SDLK_ESCAPE)) {
-        running = false;
+    minimized_ = false;
+    if (SDL_GetWindowFlags(window_) & SDL_WINDOW_MINIMIZED) {
+        minimized_ = true;
     }
-
-    if (keyboardInput.isPressed(SDLK_P)) {
-        LOGI("%s", "Reloading shaders");
-        renderer->reloadShaders();
-    }
-
-    ImGuiIO &io = ImGui::GetIO();
-    if (!io.WantCaptureKeyboard) {
-        // camera movement
-        if (keyboardInput.isPressed(SDLK_LSHIFT)) {
-            camMovementSpeed *= 5;
-        }
-        if (keyboardInput.isPressed(SDLK_A)) {
-            camTranslation.x -= camMovementSpeed;
-        }
-        if (keyboardInput.isPressed(SDLK_D)) {
-            camTranslation.x += camMovementSpeed;
-        }
-        if (keyboardInput.isPressed(SDLK_W)) {
-            camTranslation.z -= camMovementSpeed;
-        }
-        if (keyboardInput.isPressed(SDLK_S)) {
-            camTranslation.z += camMovementSpeed;
-        }
-        if (keyboardInput.isPressed(SDLK_SPACE)) {
-            camTranslation.y += camMovementSpeed;
-        }
-    }
-
-    camera.move(mat3(camera.getRotation()) * camTranslation);
 }
 
-void Application::update()
+void Application::Update(float deltaTime)
 {
-    physics->update();
+    gInput->Update();
+    gWorld->Update(deltaTime);
+
+    gPhysics->PreUpdate();
+    gPhysics->Update();
+    gPhysics->PostUpdate();
 }

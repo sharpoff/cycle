@@ -1,14 +1,14 @@
 #pragma once
 
 #include "core/containers.h"
-#include "graphics/id.h"
+#include "graphics/mesh.h"
 #include "math/bounds.h"
 
 namespace gltf
 {
     struct SceneNode
     {
-        MeshID meshID = MeshID::Invalid;
+        Mesh mesh;
         Vector<SceneNode> children;
     };
 

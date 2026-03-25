@@ -1,6 +1,6 @@
 #include "graphics/descriptor_set_writer.h"
 
-void DescriptorSetWriter::write(uint32_t binding, VkBuffer &buffer, uint32_t size, VkDescriptorType type, uint32_t dstArrayElement)
+void DescriptorSetWriter::Write(uint32_t binding, VkBuffer &buffer, uint32_t size, VkDescriptorType type, uint32_t dstArrayElement)
 {
     if (size <= 0)
         return;
@@ -18,7 +18,7 @@ void DescriptorSetWriter::write(uint32_t binding, VkBuffer &buffer, uint32_t siz
     writes.push_back(write);
 }
 
-void DescriptorSetWriter::write(uint32_t binding, VkImageView &imageView, VkSampler &sampler, VkImageLayout layout, VkDescriptorType type, uint32_t dstArrayElement)
+void DescriptorSetWriter::Write(uint32_t binding, VkImageView &imageView, VkSampler &sampler, VkImageLayout layout, VkDescriptorType type, uint32_t dstArrayElement)
 {
     VkDescriptorImageInfo &imageInfo = imageInfos.emplace_back(VkDescriptorImageInfo{.sampler = sampler, .imageView = imageView, .imageLayout = layout});
 
@@ -33,7 +33,7 @@ void DescriptorSetWriter::write(uint32_t binding, VkImageView &imageView, VkSamp
     writes.push_back(write);
 }
 
-void DescriptorSetWriter::write(uint32_t binding, VkImageView &imageView, VkImageLayout layout, VkDescriptorType type, uint32_t dstArrayElement)
+void DescriptorSetWriter::Write(uint32_t binding, VkImageView &imageView, VkImageLayout layout, VkDescriptorType type, uint32_t dstArrayElement)
 {
     VkDescriptorImageInfo &imageInfo = imageInfos.emplace_back(VkDescriptorImageInfo{.imageView = imageView, .imageLayout = layout});
 
@@ -48,7 +48,7 @@ void DescriptorSetWriter::write(uint32_t binding, VkImageView &imageView, VkImag
     writes.push_back(write);
 }
 
-void DescriptorSetWriter::write(uint32_t binding, VkSampler &sampler, VkDescriptorType type, uint32_t dstArrayElement)
+void DescriptorSetWriter::Write(uint32_t binding, VkSampler &sampler, VkDescriptorType type, uint32_t dstArrayElement)
 {
     VkDescriptorImageInfo &imageInfo = imageInfos.emplace_back(VkDescriptorImageInfo{.sampler = sampler});
 
@@ -63,7 +63,7 @@ void DescriptorSetWriter::write(uint32_t binding, VkSampler &sampler, VkDescript
     writes.push_back(write);
 }
 
-void DescriptorSetWriter::update(VkDevice device, VkDescriptorSet set)
+void DescriptorSetWriter::Update(VkDevice device, VkDescriptorSet set)
 {
     for (VkWriteDescriptorSet &write : writes) {
         write.dstSet = set;
@@ -72,7 +72,7 @@ void DescriptorSetWriter::update(VkDevice device, VkDescriptorSet set)
     vkUpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
 }
 
-void DescriptorSetWriter::clear()
+void DescriptorSetWriter::Clear()
 {
     imageInfos.clear();
     bufferInfos.clear();

@@ -6,11 +6,12 @@
 
 #include <limits>
 
-#include "graphics/cache/cache_manager.h"
+#include "core/asset_manager.h"
+#include "graphics/renderer.h"
 
 namespace gltf
 {
-    bool Loader::load(CacheManager &cacheManager, Scene &scene, std::filesystem::path filename)
+    bool Loader::load(Scene &scene, FilePath filename)
     {
         if (!std::filesystem::exists(filename))
             return false;
@@ -29,24 +30,20 @@ namespace gltf
             return false;
         }
 
-        String baseDir = std::filesystem::path(filename).parent_path();
+        String baseDir = FilePath(filename).parent_path();
 
         for (size_t i = 0; i < root->nodes_count; i++) {
-            processNode(cacheManager, scene.nodes.emplace_back(), data, root->nodes[i], baseDir);
+            processNode(scene.nodes.emplace_back(), data, root->nodes[i], baseDir);
         }
 
-        calculateBounds(scene, cacheManager);
+        calculateBounds(scene);
 
         cgltf_free(data);
         return true;
     }
 
-    void Loader::processNode(CacheManager &cacheManager, SceneNode &node, cgltf_data *data, cgltf_node *gltfNode, String baseDir)
+    void Loader::processNode(SceneNode &node, cgltf_data *data, cgltf_node *gltfNode, String baseDir)
     {
-        auto &textureCache = cacheManager.getTextureCache();
-        auto &materialCache = cacheManager.getMaterialCache();
-        auto &meshCache = cacheManager.getMeshCache();
-
         if (gltfNode->mesh) {
             Mesh mesh = {};
             for (size_t i = 0; i < gltfNode->mesh->primitives_count; i++) {
@@ -109,7 +106,7 @@ namespace gltf
 
                 // load material
                 if (primitive.material) {
-                    Material material = {};
+                    MaterialPtr material = std::make_shared<Material>();
                     cgltf_material *gltfMaterial = primitive.material;
 
                     if (gltfMaterial->has_pbr_metallic_roughness) {
@@ -118,10 +115,10 @@ namespace gltf
                             cgltf_image *gltfImage = gltfMaterial->pbr_metallic_roughness.base_color_texture.texture->image;
 
                             if (gltfImage->uri) {
-                                material.baseColorTexID = textureCache.loadFromFile(baseDir / std::filesystem::path(gltfImage->uri));
+                                material->baseColorTex = gAssetManager->createTexture(baseDir / FilePath(gltfImage->uri), gltfImage->name);
                             } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
                                 unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
-                                material.baseColorTexID = textureCache.loadFromMem(data, gltfImage->buffer_view->buffer->size);
+                                material->baseColorTex = gAssetManager->createTexture(data, gltfImage->buffer_view->buffer->size, gltfImage->name);
                             }
                         }
 
@@ -130,14 +127,14 @@ namespace gltf
                             cgltf_image *gltfImage = gltfMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image;
 
                             if (gltfImage->uri) {
-                                material.metallicRoughnessTexID = textureCache.loadFromFile(baseDir / std::filesystem::path(gltfImage->uri));
+                                material->metallicRoughnessTex = gAssetManager->createTexture(baseDir / FilePath(gltfImage->uri), gltfImage->name);
                             } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
                                 unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
-                                material.metallicRoughnessTexID = textureCache.loadFromMem(data, gltfImage->buffer_view->buffer->size);
+                                material->metallicRoughnessTex = gAssetManager->createTexture(data, gltfImage->buffer_view->buffer->size, gltfImage->name);
                             }
 
-                            material.metallicFactor = gltfMaterial->pbr_metallic_roughness.metallic_factor;
-                            material.roughnessFactor = gltfMaterial->pbr_metallic_roughness.roughness_factor;
+                            material->metallicFactor = gltfMaterial->pbr_metallic_roughness.metallic_factor;
+                            material->roughnessFactor = gltfMaterial->pbr_metallic_roughness.roughness_factor;
                         }
                     }
 
@@ -146,10 +143,10 @@ namespace gltf
                         cgltf_image *gltfImage = gltfMaterial->normal_texture.texture->image;
 
                         if (gltfImage->uri) {
-                            material.normalTexID = textureCache.loadFromFile(baseDir / std::filesystem::path(gltfImage->uri), VK_FORMAT_R8G8B8A8_UNORM);
+                            material->normalTex = gAssetManager->createTexture(baseDir / FilePath(gltfImage->uri), gltfImage->name);
                         } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
                             unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
-                            material.normalTexID = textureCache.loadFromMem(data, gltfImage->buffer_view->buffer->size, VK_FORMAT_R8G8B8A8_UNORM);
+                            material->normalTex = gAssetManager->createTexture(data, gltfImage->buffer_view->buffer->size, gltfImage->name);
                         }
                     }
 
@@ -159,51 +156,45 @@ namespace gltf
                         const char *uri = gltfImage->uri;
 
                         if (uri) {
-                            material.emissiveTexID = textureCache.loadFromFile(baseDir / std::filesystem::path(gltfImage->uri));
+                            material->emissiveTex = gAssetManager->createTexture(baseDir / FilePath(gltfImage->uri), gltfImage->name);
                         } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
                             unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
-                            material.emissiveTexID = textureCache.loadFromMem(data, gltfImage->buffer_view->buffer->size);
+                            material->emissiveTex = gAssetManager->createTexture(data, gltfImage->buffer_view->buffer->size, gltfImage->name);
                         }
                     }
 
-                    meshPrimitive.materialIndex = cgltf_material_index(data, gltfMaterial);
-                    meshPrimitive.materialID = materialCache.addMaterial(material, gltfMaterial->name ? gltfMaterial->name : "");
+                    meshPrimitive.gltfMaterialIndex = cgltf_material_index(data, gltfMaterial);
+                    meshPrimitive.material = material;
                 }
 
                 meshPrimitive.vertices = vertices;
                 meshPrimitive.indices = indices;
-                meshCache.uploadMeshGPUData(meshPrimitive);
+                gRenderer->getDevice().uploadMeshGPUData(meshPrimitive.vertexBuffer, meshPrimitive.vertices, meshPrimitive.indexBuffer, meshPrimitive.indices);
 
                 mesh.primitives.push_back(meshPrimitive);
             }
 
-            node.meshID = meshCache.addMesh(mesh, gltfNode->mesh->name ? gltfNode->mesh->name : "");
+            node.mesh = mesh;
         }
 
         for (size_t i = 0; i < gltfNode->children_count; i++) {
-            processNode(cacheManager, node.children.emplace_back(), data, gltfNode->children[i], baseDir);
+            processNode(node.children.emplace_back(), data, gltfNode->children[i], baseDir);
         }
     }
 
-    bool Loader::calculateBounds(Scene &scene, CacheManager &cacheManager)
+    bool Loader::calculateBounds(Scene &scene)
     {
         if (scene.nodes.empty())
             return false;
-
-        auto &meshCache = cacheManager.getMeshCache();
 
         vec3 min = vec3(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
         vec3 max = vec3(std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min());
 
         for (auto &node : scene.nodes) {
-            Mesh *mesh = meshCache.getMeshByID(node.meshID);
-            if (!mesh)
-                continue;
-
-            for (auto &prim : mesh->primitives) {
+            for (auto &prim : node.mesh.primitives) {
                 for (size_t i = 0; i < prim.indices.size(); i++) {
                     Vertex &vert = prim.vertices[prim.indices[i]];
-                
+
                     min = glm::min(min, vert.position);
                     max = glm::max(max, vert.position);
                 }

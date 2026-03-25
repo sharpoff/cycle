@@ -1,17 +1,17 @@
 #include "audio.h"
 #include "core/logger.h"
 
-void AudioSystem::init()
+void Audio::init()
 {
     soloud.init();
 }
 
-void AudioSystem::shutdown()
+void Audio::shutdown()
 {
     soloud.deinit();
 }
 
-void AudioSystem::load(std::filesystem::path filepath, String name)
+void Audio::load(FilePath filepath, String name)
 {
     if (name.empty() || filepath.empty() || !std::filesystem::exists(filepath)) {
         LOGI("Failed to load audio sample. Wrong path or name. %s", filepath.c_str());
@@ -29,7 +29,7 @@ void AudioSystem::load(std::filesystem::path filepath, String name)
     nameSampleMap[name] = samples.size() - 1;
 }
 
-void AudioSystem::play(String name, bool looping)
+void Audio::play(String name, bool looping)
 {
     if (!hasSample(name)) {
         LOGI("Failed to play audio sample '%s'.", name.c_str());
@@ -40,7 +40,7 @@ void AudioSystem::play(String name, bool looping)
     soloud.setLooping(handle, looping);
 }
 
-bool AudioSystem::hasSample(String name)
+bool Audio::hasSample(String name)
 {
     auto it = nameSampleMap.find(name);
     return it != nameSampleMap.end();

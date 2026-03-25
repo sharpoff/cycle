@@ -3,78 +3,85 @@
 #include "SDL3/SDL_video.h"
 
 #include "graphics/descriptor_set_writer.h"
+#include "graphics/vertex.h"
 #include "graphics/vulkan_types.h"
 
 #include <math.h>
+#include <memory>
 
 #include "core/constants.h"
 
 #define VULKAN_API_VERSION VK_API_VERSION_1_3
 #define ENABLE_LOG_DEVICE_LIMITS false
 
+using BufferPtr = std::shared_ptr<Buffer>;
+using TexturePtr = std::shared_ptr<Texture>;
+using SamplerPtr = std::shared_ptr<Sampler>;
+using RenderPipelinePtr = std::shared_ptr<RenderPipeline>;
+using ComputePipelinePtr = std::shared_ptr<ComputePipeline>;
+
 class RenderDevice
 {
 public:
-    RenderDevice(SDL_Window *window);
+    void Init(SDL_Window *window);
+    void Shutdown();
 
-    void init();
-    void shutdown();
+    BufferPtr CreateBuffer(const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage);
+    TexturePtr CreateTexture(const TextureCreateInfo &createInfo);
+    SamplerPtr CreateSampler(const SamplerCreateInfo &createInfo);
+    RenderPipelinePtr CreateRenderPipeline(const RenderPipelineCreateInfo &createInfo);
+    ComputePipelinePtr CreateComputePipeline(const ComputePipelineCreateInfo &createInfo);
 
-    Buffer createBuffer(const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage);
-    Image createImage(const ImageCreateInfo &createInfo);
-    Sampler createSampler(const SamplerCreateInfo &createInfo);
-    RenderPipeline createRenderPipeline(const RenderPipelineCreateInfo &createInfo);
-    ComputePipeline createComputePipeline(const ComputePipelineCreateInfo &createInfo);
+    void DestroyBuffer(BufferPtr buffer);
+    void DestroyTexture(TexturePtr texture);
+    void DestroySampler(SamplerPtr sampler);
+    void DestroyRenderPipeline(RenderPipelinePtr pipeline);
+    void DestroyComputePipeline(ComputePipelinePtr pipeline);
 
-    void destroyBuffer(Buffer &buffer);
-    void destroyImage(Image &image);
-    void destroySampler(Sampler &sampler);
-    void destroyRenderPipeline(RenderPipeline &pipeline);
-    void destroyComputePipeline(ComputePipeline &pipeline);
+    void UploadBufferData(BufferPtr buffer, void *data, uint64_t size);
+    void UploadTexture(TexturePtr texture, TextureLoadInfo &loadInfo);
+    void UploadMeshGpuData(BufferPtr vertexBuffer, Vector<Vertex> &vertices, BufferPtr indexBuffer, Vector<uint32_t> &indices);
 
-    void uploadBufferData(Buffer &buffer, void *data, uint64_t size);
-    void uploadImage(Image &image, ImageLoadInfo &loadInfo);
+    void GenerateMipmaps(TexturePtr texture);
 
-    void generateMipmaps(Image &image);
+    VkCommandBuffer BeginCommandBuffer();
+    void EndCommandBuffer(VkCommandBuffer cmd);
+    bool SwapchainPresent();
 
-    VkCommandBuffer beginCommandBuffer();
-    void endCommandBuffer(VkCommandBuffer cmd);
-    bool swapchainPresent();
+    void ImmediateSubmit(Func<void(VkCommandBuffer cmd)> &&function);
 
-    void immediateSubmit(Func<void(VkCommandBuffer cmd)> &&function);
+    void WriteDescriptor(uint32_t binding, BufferPtr buffer, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, TexturePtr texture, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, TexturePtr texture, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, SamplerPtr sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void UpdateDescriptors();
 
-    void writeDescriptor(uint32_t binding, Buffer &buffer, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void writeDescriptor(uint32_t binding, Image &image, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void writeDescriptor(uint32_t binding, Image &image, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void writeDescriptor(uint32_t binding, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void updateDescriptors();
+    void WaitIdle();
 
-    void waitIdle();
+    uint32_t GetSwapchainWidth() { return swapchainExtent.width; };
+    uint32_t GetSwapchainHeight() { return swapchainExtent.height; };
+    VkImage GetSwapchainImage() { return swapchainImages[imageIndex]; };
+    VkImageView GetSwapchainImageView() { return swapchainImageViews[imageIndex]; };
+    VkSurfaceFormatKHR GetSurfaceFormat() { return surfaceFormat; }
+    VkDescriptorSet &GetBindlessDescriptor() { return bindlessDescriptorSets[currentFrame]; }
+    uint32_t GetCurrentFrame() { return currentFrame; }
 
-    uint32_t getSwapchainWidth() { return swapchainExtent.width; };
-    uint32_t getSwapchainHeight() { return swapchainExtent.height; };
-    VkImage getSwapchainImage() { return swapchainImages[imageIndex]; };
-    VkImageView getSwapchainImageView() { return swapchainImageViews[imageIndex]; };
-    VkSurfaceFormatKHR getSurfaceFormat() { return surfaceFormat; }
-    VkDescriptorSet &getBindlessDescriptor() { return bindlessDescriptorSets[currentFrame]; }
-    uint32_t getCurrentFrame() { return currentFrame; }
-
-    uint32_t calculateMipLevels(uint32_t width, uint32_t height) { return floor(log2(std::max(width, height))) + 1; }
+    uint32_t CalculateMipLevels(uint32_t width, uint32_t height) { return floor(log2(std::max(width, height))) + 1; }
 
     VkSampleCountFlagBits maxSampleCount = VK_SAMPLE_COUNT_1_BIT;
 
 private:
-    void createInstance();
-    void createDevice();
-    void createAllocator();
-    void createSwapchain();
-    void destroySwapchain();
-    void createSyncObjects();
+    void CreateInstance();
+    void CreateDevice();
+    void CreateAllocator();
+    void CreateSwapchain();
+    void DestroySwapchain();
+    void CreateSyncObjects();
 
-    void recreateSwapchain();
+    void RecreateSwapchain();
 
-    void setupImGui();
-    void shutdownImGui();
+    void SetupImGui();
+    void ShutdownImGui();
 
     VkInstance instance = VK_NULL_HANDLE;
 

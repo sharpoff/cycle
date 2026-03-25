@@ -1,5 +1,10 @@
 #include "mouse_input.h"
 
+void MouseInput::update()
+{
+    SDL_GetRelativeMouseState(&position.x, &position.y);
+}
+
 void MouseInput::processEvent(SDL_Event *event)
 {
     if (event->type != SDL_EVENT_MOUSE_BUTTON_DOWN && event->type != SDL_EVENT_MOUSE_BUTTON_UP)

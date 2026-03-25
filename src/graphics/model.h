@@ -1,11 +1,10 @@
 #pragma once
 
-#include "core/containers.h"
-#include "graphics/id.h"
+#include "graphics/mesh.h"
 #include "math/bounds.h"
 
 struct Model
 {
     Bounds bounds;
-    Vector<MeshID> meshIDs;
+    Vector<Mesh> meshes;
 };

@@ -6,11 +6,11 @@
 class KeyboardInput
 {
 public:
-    void processEvent(SDL_Event *event);
+    void ProcessEvent(SDL_Event *event);
 
-    bool wasJustPressed(SDL_Keycode scancode);
-    bool isPressed(SDL_Keycode scancode);
-    bool isReleased(SDL_Keycode scancode);
+    bool WasJustPressed(SDL_Keycode scancode);
+    bool IsPressed(SDL_Keycode scancode);
+    bool IsReleased(SDL_Keycode scancode);
 
 private:
     struct KeyState

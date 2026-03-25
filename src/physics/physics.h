@@ -1,31 +1,48 @@
 #pragma once
 
 #include <Jolt/Jolt.h>
+
 #include "Jolt/Core/JobSystemThreadPool.h"
 #include "Jolt/Core/TempAllocator.h"
 #include "Jolt/Physics/Body/BodyActivationListener.h"
 #include "Jolt/Physics/PhysicsSystem.h"
 #include "core/containers.h"
-// #include "math/math_types.h"
 
+#include "core/object.h"
 #include "physics/physics_layers.h"
 #include "physics/physics_listeners.h"
+#include "physics/physics_shape.h"
 
-constexpr const bool enableDebugOutput = false;
+class StaticObject;
 
-class PhysicsSystem
+class Physics
 {
 public:
-    PhysicsSystem() = default;
+    friend class Application;
 
-    void init();
-    void shutdown();
-    
-    void update();
+    void Init();
+    void Shutdown();
+
+    StaticObject *CreateStaticObject(const PhysicsShape &physicsShape, const vec3 &position = vec3(0.0f), const quat &rotation = glm::identity<quat>(), float scale = 1.0f);
+
+    void PreUpdate();
+    void Update();
+    void PostUpdate();
 
 private:
+    Physics() {};
+    Physics(const Physics &) = delete;
+    Physics(Physics &&) = delete;
+    Physics &operator=(const Physics &) = delete;
+    Physics &operator=(Physics &&) = delete;
+
+    JPH::BodyID CreateStaticBody(const PhysicsShape &physicsShape, const vec3 &position = vec3(0.0f), const quat &rotation = glm::identity<quat>());
+    JPH::BodyID CreateDynamicBody(const PhysicsShape &physicsShape, const vec3 &position = vec3(0.0f), const quat &rotation = glm::identity<quat>());
+
+    JPH::Shape::ShapeResult CreateShape(const PhysicsShape &physicsShape);
+
     JPH::JobSystemThreadPool *jobSystem;
-    JPH::TempAllocatorImpl   *tempAllocator;
+    JPH::TempAllocatorImpl *tempAllocator;
 
     // This is the max amount of rigid bodies that you can add to the physics system. If you try to add more you'll get an error.
     // Note: This value is low because this is a simple test. For a real project use something in the order of 65536.
@@ -53,5 +70,10 @@ private:
 
     ContactListener contactListener;
 
-    Vector<JPH::BodyID> bodyIDs;
+    bool activeBodyExist = false;
+
+    Vector<JPH::BodyID> dynamicBodies;
+    UnorderedMap<JPH::BodyID, Object*> bodyObjectMap;
 };
+
+static Physics *gPhysics = nullptr;

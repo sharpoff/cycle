@@ -1,79 +1,92 @@
 #pragma once
 
-#include "core/world.h"
 #include "graphics/barrier_merger.h"
-#include "graphics/cache/cache_manager.h"
 
 #include "core/camera.h"
 #include "core/constants.h"
-#include "graphics/render_device.h"
-#include "graphics/vulkan_types.h"
-#include "graphics/gpu_light.h"
 #include "graphics/cascade.h"
+#include "graphics/gpu_light.h"
+#include "graphics/mesh.h"
+#include "graphics/model.h"
+#include "graphics/render_device.h"
+// #include "graphics/vulkan_types.h"
+
+using ModelPtr = std::shared_ptr<Model>;
 
 class Renderer
 {
-public:
-    Renderer(SDL_Window *window);
+    friend class Application;
 
-    void init();
-    void shutdown();
+public:
+    void Init(SDL_Window *window);
+    void Shutdown();
 
     // should be called *after* loading entities/materials/textures/models/etc.
-    void loadDynamicResources();
+    void LoadDynamicResources();
 
-    void reloadShaders();
-    void drawFrame(World &world, Camera &camera);
+    void ReloadShaders();
+    void DrawFrame();
 
-    vec2 getScreenSize() { return vec2(device.getSwapchainWidth(), device.getSwapchainHeight()); }
+    vec2 GetScreenSize();
+    float GetAspectRatio();
 
-    CacheManager &getCacheManager() { return cacheManager; }
-    RenderDevice &getRenderDevice() { return device; }
+    RenderDevice &GetDevice() { return device; }
+
+    void SetCamera(Camera &camera) { camera_ = &camera; } // should be set
 
 private:
-    void drawModel(VkCommandBuffer cmd, Model *model, mat4 worldMatrix);
-    void drawMesh(VkCommandBuffer cmd, Mesh *mesh, mat4 worldMatrix);
+    Renderer() {};
+    Renderer(const Renderer &) = delete;
+    Renderer(Renderer &&) = delete;
+    Renderer &operator=(const Renderer &) = delete;
+    Renderer &operator=(Renderer &&) = delete;
 
-    void resizeWindow();
-    void createAttachmentImages();
-    void destroyAttachmentImages();
+    void DrawModel(VkCommandBuffer cmd, ModelPtr model, mat4 worldMatrix);
+    void DrawMesh(VkCommandBuffer cmd, Mesh &mesh, mat4 worldMatrix);
 
-    void compileShaders();
-    void createPipelines();
+    void ResizeWindow();
+    void CreateAttachmentImages();
+    void DestroyAttachmentImages();
 
-    void destroyPipelines();
+    void CompileShaders();
+    void CreatePipelines();
 
-    void updateDynamicData(Camera &camera);
-    void updateShadowmapCascades(Camera &camera, vec3 lightDir);
-    void updateGPULights();
+    void DestroyPipelines();
+
+    void UpdateDynamicData(Camera &camera);
+    void UpdateShadowmapCascades(Camera &camera, vec3 lightDir);
+    void UpdateGpuLights();
 
     RenderDevice device;
     SDL_Window *window;
 
-    CacheManager cacheManager;
+    Camera *camera_ = nullptr;
+    // CacheManager cacheManager;
 
-    Image colorImage;
-    Image depthImage;
+    TexturePtr colorImage;
+    TexturePtr depthImage;
 
-    Array<Buffer, FRAMES_IN_FLIGHT> sceneInfoBuffers;
-    Buffer materialsBuffer;
-    Buffer lightsBuffer;
-    Buffer cascadesBuffer;
+    Array<BufferPtr, FRAMES_IN_FLIGHT> sceneInfoBuffers;
+    BufferPtr materialsBuffer;
+    BufferPtr lightsBuffer;
+    BufferPtr cascadesBuffer;
 
     Vector<GPULight> gpuLights;
     // Vector<EntityID> lightEntities;
 
-    Sampler linearSampler;
-    Sampler nearestSampler;
+    SamplerPtr linearSampler;
+    SamplerPtr nearestSampler;
 
-    RenderPipeline meshPipeline;
-    RenderPipeline skyboxPipeline;
-    RenderPipeline shadowmapPipeline;
+    RenderPipelinePtr meshPipeline;
+    RenderPipelinePtr skyboxPipeline;
+    RenderPipelinePtr shadowmapPipeline;
 
     BarrierMerger barriers;
 
     Array<Cascade, SHADOWMAP_CASCADES> cascades;
-    Array<Image, SHADOWMAP_CASCADES> shadowmapImages;
+    Array<TexturePtr, SHADOWMAP_CASCADES> shadowmapImages;
 
     float cascadeSplitLambda = 0.95f;
 };
+
+static Renderer *gRenderer = nullptr;

@@ -2,7 +2,7 @@
 #include "nlohmann/json.hpp"
 #include <fstream>
 
-JsonFile::JsonFile(std::filesystem::path path)
+JsonFile::JsonFile(FilePath path)
 {
     std::ifstream file(path);
     if (!file.is_open()) {

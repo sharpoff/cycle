@@ -10,4 +10,5 @@ struct Bounds
 
     vec3 getMin() { return origin - extents; }
     vec3 getMax() { return origin + extents; }
+    vec3 getHalfExtents() { return extents / 2.0f; }
 };

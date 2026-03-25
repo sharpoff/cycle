@@ -3,8 +3,10 @@
 #include "core/gltf_scene.h"
 #include "graphics/model.h"
 
+using ModelPtr = std::shared_ptr<Model>;
+
 namespace gltf
 {
     // converts all gltf scene meshes to model
-    bool convertToModel(Model &model, Scene &scene);
+    bool ConvertToModel(ModelPtr model, Scene &scene);
 } // namespace gltf

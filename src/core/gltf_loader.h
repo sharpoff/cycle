@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/containers.h"
-#include <filesystem>
+#include "core/filesystem.h"
 #include "core/gltf_scene.h"
 
 #include "cgltf.h"
@@ -13,12 +13,12 @@ namespace gltf
     class Loader
     {
     public:
-        static bool load(CacheManager &cacheManager, Scene &scene, std::filesystem::path filename);
+        static bool Load(Scene &scene, FilePath filename);
 
     private:
-        static void processNode(CacheManager &cacheManager, SceneNode &node, cgltf_data *data, cgltf_node *gltfNode, String baseDir);
+        static void ProcessNode(SceneNode &node, cgltf_data *data, cgltf_node *gltfNode, String baseDir);
 
         // claculates scene bounds from meshes vertices
-        static bool calculateBounds(Scene &scene, CacheManager &cacheManager);
+        static bool CalculateBounds(Scene &scene);
     };
 } // namespace gltf

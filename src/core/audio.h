@@ -1,27 +1,35 @@
 #pragma once
 
-#include <filesystem>
+#include "core/filesystem.h"
 
 #include "core/containers.h"
 #include "soloud.h"
 #include "soloud_wav.h"
 
-class AudioSystem
+class Audio
 {
 public:
-    AudioSystem() = default;
+    friend class Application;
 
-    void init();
-    void shutdown();
+    void Init();
+    void Shutdown();
 
-    void load(std::filesystem::path filepath, String name);
-    void play(String name, bool looping = false);
+    void Load(FilePath filepath, String name);
+    void Play(String name, bool looping = false);
 
 private:
-    bool hasSample(String name);
+    Audio() {};
+    Audio(const Audio &) = delete;
+    Audio(Audio &&) = delete;
+    Audio &operator=(const Audio &) = delete;
+    Audio &operator=(Audio &&) = delete;
+
+    bool HasSample(String name);
 
     Vector<SoLoud::Wav> samples;
     UnorderedMap<String, size_t> nameSampleMap;
 
     SoLoud::Soloud soloud;
 };
+
+static Audio *gAudio = nullptr;

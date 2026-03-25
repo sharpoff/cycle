@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/object.h"
 #include "math/math_types.h"
 
 enum LightType : uint8_t
@@ -9,7 +10,7 @@ enum LightType : uint8_t
     LIGHT_TYPE_SPOT = 2,
 };
 
-struct Light
+struct Light : public Object
 {
     LightType lightType = LIGHT_TYPE_DIRECTIONAL;
     vec3 color = vec3(1.0f);

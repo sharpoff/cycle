@@ -15,13 +15,13 @@
 
 namespace vulkan
 {
-    VkRenderingAttachmentInfo createAttachmentInfo(VkImageView imageView, VkImageLayout layout, bool load, bool store, VkImageView resolveImageView = VK_NULL_HANDLE, VkImageLayout resolveLayout = VK_IMAGE_LAYOUT_UNDEFINED);
-    VkRenderingInfo createRenderingInfo(const VkExtent2D &renderArea, const Vector<VkRenderingAttachmentInfo> &colorAttachments, VkRenderingAttachmentInfo *depthAttachment = nullptr);
+    VkRenderingAttachmentInfo CreateAttachmentInfo(VkImageView imageView, VkImageLayout layout, bool load, bool store, VkImageView resolveImageView = VK_NULL_HANDLE, VkImageLayout resolveLayout = VK_IMAGE_LAYOUT_UNDEFINED);
+    VkRenderingInfo CreateRenderingInfo(const VkExtent2D &renderArea, const Vector<VkRenderingAttachmentInfo> &colorAttachments, VkRenderingAttachmentInfo *depthAttachment = nullptr);
 
-    const char *toString(VkPresentModeKHR presentMode);
-    const char *toString(VkFormat format);
+    const char *ToString(VkPresentModeKHR presentMode);
+    const char *ToString(VkFormat format);
 
-    void setDebugName(VkDevice device, uint64_t objectHandle, VkObjectType objectType, const char *name);
-    void beginDebugLabel(VkCommandBuffer cmd, const char *name);
-    void endDebugLabel(VkCommandBuffer cmd);
+    void SetDebugName(VkDevice device, uint64_t objectHandle, VkObjectType objectType, const char *name);
+    void BeginDebugLabel(VkCommandBuffer cmd, const char *name);
+    void EndDebugLabel(VkCommandBuffer cmd);
 } // namespace vulkan

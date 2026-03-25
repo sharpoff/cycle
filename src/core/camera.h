@@ -7,29 +7,26 @@ class Camera
 public:
     Camera();
 
-    void move(vec3 translation);
-    void rotate(vec3 rotation);
+    void SetPosition(vec3 position);
+    void SetRotation(vec3 rotation);
+    void SetPerspectiveInf(float fov, float aspectRatio, float near);
+    void SetPerspective(float fov, float aspectRatio, float near, float far);
+    void SetAspectRatio(float aspectRatio);
 
-    void setPosition(vec3 position);
-    void setRotation(vec3 rotation);
-    void setPerspectiveInf(float fov, float aspectRatio, float near);
-    void setPerspective(float fov, float aspectRatio, float near, float far);
-    void setAspectRatio(float aspectRatio);
+    mat4 GetProjection() { return projection; }
+    mat4 GetView() { return view; }
+    vec3 GetDirection() { return vec3(view[0][2], view[1][2], view[2][2]); }
 
-    mat4 getProjection() { return projection; }
-    mat4 getView() { return view; }
-    vec3 getDirection() { return vec3(view[0][2], view[1][2], view[2][2]); }
+    mat4 GetRotation();
+    vec3 GetPosition() { return position; }
 
-    mat4 getRotation();
-    vec3 getPosition() { return position; }
-
-    float getFov() { return fov; }
-    float getAspectRatio() { return aspectRatio; }
-    float getNearClip() { return nearClip; }
-    float getFarClip() { return farClip; }
+    float GetFov() { return fov; }
+    float GetAspectRatio() { return aspectRatio; }
+    float GetNearClip() { return nearClip; }
+    float GetFarClip() { return farClip; }
 
 private:
-    void updateView();
+    void UpdateView();
 
     mat4 projection = mat4(1.0f);
     mat4 view = mat4(1.0f);

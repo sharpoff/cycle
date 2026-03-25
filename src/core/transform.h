@@ -4,42 +4,60 @@
 
 class Transform
 {
-    void setPosition(const vec3 &newPosition)
+    void SetPosition(const vec3 &position)
     {
-        position = newPosition;
-        calculateMatrix();
+        position_ = position;
+        CalculateMatrix();
     }
 
-    void setRotation(const quat &newRotation)
+    void SetRotation(const quat &rotation)
     {
-        rotation = newRotation;
-        calculateMatrix();
+        rotation_ = rotation;
+        CalculateMatrix();
     }
 
-    void setScale(const vec3 &newScale)
+    void SetScale(const vec3 &scale)
     {
-        scale = newScale;
-        calculateMatrix();
+        scale_ = scale;
+        CalculateMatrix();
     }
 
-    vec3 getPosition() { return position; }
-    quat getRotation() { return rotation; }
-    vec3 getScale() { return scale; }
-
-    const mat4 &getMatrix()
+    void Translate(vec3 translation)
     {
-        return matrix;
+        position_ += translation;
+        CalculateMatrix();
+    }
+
+    void Rotate(quat rotation)
+    {
+        rotation_ *= rotation;
+        CalculateMatrix();
+    }
+
+    void Scale(float scale)
+    {
+        scale_ *= scale;
+        CalculateMatrix();
+    }
+
+    vec3 &GetPosition() { return position_; }
+    quat &GetRotation() { return rotation_; }
+    vec3 &GetScale() { return scale_; }
+
+    const mat4 &GetMatrix()
+    {
+        return matrix_;
     }
 
 private:
-    void calculateMatrix()
+    void CalculateMatrix()
     {
-        matrix = glm::translate(position) * glm::mat4(rotation) * glm::scale(scale);
+        matrix_ = glm::translate(position_) * glm::mat4(rotation_) * glm::scale(scale_);
     }
 
-    vec3 position = vec3(0.0f);
-    quat rotation = glm::identity<quat>();
-    vec3 scale = vec3(1.0f);
+    vec3 position_ = vec3(0.0f);
+    quat rotation_ = glm::identity<quat>();
+    vec3 scale_ = vec3(1.0f);
 
-    mat4 matrix = mat4(1.0f);
+    mat4 matrix_ = mat4(1.0f);
 };
