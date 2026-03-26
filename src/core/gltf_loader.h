@@ -18,6 +18,8 @@ namespace gltf
     private:
         static void ProcessNode(SceneNode &node, cgltf_data *data, cgltf_node *gltfNode, String baseDir);
 
+        static String GetUniqueName();
+
         // claculates scene bounds from meshes vertices
         static bool CalculateBounds(Scene &scene);
     };

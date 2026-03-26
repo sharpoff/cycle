@@ -1,1 +1,1 @@
-cmake -B build/ -D CMAKE_EXPORT_COMPILE_COMMANDS=1 && cmake --build build/ -j6
+cmake -B build/ -DCMAKE_BUILD_TYPE=Debug && cmake --build build/ -j6

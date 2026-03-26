@@ -7,18 +7,11 @@
 #include "graphics/vulkan_types.h"
 
 #include <math.h>
-#include <memory>
 
 #include "core/constants.h"
 
 #define VULKAN_API_VERSION VK_API_VERSION_1_3
 #define ENABLE_LOG_DEVICE_LIMITS false
-
-using BufferPtr = std::shared_ptr<Buffer>;
-using TexturePtr = std::shared_ptr<Texture>;
-using SamplerPtr = std::shared_ptr<Sampler>;
-using RenderPipelinePtr = std::shared_ptr<RenderPipeline>;
-using ComputePipelinePtr = std::shared_ptr<ComputePipeline>;
 
 class RenderDevice
 {
@@ -26,23 +19,23 @@ public:
     void Init(SDL_Window *window);
     void Shutdown();
 
-    BufferPtr CreateBuffer(const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage);
-    TexturePtr CreateTexture(const TextureCreateInfo &createInfo);
-    SamplerPtr CreateSampler(const SamplerCreateInfo &createInfo);
-    RenderPipelinePtr CreateRenderPipeline(const RenderPipelineCreateInfo &createInfo);
-    ComputePipelinePtr CreateComputePipeline(const ComputePipelineCreateInfo &createInfo);
+    Buffer *CreateBuffer(const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage);
+    Texture *CreateTexture(const TextureCreateInfo &createInfo);
+    Sampler *CreateSampler(const SamplerCreateInfo &createInfo);
+    RenderPipeline *CreateRenderPipeline(const RenderPipelineCreateInfo &createInfo);
+    ComputePipeline *CreateComputePipeline(const ComputePipelineCreateInfo &createInfo);
 
-    void DestroyBuffer(BufferPtr buffer);
-    void DestroyTexture(TexturePtr texture);
-    void DestroySampler(SamplerPtr sampler);
-    void DestroyRenderPipeline(RenderPipelinePtr pipeline);
-    void DestroyComputePipeline(ComputePipelinePtr pipeline);
+    void DestroyBuffer(Buffer *buffer);
+    void DestroyTexture(Texture *texture);
+    void DestroySampler(Sampler *sampler);
+    void DestroyRenderPipeline(RenderPipeline *pipeline);
+    void DestroyComputePipeline(ComputePipeline *pipeline);
 
-    void UploadBufferData(BufferPtr buffer, void *data, uint64_t size);
-    void UploadTexture(TexturePtr texture, TextureLoadInfo &loadInfo);
-    void UploadMeshGpuData(BufferPtr vertexBuffer, Vector<Vertex> &vertices, BufferPtr indexBuffer, Vector<uint32_t> &indices);
+    void UploadBufferData(Buffer *buffer, void *data, uint64_t size);
+    void UploadTexture(Texture *texture, TextureLoadInfo &loadInfo);
+    void UploadMeshGpuData(Buffer *&vertexBuffer, Vector<Vertex> &vertices, Buffer *&indexBuffer, Vector<uint32_t> &indices);
 
-    void GenerateMipmaps(TexturePtr texture);
+    void GenerateMipmaps(Texture *texture);
 
     VkCommandBuffer BeginCommandBuffer();
     void EndCommandBuffer(VkCommandBuffer cmd);
@@ -50,10 +43,10 @@ public:
 
     void ImmediateSubmit(Func<void(VkCommandBuffer cmd)> &&function);
 
-    void WriteDescriptor(uint32_t binding, BufferPtr buffer, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void WriteDescriptor(uint32_t binding, TexturePtr texture, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void WriteDescriptor(uint32_t binding, TexturePtr texture, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void WriteDescriptor(uint32_t binding, SamplerPtr sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, Buffer *buffer, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, Texture *texture, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, Texture *texture, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, Sampler *sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
     void UpdateDescriptors();
 
     void WaitIdle();

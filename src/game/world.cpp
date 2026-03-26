@@ -2,92 +2,65 @@
 
 #include <algorithm>
 
-void World::init()
+void World::Init()
 {
-    // CacheManager &cacheManager = gRenderer->getCacheManager();
-    // ModelCache &modelCache = cacheManager.getModelCache();
-    // MeshCache &meshCache = cacheManager.getMeshCache();
-
-    // {
-    //     float scale = 0.01f;
-
-    //     StaticObject *sponzaObject = physics->createStaticObject(convexHull, vec3(), glm::identity<quat>(), scale);
-    //     sponzaObject->setModelID(modelCache.getModelIDByName("sponza"));
-    //     addObject(sponzaObject, "sponza");
-    // }
-
-    // {
-    //     const ModelID modelID = modelCache.getModelIDByName("monkey");
-    //     ConvexHullShape convexHull = modelCache.getModelByID(modelID)->createConvexHullShape(meshCache);
-
-    //     StaticObject *monkeyObject = physics->createStaticObject(convexHull, vec3(0, 5, 0));
-    //     monkeyObject->setModelID(modelID);
-    //     monkeyObject->setDrawFlags(Object::kVisible | Object::kCastShadows);
-    //     addObject(monkeyObject, "monkey");
-    // }
-
-    // {
-    //     // vec2 screenSize = gRenderer->getScreenSize();
-    //     // float aspectRatio = float(screenSize.x) / screenSize.y;
-
-    //     // Player *player = new Player(gInput, aspectRatio);
-    //     // addObject(player);
-    // }
 }
 
-void World::shutdown()
+void World::Shutdown()
 {
-    for (Object *object : objects_) {
-        removeObject(object);
+    for (Entity *entity : entities_) {
+        RemoveEntity(entity);
+    }
+    delete gWorld;
+}
+
+void World::Update(float deltaTime)
+{
+    for (Entity *entity : entities_) {
+        entity->Update(deltaTime);
     }
 }
 
-void World::update(float deltaTime)
+void World::AddEntity(Entity *entity, String name)
 {
-    for (Object *object : objects_) {
-        object->Update(deltaTime);
-    }
-}
-
-void World::addObject(Object *object, String name)
-{
-    if (!object)
+    if (!entity || name.empty())
         return;
 
     auto it = nameObjectIDMap_.find(name);
     if (it != nameObjectIDMap_.end())
         return;
 
-    objects_.push_back(object);
-    nameObjectIDMap_[name] = objects_.size() - 1;
+    entities_.push_back(entity);
+    entity->SetName(name);
+    nameObjectIDMap_[name] = entities_.size() - 1;
 }
 
-bool World::removeObject(Object *object)
+bool World::RemoveEntity(Entity *entity)
 {
-    if (!object)
+    if (!entity)
         return false;
 
-    objects_.erase(std::remove_if(objects_.begin(), objects_.end(), [&object](const Object *otherObject) -> bool {
-        return &object == &otherObject;
-    }), objects_.end());
+    entities_.erase(std::remove_if(entities_.begin(), entities_.end(), [&entity](const Entity *otherObject) -> bool {
+        return &entity == &otherObject;
+    }), entities_.end());
 
-    delete object;
-    object = nullptr;
+    delete entity;
+    entity = nullptr;
 
     return true;
 }
 
-bool World::removeObjectByName(String name)
+bool World::RemoveEntityByName(String name)
 {
-    Object *obj = getObjectByName(name);
-    return removeObject(obj);
+    Entity *entity = GetEntityByName(name);
+    return RemoveEntity(entity);
 }
 
-Object *World::getObjectByName(String name)
+Entity *World::GetEntityByName(String name)
 {
     auto it = nameObjectIDMap_.find(name);
     if (it != nameObjectIDMap_.end())
-        return objects_[(uint32_t)it->second];
+        return entities_[(uint32_t)it->second];
 
     return nullptr;
 }

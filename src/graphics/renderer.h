@@ -6,12 +6,11 @@
 #include "core/constants.h"
 #include "graphics/cascade.h"
 #include "graphics/gpu_light.h"
+#include "graphics/material.h"
 #include "graphics/mesh.h"
 #include "graphics/model.h"
 #include "graphics/render_device.h"
 // #include "graphics/vulkan_types.h"
-
-using ModelPtr = std::shared_ptr<Model>;
 
 class Renderer
 {
@@ -20,6 +19,12 @@ class Renderer
 public:
     void Init(SDL_Window *window);
     void Shutdown();
+
+    // add texture to be used in descriptors (bindless access)
+    void AddTextureToDescriptor(Texture *texture);
+
+    // similar to texture variant, but you should add texture to descriptor *before* adding material, so that material's textures have ids
+    void AddMaterialToDescriptor(Material *material);
 
     // should be called *after* loading entities/materials/textures/models/etc.
     void LoadDynamicResources();
@@ -41,7 +46,8 @@ private:
     Renderer &operator=(const Renderer &) = delete;
     Renderer &operator=(Renderer &&) = delete;
 
-    void DrawModel(VkCommandBuffer cmd, ModelPtr model, mat4 worldMatrix);
+    void DrawImGuiDebug();
+    void DrawModel(VkCommandBuffer cmd, Model *model, mat4 worldMatrix);
     void DrawMesh(VkCommandBuffer cmd, Mesh &mesh, mat4 worldMatrix);
 
     void ResizeWindow();
@@ -53,7 +59,7 @@ private:
 
     void DestroyPipelines();
 
-    void UpdateDynamicData(Camera &camera);
+    void UpdateDynamicData();
     void UpdateShadowmapCascades(Camera &camera, vec3 lightDir);
     void UpdateGpuLights();
 
@@ -63,30 +69,34 @@ private:
     Camera *camera_ = nullptr;
     // CacheManager cacheManager;
 
-    TexturePtr colorImage;
-    TexturePtr depthImage;
+    Vector<Texture *> descriptorTextures;
+    Vector<Material *> descriptorMaterials;
 
-    Array<BufferPtr, FRAMES_IN_FLIGHT> sceneInfoBuffers;
-    BufferPtr materialsBuffer;
-    BufferPtr lightsBuffer;
-    BufferPtr cascadesBuffer;
+    Texture *colorImage;
+    Texture *depthImage;
+
+    Array<Buffer *, FRAMES_IN_FLIGHT> sceneInfoBuffers;
+    Buffer *materialsBuffer;
+    Buffer *lightsBuffer;
+    Buffer *cascadesBuffer;
 
     Vector<GPULight> gpuLights;
     // Vector<EntityID> lightEntities;
 
-    SamplerPtr linearSampler;
-    SamplerPtr nearestSampler;
+    Sampler * linearSampler;
+    Sampler * nearestSampler;
 
-    RenderPipelinePtr meshPipeline;
-    RenderPipelinePtr skyboxPipeline;
-    RenderPipelinePtr shadowmapPipeline;
+    RenderPipeline * meshPipeline;
+    RenderPipeline * skyboxPipeline;
+    RenderPipeline * shadowmapPipeline;
 
     BarrierMerger barriers;
 
+    // shadows
     Array<Cascade, SHADOWMAP_CASCADES> cascades;
-    Array<TexturePtr, SHADOWMAP_CASCADES> shadowmapImages;
+    Array<Texture *, SHADOWMAP_CASCADES> shadowmapImages;
 
     float cascadeSplitLambda = 0.95f;
 };
 
-static Renderer *gRenderer = nullptr;
+inline Renderer *gRenderer = nullptr;

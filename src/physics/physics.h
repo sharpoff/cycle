@@ -8,7 +8,7 @@
 #include "Jolt/Physics/PhysicsSystem.h"
 #include "core/containers.h"
 
-#include "core/object.h"
+#include "game/entity.h"
 #include "physics/physics_layers.h"
 #include "physics/physics_listeners.h"
 #include "physics/physics_shape.h"
@@ -73,7 +73,7 @@ private:
     bool activeBodyExist = false;
 
     Vector<JPH::BodyID> dynamicBodies;
-    UnorderedMap<JPH::BodyID, Object*> bodyObjectMap;
+    UnorderedMap<JPH::BodyID, Entity*> bodyObjectMap;
 };
 
-static Physics *gPhysics = nullptr;
+inline Physics *gPhysics = nullptr;

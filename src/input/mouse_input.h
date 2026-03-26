@@ -14,6 +14,8 @@ public:
     bool IsPressed(SDL_MouseButtonFlags scancode);
     bool IsReleased(SDL_MouseButtonFlags scancode);
 
+    bool IsMoving() { return isMoving; }
+
     vec2 &GetRelativePosition() { return position; }
 
 private:
@@ -25,4 +27,6 @@ private:
 
     UnorderedMap<SDL_MouseButtonFlags, MouseState> buttons{};
     vec2 position = vec2(0.0f);
+
+    bool isMoving = false;
 };

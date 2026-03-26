@@ -2,7 +2,7 @@
 
 namespace vulkan
 {
-    VkRenderingAttachmentInfo createAttachmentInfo(VkImageView imageView, VkImageLayout layout, bool load, bool store, VkImageView resolveImageView, VkImageLayout resolveLayout)
+    VkRenderingAttachmentInfo CreateAttachmentInfo(VkImageView imageView, VkImageLayout layout, bool load, bool store, VkImageView resolveImageView, VkImageLayout resolveLayout)
     {
         VkRenderingAttachmentInfo attachmentInfo = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
         attachmentInfo.clearValue.color = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -19,7 +19,7 @@ namespace vulkan
         return attachmentInfo;
     }
 
-    VkRenderingInfo createRenderingInfo(const VkExtent2D &renderArea, const Vector<VkRenderingAttachmentInfo> &colorAttachments, VkRenderingAttachmentInfo *depthAttachment)
+    VkRenderingInfo CreateRenderingInfo(const VkExtent2D &renderArea, const Vector<VkRenderingAttachmentInfo> &colorAttachments, VkRenderingAttachmentInfo *depthAttachment)
     {
         VkRenderingInfo renderingInfo = {VK_STRUCTURE_TYPE_RENDERING_INFO};
         renderingInfo.renderArea.extent = renderArea;
@@ -30,7 +30,7 @@ namespace vulkan
         return renderingInfo;
     }
 
-    const char *toString(VkPresentModeKHR presentMode)
+    const char *ToString(VkPresentModeKHR presentMode)
     {
         switch (presentMode) {
             case VK_PRESENT_MODE_IMMEDIATE_KHR:
@@ -54,7 +54,7 @@ namespace vulkan
         return "UNDEFINED";
     }
 
-    void setDebugName(VkDevice device, uint64_t objectHandle, VkObjectType objectType, const char *name)
+    void SetDebugName(VkDevice device, uint64_t objectHandle, VkObjectType objectType, const char *name)
     {
 #ifndef NDEBUG
         if (objectHandle == 0 || !name) return;
@@ -68,7 +68,7 @@ namespace vulkan
 #endif
     }
 
-    void beginDebugLabel(VkCommandBuffer cmd, const char *name)
+    void BeginDebugLabel(VkCommandBuffer cmd, const char *name)
     {
 #ifndef NDEBUG
         VkDebugUtilsLabelEXT label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
@@ -82,7 +82,7 @@ namespace vulkan
 #endif
     }
 
-    void endDebugLabel(VkCommandBuffer cmd)
+    void EndDebugLabel(VkCommandBuffer cmd)
     {
 #ifndef NDEBUG
         vkCmdEndDebugUtilsLabelEXT(cmd);

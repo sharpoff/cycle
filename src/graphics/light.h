@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/object.h"
+#include "game/entity.h"
 #include "math/math_types.h"
 
 enum LightType : uint8_t

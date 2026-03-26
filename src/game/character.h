@@ -1,15 +1,15 @@
 #pragma once
 
-#include "core/object.h"
+#include "game/entity.h"
 
 #include <Jolt/Jolt.h>
 
 #include "Jolt/Physics/Body/BodyID.h"
 
-class Character : public Object
+class Character : public Entity
 {
 public:
-    virtual ~Character();
+    virtual ~Character() = default;
 
 private:
     JPH::BodyID bodyID;

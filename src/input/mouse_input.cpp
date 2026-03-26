@@ -1,30 +1,36 @@
 #include "mouse_input.h"
 
-void MouseInput::update()
+void MouseInput::Update()
 {
     SDL_GetRelativeMouseState(&position.x, &position.y);
 }
 
-void MouseInput::processEvent(SDL_Event *event)
+void MouseInput::ProcessEvent(SDL_Event *event)
 {
-    if (event->type != SDL_EVENT_MOUSE_BUTTON_DOWN && event->type != SDL_EVENT_MOUSE_BUTTON_UP)
-        return;
-
-    buttons[event->button.button].previous = buttons[event->button.button].current;
-    buttons[event->button.button].current = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+    isMoving = false;
+    switch (event->type) {
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            buttons[event->button.button].previous = buttons[event->button.button].current;
+            buttons[event->button.button].current = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+            break;
+        case SDL_EVENT_MOUSE_MOTION:
+            isMoving = true;
+            break;
+    }
 }
 
-bool MouseInput::wasJustPressed(SDL_MouseButtonFlags scancode)
+bool MouseInput::WasJustPressed(SDL_MouseButtonFlags scancode)
 {
     return buttons[scancode].current && !buttons[scancode].previous;
 }
 
-bool MouseInput::isPressed(SDL_MouseButtonFlags scancode)
+bool MouseInput::IsPressed(SDL_MouseButtonFlags scancode)
 {
     return buttons[scancode].current;
 }
 
-bool MouseInput::isReleased(SDL_MouseButtonFlags scancode)
+bool MouseInput::IsReleased(SDL_MouseButtonFlags scancode)
 {
     return !buttons[scancode].current;
 }

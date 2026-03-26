@@ -43,21 +43,36 @@ Application::Application(const char *title, uint32_t width, uint32_t height)
     gAudio = new Audio();
     gAudio->Init();
 
+    // create default material
+    Material *defaultMaterial = gAssetManager->CreateMaterial("default");
+    defaultMaterial->baseColorTex = gAssetManager->CreateTexture(texturesDir / "compressed/checkerboard.ktx", "default");
+    gRenderer->AddTextureToDescriptor(defaultMaterial->baseColorTex);
+    gRenderer->AddMaterialToDescriptor(defaultMaterial);
+
     // load common textures
-    gAssetManager->CreateTexture(texturesDir / "sky_cubemap/sky_cubemap.ktx", "skybox");
+    gRenderer->AddTextureToDescriptor(gAssetManager->CreateTexture(texturesDir / "sky_cubemap/sky_cubemap.ktx", "skybox"));
 
     // load models
     gAssetManager->CreateModel(modelsDir / "monkey.gltf", "monkey");
     gAssetManager->CreateModel(modelsDir / "cube.gltf", "cube");
     gAssetManager->CreateModel(modelsDir / "sponza/Sponza.gltf", "sponza");
-    gAssetManager->CreateModel(modelsDir / "de_dust2/de_dust2.gltf", "de_dust2");
-    gAssetManager->CreateModel(modelsDir / "ak47/v_ak47.gltf", "ak47");
+    // gAssetManager->CreateModel(modelsDir / "de_dust2/de_dust2.gltf", "de_dust2");
+    // gAssetManager->CreateModel(modelsDir / "ak47/v_ak47.gltf", "ak47");
+
+    // TODO: add textures/materials to descriptors using AddTextureToDescriptor, etc.
 
     gRenderer->LoadDynamicResources();
 
-    // create and add objects to the world
+    debugCamera.SetPerspective(glm::radians(60.0f), gRenderer->GetAspectRatio(), 0.1f, 100.0f);
+    debugCamera.SetPosition(vec3(0, 2, 2));
+    gRenderer->SetCamera(debugCamera);
+
     gWorld = new World();
     gWorld->Init();
+
+    Entity *entity = new Entity();
+    entity->SetModel(gAssetManager->GetModel("monkey"));
+    gWorld->AddEntity(entity, "entity");
 }
 
 Application::~Application()
@@ -65,15 +80,27 @@ Application::~Application()
     gWorld->Shutdown();
     gAudio->Shutdown();
     gPhysics->Shutdown();
+
+    // destroy textures
+    auto &textures = gAssetManager->GetTextures();
+    for (auto &texture : textures) {
+        gRenderer->GetDevice().DestroyTexture(texture);
+    }
+
+    // destroy mesh buffers
+    auto &models = gAssetManager->GetModels();
+    for (auto &model : models) {
+        for (auto &mesh : model->meshes) {
+            for (auto &prim : mesh.primitives) {
+                gRenderer->GetDevice().DestroyBuffer(prim.vertexBuffer);
+                gRenderer->GetDevice().DestroyBuffer(prim.indexBuffer);
+            }
+        }
+    }
+
     gAssetManager->Shutdown();
     gRenderer->Shutdown();
     gInput->Shutdown();
-
-    delete gWorld;
-    delete gPhysics;
-    delete gAudio;
-    delete gRenderer;
-    delete gInput;
 }
 
 void Application::Run()
@@ -97,21 +124,6 @@ void Application::Run()
     }
 }
 
-float Application::GetTime()
-{
-    return time_;
-}
-
-vec2 Application::GetSize()
-{
-    return gRenderer->GetScreenSize();
-}
-
-float Application::GetAspectRatio()
-{
-    return gRenderer->GetAspectRatio();
-}
-
 void Application::ProcessEvents(float deltaTime)
 {
     SDL_Event event;
@@ -128,6 +140,41 @@ void Application::ProcessEvents(float deltaTime)
     if (SDL_GetWindowFlags(window_) & SDL_WINDOW_MINIMIZED) {
         minimized_ = true;
     }
+
+#ifndef NDEBUG
+    if (gInput->GetKeyboardInput().IsPressed(SDLK_ESCAPE))
+        running_ = false;
+
+    float camMovementSpeed = 2.0f * deltaTime;
+    float camRotationSpeed = 0.3f;
+
+    MouseInput &mouseInput = gInput->GetMouseInput();
+    KeyboardInput &keyboardInput = gInput->GetKeyboardInput();
+
+    if (mouseInput.IsPressed(SDL_BUTTON_LEFT)) {
+        vec2 relPos = mouseInput.GetRelativePosition();
+        debugCamera.SetRotation(debugCamera.GetRotation() + vec3(-glm::radians(relPos.y) * camRotationSpeed, glm::radians(relPos.x) * camRotationSpeed, 0.0f));
+    }
+
+    vec3 camTranslation = vec3();
+    if (keyboardInput.IsPressed(SDLK_LSHIFT)) {
+        camMovementSpeed *= 5.0f;
+    }
+    if (keyboardInput.IsPressed(SDLK_W)) {
+        camTranslation.z -= camMovementSpeed;
+    }
+    if (keyboardInput.IsPressed(SDLK_S)) {
+        camTranslation.z += camMovementSpeed;
+    }
+    if (keyboardInput.IsPressed(SDLK_A)) {
+        camTranslation.x -= camMovementSpeed;
+    }
+    if (keyboardInput.IsPressed(SDLK_D)) {
+        camTranslation.x += camMovementSpeed;
+    }
+
+    debugCamera.SetPosition(debugCamera.GetPosition() + (mat3(debugCamera.GetRotationMatrix()) * camTranslation));
+#endif
 }
 
 void Application::Update(float deltaTime)

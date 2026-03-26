@@ -3,6 +3,6 @@
 class IDamagable
 {
 public:
-    virtual ~IDamagable() = 0;
+    virtual ~IDamagable() = default;
     virtual void Damage(int amount) = 0;
 };

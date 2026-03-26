@@ -2,23 +2,24 @@
 
 #include <assert.h>
 
-void InputManager::init()
+void InputManager::Init()
 {
 }
 
-void InputManager::shutdown()
+void InputManager::Shutdown()
 {
+    delete gInput;
 }
 
-void InputManager::update()
+void InputManager::Update()
 {
-    mouseInput_.update();
+    mouseInput_.Update();
 }
 
-void InputManager::processEvent(SDL_Event *event)
+void InputManager::ProcessEvent(SDL_Event *event)
 {
     assert(event);
-    keyboardInput_.processEvent(event);
-    mouseInput_.processEvent(event);
-    gamepadInput_.processEvent(event);
+    keyboardInput_.ProcessEvent(event);
+    mouseInput_.ProcessEvent(event);
+    gamepadInput_.ProcessEvent(event);
 }

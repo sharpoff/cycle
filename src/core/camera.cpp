@@ -3,53 +3,53 @@
 
 Camera::Camera()
 {
-    updateView();
+    UpdateView();
 }
 
-void Camera::setPosition(vec3 position)
+void Camera::SetPosition(vec3 position)
 {
-    this->position = position;
-    updateView();
+    position_ = position;
+    UpdateView();
 }
 
-void Camera::setRotation(vec3 rotation)
+void Camera::SetRotation(vec3 rotation)
 {
-    this->rotation = rotation;
-    updateView();
+    rotation_ = rotation;
+    UpdateView();
 }
 
-void Camera::setPerspectiveInf(float fov, float aspectRatio, float near)
+void Camera::SetPerspectiveInf(float fov, float aspectRatio, float near)
 {
-    this->fov = fov;
-    this->aspectRatio = aspectRatio;
-    this->nearClip = near;
-    this->projection = math::perspectiveInf(fov, aspectRatio, near);
+    fov_ = fov;
+    aspectRatio_ = aspectRatio;
+    nearClip_ = near;
+    projection_ = math::PerspectiveInf(fov, aspectRatio, near);
 }
 
-void Camera::setPerspective(float fov, float aspectRatio, float near, float far)
+void Camera::SetPerspective(float fov, float aspectRatio, float near, float far)
 {
-    this->fov = fov;
-    this->aspectRatio = aspectRatio;
-    this->nearClip = near;
-    this->farClip = far;
-    this->projection = math::perspective(fov, aspectRatio, near, far);
+    fov_ = fov;
+    aspectRatio_ = aspectRatio;
+    nearClip_ = near;
+    farClip_ = far;
+    projection_ = math::Perspective(fov, aspectRatio, near, far);
 }
 
-void Camera::setAspectRatio(float aspectRatio)
+void Camera::SetAspectRatio(float aspectRatio)
 {
-    setPerspective(fov, aspectRatio, nearClip, farClip);
+    SetPerspective(fov_, aspectRatio, nearClip_, farClip_);
 }
 
-void Camera::updateView()
+void Camera::UpdateView()
 {
-    view = glm::inverse(glm::translate(position) * getRotation());
+    view_ = glm::inverse(glm::translate(position_) * GetRotationMatrix());
 }
 
-mat4 Camera::getRotation()
+mat4 Camera::GetRotationMatrix()
 {
-    quat pitch = glm::angleAxis(rotation.x, vec3(1.0f, 0.0f, 0.0f));
-    quat yaw = glm::angleAxis(rotation.y, vec3(0.0f, -1.0f, 0.0f));
-    quat roll = glm::angleAxis(rotation.z, vec3(0.0f, 0.0f, 1.0f));
+    quat pitch = glm::angleAxis(rotation_.x, vec3(1.0f, 0.0f, 0.0f));
+    quat yaw = glm::angleAxis(rotation_.y, vec3(0.0f, -1.0f, 0.0f));
+    quat roll = glm::angleAxis(rotation_.z, vec3(0.0f, 0.0f, 1.0f));
 
     return glm::toMat4(yaw) * glm::toMat4(roll) * glm::toMat4(pitch);
 }

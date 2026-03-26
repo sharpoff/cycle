@@ -4,9 +4,7 @@
 #include "graphics/model.h"
 #include "math/math_types.h"
 
-using ModelPtr = std::shared_ptr<Model>;
-
-class Object
+class Entity
 {
 public:
     enum DrawFlags : uint8_t
@@ -16,9 +14,9 @@ public:
     };
 
 public:
-    virtual ~Object() = 0;
+    virtual ~Entity() = default;
 
-    virtual void Update(float deltaTime);
+    virtual void Update(float deltaTime) {};
 
     void Translate(vec3 translation) { position_ += translation; }
     void Rotate(quat rotation) { rotation_ *= rotation; }
@@ -28,8 +26,8 @@ public:
     quat &GetRotation() { return rotation_; }
     float &GetScale() { return scale_; }
 
-    String GetName() { return name_; }
-    ModelPtr GetModel() { return model_; }
+    const String &GetName() { return name_; }
+    Model * GetModel() { return model_; }
     uint8_t &GetDrawFlags() { return drawFlags_; }
     mat4 GetWorldMatrix() { return glm::translate(position_) * mat4(rotation_) * glm::scale(vec3(scale_)); }
 
@@ -38,7 +36,7 @@ public:
     void SetScale(float scale) { scale_ = scale; }
 
     void SetName(String name) { name_ = name; }
-    void SetModel(ModelPtr model) { model_ = model; }
+    void SetModel(Model * model) { model_ = model; }
     void SetDrawFlags(uint8_t newFlags) { drawFlags_ = newFlags; };
 
 protected:
@@ -49,5 +47,5 @@ protected:
     String name_ = "";
 
     uint8_t drawFlags_ = kVisible;
-    ModelPtr model_ = nullptr;
+    Model * model_ = nullptr;
 };

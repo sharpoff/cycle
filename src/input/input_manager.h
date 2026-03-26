@@ -31,4 +31,4 @@ private:
     GamepadInput gamepadInput_;
 };
 
-static InputManager *gInput = nullptr;
+inline InputManager *gInput = nullptr;

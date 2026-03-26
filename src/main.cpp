@@ -3,10 +3,10 @@
 
 int main()
 {
-    setCurrentPath(getExecutablePath().parent_path());
+    SetCurrentPath(GetExecutablePath().parent_path());
 
     Application *app = new Application("Application", 1280, 720);
-    app->run();
+    app->Run();
 
     delete app;
     return 0;

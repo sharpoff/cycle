@@ -5,9 +5,9 @@
 
 #include "Jolt/Physics/Body/BodyID.h"
 
-#include "core/object.h"
+#include "game/entity.h"
 
-class StaticObject : public Object
+class StaticObject : public Entity
 {
 public:
     StaticObject(const JPH::BodyID &bodyID)

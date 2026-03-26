@@ -1,19 +1,16 @@
 #pragma once
 
 #include "graphics/material.h"
-#include "graphics/vulkan_types.h"
 #include "graphics/vertex.h"
-
-using BufferPtr = std::shared_ptr<Buffer>;
-using MaterialPtr = std::shared_ptr<Material>;
+#include "graphics/vulkan_types.h"
 
 struct MeshPrimitive
 {
     Vector<Vertex> vertices;
     Vector<uint32_t> indices;
-    BufferPtr vertexBuffer = nullptr;
-    BufferPtr indexBuffer = nullptr;
-    MaterialPtr material = nullptr;
+    Buffer *vertexBuffer = nullptr;
+    Buffer *indexBuffer = nullptr;
+    Material *material = nullptr;
     mat4 worldMatrix = mat4(1.0f);
     uint32_t gltfMaterialIndex;
 };

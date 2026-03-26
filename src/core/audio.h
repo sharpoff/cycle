@@ -32,4 +32,4 @@ private:
     SoLoud::Soloud soloud;
 };
 
-static Audio *gAudio = nullptr;
+inline Audio *gAudio = nullptr;

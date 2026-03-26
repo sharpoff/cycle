@@ -55,6 +55,7 @@ struct TextureCreateInfo
 
 struct Texture
 {
+public:
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t arrayLayers = 1;
@@ -68,6 +69,12 @@ struct Texture
     VkImage image = VK_NULL_HANDLE;
     VkImageView view = VK_NULL_HANDLE;
     Allocation allocation = {};
+
+    void SetID(uint32_t id) { this->id = id; }
+    uint32_t GetID() { return id; }
+
+private:
+    uint32_t id = UINT32_MAX;
 };
 
 //========================

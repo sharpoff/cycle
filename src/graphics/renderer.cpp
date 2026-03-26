@@ -58,37 +58,28 @@ void Renderer::Init(SDL_Window *window)
     }
 
     // create common samplers
-    {
-        { // linear
-            SamplerCreateInfo samplerCreateInfo = {};
-            samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-            samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-            samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.maxLod = 4;
+    { // linear
+        SamplerCreateInfo samplerCreateInfo = {};
+        samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+        samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+        samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerCreateInfo.maxLod = 4;
 
-            linearSampler = device.CreateSampler(samplerCreateInfo);
-        }
-
-        { // nearest
-            SamplerCreateInfo samplerCreateInfo = {};
-            samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-            samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
-            samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerCreateInfo.maxLod = 4;
-
-            nearestSampler = device.CreateSampler(samplerCreateInfo);
-        }
+        linearSampler = device.CreateSampler(samplerCreateInfo);
     }
 
-    // create default resources
-    {
-        // add default material
-        auto material = gAssetManager->CreateMaterial("default");
-        material->baseColorTex = gAssetManager->CreateTexture(texturesDir / "compressed/checkerboard.ktx", "default");
+    { // nearest
+        SamplerCreateInfo samplerCreateInfo = {};
+        samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+        samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+        samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerCreateInfo.maxLod = 4;
+
+        nearestSampler = device.CreateSampler(samplerCreateInfo);
     }
 
     CreatePipelines();
@@ -113,21 +104,6 @@ void Renderer::Shutdown()
         device.DestroyTexture(shadowmap);
     }
 
-    auto &textures = gAssetManager->GetTextures();
-    for (auto &texture : textures) {
-        device.DestroyTexture(texture);
-    }
-
-    auto &models = gAssetManager->GetModels();
-    for (auto &model : models) {
-        for (auto &mesh : model->meshes) {
-            for (auto &prim : mesh.primitives) {
-                device.DestroyBuffer(prim.vertexBuffer);
-                device.DestroyBuffer(prim.indexBuffer);
-            }
-        }
-    }
-
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
         device.DestroyBuffer(sceneInfoBuffers[i]);
     }
@@ -141,24 +117,56 @@ void Renderer::Shutdown()
     DestroyPipelines();
 
     device.Shutdown();
+    delete gRenderer;
+}
+
+void Renderer::AddTextureToDescriptor(Texture *texture)
+{
+    if (texture) {
+        texture->SetID(descriptorTextures.size());
+        descriptorTextures.push_back(texture);
+    }
+}
+
+void Renderer::AddMaterialToDescriptor(Material *material)
+{
+    if (material) {
+        material->SetID(descriptorMaterials.size());
+        descriptorMaterials.push_back(material);
+    }
 }
 
 void Renderer::LoadDynamicResources()
 {
     // create materials buffer
-    auto &materials = gAssetManager->GetMaterials();
-    if (materials.size() > 0) {
-        if (materialsBuffer->size > 0) { // delete existing materials buffer
-            device.DestroyBuffer(materialsBuffer);
+    if (!descriptorMaterials.empty()) {
+        // if (materialsBuffer->size > 0) { // delete existing materials buffer
+        //     device.DestroyBuffer(materialsBuffer);
+        // }
+
+        Func<uint32_t(Texture*)> getIdOrNull = [](Texture *tex) {
+            if (tex)
+                return tex->GetID();
+            return UINT32_MAX;
+        };
+
+        Vector<GPUMaterial> gpuMaterials(descriptorMaterials.size());
+        for (uint32_t i = 0; i < descriptorMaterials.size(); i++) {
+            gpuMaterials[i].baseColorTexID = getIdOrNull(descriptorMaterials[i]->baseColorTex);
+            gpuMaterials[i].metallicRoughnessTexID = getIdOrNull(descriptorMaterials[i]->metallicRoughnessTex);
+            gpuMaterials[i].normalTexID = getIdOrNull(descriptorMaterials[i]->normalTex);
+            gpuMaterials[i].emissiveTexID = getIdOrNull(descriptorMaterials[i]->emissiveTex);
+            gpuMaterials[i].roughnessFactor = descriptorMaterials[i]->roughnessFactor;
+            gpuMaterials[i].metallicFactor = descriptorMaterials[i]->metallicFactor;
         }
 
         const BufferCreateInfo createInfo = {
-            .size = sizeof(Material) * materials.size(),
+            .size = sizeof(GPUMaterial) * gpuMaterials.size(),
             .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
         materialsBuffer = device.CreateBuffer(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
-        device.UploadBufferData(materialsBuffer, materials.data(), createInfo.size);
+        device.UploadBufferData(materialsBuffer, gpuMaterials.data(), createInfo.size);
     }
 
     // create lights buffer
@@ -180,11 +188,10 @@ void Renderer::LoadDynamicResources()
     // }
 
     // write dynamic descriptors
-    auto &textures = gAssetManager->GetTextures();
-    for (size_t i = 0; i < textures.size(); i++)
-        device.WriteDescriptor(1, textures[i], VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
+    for (size_t i = 0; i < descriptorTextures.size(); i++)
+        device.WriteDescriptor(1, descriptorTextures[i], VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorTextures[i]->GetID());
 
-    if (materials.size() > 0)
+    if (!descriptorMaterials.empty())
         device.WriteDescriptor(3, materialsBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 
     // if (lightEntities.size() > 0)
@@ -216,7 +223,7 @@ void Renderer::DrawFrame()
         return;
     }
 
-    UpdateDynamicData(*camera_);
+    UpdateDynamicData();
 
     // pre-render barriers
     barriers.TransitionImage2(colorImage->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
@@ -270,10 +277,10 @@ void Renderer::DrawFrame()
     //===========================
     // Render shadowmap
     //===========================
-#if 1
+#if 0
     vulkan::BeginDebugLabel(cmd, "shadowmapping");
     for (uint32_t i = 0; i < shadowmapImages.size(); i++) {
-        TexturePtr shadowmap = shadowmapImages[i];
+        Texture * shadowmap = shadowmapImages[i];
 
         VkRenderingAttachmentInfo shadowmapDepthAttachment = vulkan::CreateAttachmentInfo(shadowmap->view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, false, true);
 
@@ -298,8 +305,8 @@ void Renderer::DrawFrame()
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowmapPipeline->layout, 0, 1, &device.GetBindlessDescriptor(), 0, 0);
 
         // render all entities that cast shadows
-        for (Object *object : gWorld->GetObjects()) {
-            if (!object || (object->GetDrawFlags() & Object::kCastShadows) != Object::kCastShadows)
+        for (Entity *object : gWorld->GetObjects()) {
+            if (!object || (object->GetDrawFlags() & Entity::kCastShadows) != Entity::kCastShadows)
                 continue;
 
             DrawModel(cmd, object->GetModel(), object->GetWorldMatrix());
@@ -311,11 +318,11 @@ void Renderer::DrawFrame()
 #endif
 
     //===========================
-    // Render meshes
+    // Render models
     //===========================
 #if 1
     {
-        vulkan::BeginDebugLabel(cmd, "mesh");
+        vulkan::BeginDebugLabel(cmd, "models");
         Vector<VkRenderingAttachmentInfo> colorAttachments = {
             vulkan::CreateAttachmentInfo(colorImage->view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, true),
         };
@@ -339,12 +346,12 @@ void Renderer::DrawFrame()
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline->layout, 0, 1, &device.GetBindlessDescriptor(), 0, 0);
 
         // render all entities that are visible
-        for (Object *object : gWorld->GetObjects()) {
-            if (!object || (object->GetDrawFlags() & Object::kVisible) != Object::kVisible)
+        for (Entity *entity : gWorld->GetEntities()) {
+            if (!entity || (entity->GetDrawFlags() & Entity::kVisible) != Entity::kVisible)
                 continue;
 
-            ModelPtr model = object->GetModel();
-            DrawModel(cmd, model, object->GetWorldMatrix());
+            Model *model = entity->GetModel();
+            DrawModel(cmd, model, entity->GetWorldMatrix());
         }
 
         vkCmdEndRendering(cmd);
@@ -382,6 +389,8 @@ void Renderer::DrawFrame()
         ImGui::NewFrame();
 
         ImGui::ShowDemoWindow();
+        DrawImGuiDebug();
+
         ImGui::Render();
 
         ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
@@ -403,6 +412,15 @@ void Renderer::DrawFrame()
     }
 }
 
+void Renderer::DrawImGuiDebug()
+{
+    ImGui::Begin("Entities");
+    for (auto &entity : gWorld->GetEntities()) {
+        ImGui::Selectable(entity->GetName().c_str());
+    }
+    ImGui::End();
+}
+
 vec2 Renderer::GetScreenSize()
 {
     return vec2(device.GetSwapchainWidth(), device.GetSwapchainHeight());
@@ -414,7 +432,7 @@ float Renderer::GetAspectRatio()
     return float(screenSize.x) / screenSize.y;
 }
 
-void Renderer::DrawModel(VkCommandBuffer cmd, ModelPtr model, mat4 worldMatrix)
+void Renderer::DrawModel(VkCommandBuffer cmd, Model *model, mat4 worldMatrix)
 {
     if (!model)
         return;
@@ -431,7 +449,7 @@ void Renderer::DrawMesh(VkCommandBuffer cmd, Mesh &mesh, mat4 worldMatrix)
         MeshPushConstants push = {};
         push.worldMatrix = worldMatrix * prim.worldMatrix;
         push.vertexBufferAddress = prim.vertexBuffer->address;
-        push.materialId = (unsigned int)prim.materialID;
+        push.materialId = prim.material ? prim.material->GetID() : UINT32_MAX;
         vkCmdPushConstants(cmd, meshPipeline->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 
         vkCmdBindIndexBuffer(cmd, prim.indexBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -569,7 +587,7 @@ void Renderer::DestroyPipelines()
     device.DestroyRenderPipeline(shadowmapPipeline);
 }
 
-void Renderer::UpdateDynamicData(Camera &camera)
+void Renderer::UpdateDynamicData()
 {
     // lights
     UpdateGpuLights();
@@ -577,18 +595,18 @@ void Renderer::UpdateDynamicData(Camera &camera)
         device.UploadBufferData(lightsBuffer, gpuLights.data(), sizeof(GPULight) * gpuLights.size());
 
         // HACK: uses first light
-        UpdateShadowmapCascades(camera, gpuLights[0].direction);
+        UpdateShadowmapCascades(*camera_, gpuLights[0].direction);
         device.UploadBufferData(cascadesBuffer, cascades.data(), cascades.size() * sizeof(Cascade));
     }
 
-    SceneInfo sceneInfo = {};
-    sceneInfo.view = camera.GetView();
-    sceneInfo.projection = camera.GetProjection();
-    sceneInfo.cameraPos = camera.GetPosition();
-    sceneInfo.lightsCount = gpuLights.size();
-    sceneInfo.skyboxTexID = gAssetManager->GetTexture("skybox");
-
     // scene info
+    SceneInfo sceneInfo = {};
+    sceneInfo.view = camera_->GetView();
+    sceneInfo.projection = camera_->GetProjection();
+    sceneInfo.cameraPos = camera_->GetPosition();
+    sceneInfo.lightsCount = gpuLights.size();
+    sceneInfo.skyboxTexID = gAssetManager->GetTexture("skybox")->GetID();
+
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         device.UploadBufferData(sceneInfoBuffers[i], &sceneInfo, sizeof(sceneInfo));
 }

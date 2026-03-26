@@ -11,10 +11,6 @@ public:
 
     void Run();
 
-    float GetTime();
-    vec2  GetSize();
-    float GetAspectRatio();
-
     bool IsMinimized() { return minimized_; }
     bool IsRunning() { return running_; }
 
@@ -27,5 +23,6 @@ private:
     bool minimized_ = false;
     bool running_ = false;
 
+    Camera debugCamera;
     SDL_Window *window_;
 };

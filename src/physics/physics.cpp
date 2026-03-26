@@ -11,7 +11,7 @@
 #include "Jolt/RegisterTypes.h"
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 
-void Physics::init()
+void Physics::Init()
 {
     // Register allocation hook.
     JPH::RegisterDefaultAllocator();
@@ -34,26 +34,28 @@ void Physics::init()
     physicsSystem.SetContactListener(&contactListener);
 }
 
-void Physics::shutdown()
+void Physics::Shutdown()
 {
     JPH::UnregisterTypes();
 
     delete tempAllocator;
     delete jobSystem;
+
+    delete gPhysics;
 }
 
-StaticObject *Physics::createStaticObject(const PhysicsShape &physicsShape, const vec3 &position, const quat &rotation, float scale)
+StaticObject *Physics::CreateStaticObject(const PhysicsShape &physicsShape, const vec3 &position, const quat &rotation, float scale)
 {
-    auto *obj = new StaticObject(createStaticBody(physicsShape, position, rotation));
-    obj->setPosition(position);
-    obj->setRotation(rotation);
-    obj->setScale(scale);
+    auto *obj = new StaticObject(CreateStaticBody(physicsShape, position, rotation));
+    obj->SetPosition(position);
+    obj->SetRotation(rotation);
+    obj->SetScale(scale);
     return obj;
 }
 
-JPH::BodyID Physics::createStaticBody(const PhysicsShape &physicsShape, const vec3 &position, const quat &rotation)
+JPH::BodyID Physics::CreateStaticBody(const PhysicsShape &physicsShape, const vec3 &position, const quat &rotation)
 {
-    JPH::Shape::ShapeResult result = createShape(physicsShape);
+    JPH::Shape::ShapeResult result = CreateShape(physicsShape);
 
     JPH::Ref<JPH::Shape> shape;
     if (result.IsValid()) {
@@ -65,8 +67,8 @@ JPH::BodyID Physics::createStaticBody(const PhysicsShape &physicsShape, const ve
 
     JPH::BodyCreationSettings createSettings = JPH::BodyCreationSettings(
         shape.GetPtr(),
-        JPH::RVec3(math::toJolt(position)),
-        math::toJolt(rotation),
+        JPH::RVec3(math::ToJolt(position)),
+        math::ToJolt(rotation),
         JPH::EMotionType::Static,
         PhysicsLayers::NON_MOVING);
 
@@ -76,9 +78,9 @@ JPH::BodyID Physics::createStaticBody(const PhysicsShape &physicsShape, const ve
     return JPH::BodyID(JPH::BodyID::cInvalidBodyID);
 }
 
-JPH::BodyID Physics::createDynamicBody(const PhysicsShape &physicsShape, const vec3 &position, const quat &rotation)
+JPH::BodyID Physics::CreateDynamicBody(const PhysicsShape &physicsShape, const vec3 &position, const quat &rotation)
 {
-    JPH::Shape::ShapeResult result = createShape(physicsShape);
+    JPH::Shape::ShapeResult result = CreateShape(physicsShape);
 
     JPH::Ref<JPH::Shape> shape;
     if (result.IsValid()) {
@@ -90,8 +92,8 @@ JPH::BodyID Physics::createDynamicBody(const PhysicsShape &physicsShape, const v
 
     JPH::BodyCreationSettings createSettings = JPH::BodyCreationSettings(
         shape.GetPtr(),
-        JPH::RVec3(math::toJolt(position)),
-        math::toJolt(rotation),
+        JPH::RVec3(math::ToJolt(position)),
+        math::ToJolt(rotation),
         JPH::EMotionType::Dynamic,
         PhysicsLayers::MOVING);
 
@@ -101,7 +103,7 @@ JPH::BodyID Physics::createDynamicBody(const PhysicsShape &physicsShape, const v
     return JPH::BodyID(JPH::BodyID::cInvalidBodyID);
 }
 
-void Physics::preUpdate()
+void Physics::PreUpdate()
 {
     JPH::BodyInterface &bodyInterface = physicsSystem.GetBodyInterface();
 
@@ -109,22 +111,22 @@ void Physics::preUpdate()
         if (bodyInterface.IsActive(bodyID)) {
             activeBodyExist = true;
 
-            vec3 position = math::fromJolt(bodyInterface.GetPosition(bodyID));
-            quat rotation = math::fromJolt(bodyInterface.GetRotation(bodyID));
+            vec3 position = math::FromJolt(bodyInterface.GetPosition(bodyID));
+            quat rotation = math::FromJolt(bodyInterface.GetRotation(bodyID));
 
             auto it = bodyObjectMap.find(bodyID);
             if (it != bodyObjectMap.end()) {
-                Object *object = it->second;
+                Entity *object = it->second;
                 if (object) {
-                    object->setPosition(position);
-                    object->setRotation(rotation);
+                    object->SetPosition(position);
+                    object->SetRotation(rotation);
                 }
             }
         }
     }
 }
 
-void Physics::update()
+void Physics::Update()
 {
     const float deltaTime = 1.0f / 60.0f;
 
@@ -133,15 +135,15 @@ void Physics::update()
     }
 }
 
-void Physics::postUpdate()
+void Physics::PostUpdate()
 {
 }
 
-JPH::Shape::ShapeResult Physics::createShape(const PhysicsShape &physicsShape)
+JPH::Shape::ShapeResult Physics::CreateShape(const PhysicsShape &physicsShape)
 {
     JPH::Shape::ShapeResult result;
     if (const BoxShape *box = std::get_if<BoxShape>(&physicsShape)) {
-        JPH::BoxShapeSettings settings(JPH::Vec3Arg(math::toJolt(box->halfExtents)));
+        JPH::BoxShapeSettings settings(JPH::Vec3Arg(math::ToJolt(box->halfExtents)));
         settings.SetEmbedded();
         result = settings.Create();
     } else if (const SphereShape *sphere = std::get_if<SphereShape>(&physicsShape)) {
@@ -155,7 +157,7 @@ JPH::Shape::ShapeResult Physics::createShape(const PhysicsShape &physicsShape)
     } else if (const ConvexHullShape *convexHull = std::get_if<ConvexHullShape>(&physicsShape)) {
         JPH::Array<JPH::Vec3> points;
         for (const vec3 point : convexHull->points) {
-            points.push_back(math::toJolt(point));
+            points.push_back(math::ToJolt(point));
         }
 
         JPH::ConvexHullShapeSettings settings(points);

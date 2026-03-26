@@ -2,7 +2,7 @@
 
 namespace gltf
 {
-    bool convertToModel(ModelPtr model, Scene &scene)
+    bool ConvertToModel(Model * model, Scene &scene)
     {
         if (scene.nodes.empty())
             return false;

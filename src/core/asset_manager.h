@@ -4,11 +4,6 @@
 #include "graphics/material.h"
 #include "graphics/model.h"
 #include "graphics/vulkan_types.h"
-#include <memory>
-
-using ModelPtr = std::shared_ptr<Model>;
-using TexturePtr = std::shared_ptr<Texture>;
-using MaterialPtr = std::shared_ptr<Material>;
 
 class AssetManager
 {
@@ -18,27 +13,27 @@ public:
     void Init();
     void Shutdown();
 
-    ModelPtr CreateModel(FilePath filename, String name);
-    TexturePtr CreateTexture(FilePath filename, String name);
-    TexturePtr CreateTexture(unsigned char *data, uint32_t size, String name);
-    MaterialPtr CreateMaterial(String name);
+    Model *CreateModel(FilePath filename, String name);
+    Texture *CreateTexture(FilePath filename, String name);
+    Texture *CreateTexture(unsigned char *data, uint32_t size, String name);
+    Material *CreateMaterial(String name);
 
-    void RemoveModel(ModelPtr model);
+    void RemoveModel(Model *model);
     void RemoveModel(String name);
 
-    void RemoveTexture(TexturePtr texture);
+    void RemoveTexture(Texture *texture);
     void RemoveTexture(String name);
 
-    void RemoveMaterial(MaterialPtr material);
+    void RemoveMaterial(Material *material);
     void RemoveMaterial(String name);
 
-    ModelPtr GetModel(String name);
-    TexturePtr GetTexture(String name);
-    MaterialPtr GetMaterial(String name);
+    Model *GetModel(String name);
+    Texture *GetTexture(String name);
+    Material *GetMaterial(String name);
 
-    Vector<ModelPtr> &GetModels() { return models; }
-    Vector<TexturePtr> &GetTextures() { return textures; }
-    Vector<MaterialPtr> &GetMaterials() { return materials; }
+    Vector<Model *> &GetModels() { return models; }
+    Vector<Texture *> &GetTextures() { return textures; }
+    Vector<Material *> &GetMaterials() { return materials; }
 
 private:
     AssetManager() {}
@@ -51,14 +46,14 @@ private:
     bool LoadImageInfo(unsigned char *data, uint32_t size, TextureLoadInfo &info, bool flip = false);
     void FreeImageInfo(TextureLoadInfo &info);
 
-    Vector<ModelPtr> models;
+    Vector<Model *> models;
     UnorderedMap<String, uint32_t> nameModelIdxMap;
 
-    Vector<TexturePtr> textures;
+    Vector<Texture *> textures;
     UnorderedMap<String, uint32_t> nameTextureIdxMap;
 
-    Vector<MaterialPtr> materials;
+    Vector<Material *> materials;
     UnorderedMap<String, uint32_t> nameMaterialIdxMap;
 };
 
-static AssetManager *gAssetManager = nullptr;
+inline AssetManager *gAssetManager = nullptr;

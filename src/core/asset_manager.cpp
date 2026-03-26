@@ -9,15 +9,16 @@
 #include "stb_image.h"
 #include <algorithm>
 
-void AssetManager::init()
+void AssetManager::Init()
 {
 }
 
-void AssetManager::shutdown()
+void AssetManager::Shutdown()
 {
+    delete gAssetManager;
 }
 
-ModelPtr AssetManager::createModel(FilePath filename, String name)
+Model *AssetManager::CreateModel(FilePath filename, String name)
 {
     auto it = nameModelIdxMap.find(name);
     if (it != nameModelIdxMap.end()) {
@@ -25,13 +26,13 @@ ModelPtr AssetManager::createModel(FilePath filename, String name)
         return models[it->second];
     }
 
-    ModelPtr model = std::make_shared<Model>();
+    Model *model = new Model();
     if (filename.extension() == ".gltf" || filename.extension() == ".glb") {
         gltf::Scene scene;
-        if (!gltf::Loader::load(scene, filename))
+        if (!gltf::Loader::Load(scene, filename))
             return nullptr;
 
-        if (!gltf::convertToModel(model, scene))
+        if (!gltf::ConvertToModel(model, scene))
             return nullptr;
     }
 
@@ -40,7 +41,7 @@ ModelPtr AssetManager::createModel(FilePath filename, String name)
     return model;
 }
 
-TexturePtr AssetManager::createTexture(FilePath file, String name)
+Texture *AssetManager::CreateTexture(FilePath file, String name)
 {
     auto it = nameTextureIdxMap.find(name);
     if (it != nameTextureIdxMap.end()) {
@@ -49,14 +50,15 @@ TexturePtr AssetManager::createTexture(FilePath file, String name)
     }
 
     // check if compressed ktx image exists
-    file.replace_extension(".ktx");
-    FilePath ktxPath = file.parent_path() / "compressed" / file.filename();
+    auto ktxFile = file;
+    ktxFile.replace_extension(".ktx");
+    FilePath ktxPath = ktxFile.parent_path() / "compressed" / ktxFile.filename();
 
     if (std::filesystem::exists(ktxPath))
         file = ktxPath;
 
     TextureLoadInfo info = {};
-    if (!loadImageInfo(file, info)) {
+    if (!LoadImageInfo(file, info)) {
         LOGE("createTexture() - failed to load a texture from path '%s'", file.c_str());
         return nullptr;
     }
@@ -71,23 +73,23 @@ TexturePtr AssetManager::createTexture(FilePath file, String name)
         .format = VK_FORMAT_R8G8B8A8_SRGB, // XXX: add this as a parameter or something
     };
 
-    TexturePtr texture = gRenderer->getDevice().createTexture(createInfo);
-    gRenderer->getDevice().uploadTexture(texture, info);
-    freeImageInfo(info);
+    Texture *texture = gRenderer->GetDevice().CreateTexture(createInfo);
+    gRenderer->GetDevice().UploadTexture(texture, info);
+    FreeImageInfo(info);
 
     // generate mipmaps for non ktx images
     if (!info.textureKTX && createInfo.mipLevels > 1)
-        gRenderer->getDevice().generateMipmaps(texture);
+        gRenderer->GetDevice().GenerateMipmaps(texture);
 
     textures.push_back(texture);
     nameTextureIdxMap[name] = textures.size() - 1;
     return texture;
 }
 
-TexturePtr AssetManager::createTexture(unsigned char *data, uint32_t size, String name)
+Texture *AssetManager::CreateTexture(unsigned char *data, uint32_t size, String name)
 {
     TextureLoadInfo info = {};
-    if (!loadImageInfo(data, size, info)) {
+    if (!LoadImageInfo(data, size, info)) {
         LOGE("%s", "Failed to load a texture from memory");
         return nullptr;
     }
@@ -102,20 +104,20 @@ TexturePtr AssetManager::createTexture(unsigned char *data, uint32_t size, Strin
         .format = VK_FORMAT_R8G8B8A8_SRGB, // XXX: add this as a parameter or something
     };
 
-    TexturePtr texture = gRenderer->getDevice().createTexture(createInfo);
-    gRenderer->getDevice().uploadTexture(texture, info);
-    freeImageInfo(info);
+    Texture *texture = gRenderer->GetDevice().CreateTexture(createInfo);
+    gRenderer->GetDevice().UploadTexture(texture, info);
+    FreeImageInfo(info);
 
     // generate mipmaps for non ktx images
     if (!info.textureKTX && createInfo.mipLevels > 1)
-        gRenderer->getDevice().generateMipmaps(texture);
+        gRenderer->GetDevice().GenerateMipmaps(texture);
 
     textures.push_back(texture);
     nameTextureIdxMap[name] = textures.size() - 1;
     return texture;
 }
 
-MaterialPtr AssetManager::createMaterial(String name)
+Material *AssetManager::CreateMaterial(String name)
 {
     auto it = nameMaterialIdxMap.find(name);
     if (it != nameMaterialIdxMap.end()) {
@@ -123,57 +125,57 @@ MaterialPtr AssetManager::createMaterial(String name)
         return materials[it->second];
     }
 
-    MaterialPtr &material = materials.emplace_back();
+    Material *material = materials.emplace_back(new Material());
     nameMaterialIdxMap[name] = materials.size() - 1;
     return material;
 }
 
-void AssetManager::removeModel(ModelPtr model)
+void AssetManager::RemoveModel(Model *model)
 {
-    models.erase(std::remove_if(models.begin(), models.end(), [&model](const ModelPtr &otherModel) {
-                     return &model == &otherModel;
-                 }),
-                 models.end());
+    models.erase(std::remove_if(models.begin(), models.end(), [&model](const Model *otherModel) {
+        return &model == &otherModel;
+    }),
+    models.end());
 }
 
-void AssetManager::removeModel(String name)
+void AssetManager::RemoveModel(String name)
 {
-    ModelPtr model = getModel(name);
+    Model *model = GetModel(name);
     if (model)
-        removeModel(model);
+        RemoveModel(model);
 }
 
-void AssetManager::removeTexture(TexturePtr texture)
+void AssetManager::RemoveTexture(Texture *texture)
 {
-    textures.erase(std::remove_if(textures.begin(), textures.end(), [&texture](const TexturePtr &otherTexture) {
-                       return &texture == &otherTexture;
-                   }),
-                   textures.end());
+    textures.erase(std::remove_if(textures.begin(), textures.end(), [&texture](const Texture *otherTexture) {
+        return &texture == &otherTexture;
+    }),
+    textures.end());
 }
 
-void AssetManager::removeTexture(String name)
+void AssetManager::RemoveTexture(String name)
 {
-    TexturePtr texture = getTexture(name);
+    Texture *texture = GetTexture(name);
     if (texture)
-        removeTexture(texture);
+        RemoveTexture(texture);
 }
 
-void AssetManager::removeMaterial(MaterialPtr material)
+void AssetManager::RemoveMaterial(Material *material)
 {
-    materials.erase(std::remove_if(materials.begin(), materials.end(), [&material](const MaterialPtr &otherMaterial) {
-                        return &material == &otherMaterial;
-                    }),
-                    materials.end());
+    materials.erase(std::remove_if(materials.begin(), materials.end(), [&material](const Material *otherMaterial) {
+        return &material == &otherMaterial;
+    }),
+    materials.end());
 }
 
-void AssetManager::removeMaterial(String name)
+void AssetManager::RemoveMaterial(String name)
 {
-    MaterialPtr material = getMaterial(name);
+    Material *material = GetMaterial(name);
     if (material)
-        removeMaterial(material);
+        RemoveMaterial(material);
 }
 
-ModelPtr AssetManager::getModel(String name)
+Model *AssetManager::GetModel(String name)
 {
     auto it = nameModelIdxMap.find(name);
     if (it != nameModelIdxMap.end()) {
@@ -184,7 +186,7 @@ ModelPtr AssetManager::getModel(String name)
     return nullptr;
 }
 
-TexturePtr AssetManager::getTexture(String name)
+Texture *AssetManager::GetTexture(String name)
 {
     auto it = nameTextureIdxMap.find(name);
     if (it != nameTextureIdxMap.end()) {
@@ -195,7 +197,7 @@ TexturePtr AssetManager::getTexture(String name)
     return nullptr;
 }
 
-MaterialPtr AssetManager::getMaterial(String name)
+Material *AssetManager::GetMaterial(String name)
 {
     auto it = nameMaterialIdxMap.find(name);
     if (it != nameMaterialIdxMap.end()) {
@@ -206,7 +208,7 @@ MaterialPtr AssetManager::getMaterial(String name)
     return nullptr;
 }
 
-bool AssetManager::loadImageInfo(FilePath filepath, TextureLoadInfo &info, bool flip)
+bool AssetManager::LoadImageInfo(FilePath filepath, TextureLoadInfo &info, bool flip)
 {
     if (!std::filesystem::exists(filepath))
         return false;
@@ -235,38 +237,38 @@ bool AssetManager::loadImageInfo(FilePath filepath, TextureLoadInfo &info, bool 
         info.data = stbi_load(filepath.c_str(), (int *)&info.width, (int *)&info.height, (int *)&loadedChannels, STBI_rgb_alpha);
         stbi_set_flip_vertically_on_load(flip);
         if (!info.data) {
-            freeImageInfo(info);
+            FreeImageInfo(info);
             return false;
         }
 
         info.channels = STBI_rgb_alpha;
         info.arrayLayers = 1;
         info.size = info.width * info.height * STBI_rgb_alpha;
-        info.mipLevels = gRenderer->getDevice().calculateMipLevels(info.width, info.height);
+        info.mipLevels = gRenderer->GetDevice().CalculateMipLevels(info.width, info.height);
     }
 
     return true;
 }
 
-bool AssetManager::loadImageInfo(unsigned char *data, uint32_t size, TextureLoadInfo &info, bool flip)
+bool AssetManager::LoadImageInfo(unsigned char *data, uint32_t size, TextureLoadInfo &info, bool flip)
 {
     int loadedChannels;
     info.data = stbi_load_from_memory(data, size, (int *)&info.width, (int *)&info.height, (int *)&loadedChannels, STBI_rgb_alpha);
     stbi_set_flip_vertically_on_load(flip);
     if (!info.data) {
-        freeImageInfo(info);
+        FreeImageInfo(info);
         return false;
     }
 
     info.channels = STBI_rgb_alpha;
     info.arrayLayers = 1;
     info.size = info.width * info.height * STBI_rgb_alpha;
-    info.mipLevels = gRenderer->getDevice().calculateMipLevels(info.width, info.height);
+    info.mipLevels = gRenderer->GetDevice().CalculateMipLevels(info.width, info.height);
 
     return true;
 }
 
-void AssetManager::freeImageInfo(TextureLoadInfo &info)
+void AssetManager::FreeImageInfo(TextureLoadInfo &info)
 {
     if (info.textureKTX) {
         ktxTexture_Destroy(info.textureKTX);

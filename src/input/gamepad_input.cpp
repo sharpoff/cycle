@@ -1,7 +1,7 @@
 #include "gamepad_input.h"
 #include "core/logger.h"
 
-void GamepadInput::processEvent(SDL_Event *event)
+void GamepadInput::ProcessEvent(SDL_Event *event)
 {
     if (event->type == SDL_EVENT_GAMEPAD_ADDED) {
         LOGI("Gamepad added.", NULL);
@@ -71,22 +71,22 @@ void GamepadInput::processEvent(SDL_Event *event)
     }
 }
 
-bool GamepadInput::wasJustPressed(int button)
+bool GamepadInput::WasJustPressed(int button)
 {
     return buttons[button].current && !buttons[button].previous;
 }
 
-bool GamepadInput::isPressed(int button)
+bool GamepadInput::IsPressed(int button)
 {
     return buttons[button].current;
 }
 
-bool GamepadInput::isReleased(int button)
+bool GamepadInput::IsReleased(int button)
 {
     return !buttons[button].current;
 }
 
-float GamepadInput::getAxisState(int axis)
+float GamepadInput::GetAxisState(int axis)
 {
     return axes[axis];
 }
