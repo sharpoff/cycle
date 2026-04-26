@@ -1,5 +1,7 @@
-#ifndef TYPES_GLSL
-#define TYPES_GLSL
+#ifndef CONSTANTS_GLSL
+#define CONSTANTS_GLSL
+
+#define PI 3.1415
 
 // Rendering flags
 const uint RENDERING_NONE = 0;
@@ -14,43 +16,12 @@ const int SHADOWMAP_CASCADES = 4;
 
 const int INVALID_ID = 4294967295;
 
-struct Vertex
-{
-    vec3 position;
-    float uv_x;
-    vec3 normal;
-    float uv_y;
-    vec4 tangent;
-};
-
-struct Material
-{
-    uint baseColorTexID;
-    uint metallicRoughnessTexID;
-    uint normalTexID;
-    uint emissiveTexID;
-    float roughnessFactor;
-    float metallicFactor;
-};
-
 // Light types
 const uint LIGHT_TYPE_DIRECTIONAL = 0;
 const uint LIGHT_TYPE_POINT = 1;
 const uint LIGHT_TYPE_SPOT = 2;
 
-struct Light
-{
-    vec3 position;
-    float intensity;
-    vec3 direction;
-    uint type;
-    vec3 color;
-};
+const int SAMPLER_LINEAR_ID = 0;
+const int SAMPLER_NEAREST_ID = 1;
 
-struct Cascade
-{
-    mat4 viewProjection;
-    float depth;
-};
-
-#endif
+#endif // #define CONSTANTS_GLSL

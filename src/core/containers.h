@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <filesystem>
 #include <functional>
 #include <vector>
 #include <list>
@@ -39,3 +40,5 @@ using Deque = std::deque<T>;
 
 template <typename Signature>
 using Func = std::function<Signature>;
+
+using FilePath = std::filesystem::path;

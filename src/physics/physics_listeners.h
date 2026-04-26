@@ -12,7 +12,7 @@ class ContactListener : public JPH::ContactListener
     virtual JPH::ValidateResult OnContactValidate(const JPH::Body &inBody1, const JPH::Body &inBody2, JPH::RVec3Arg inBaseOffset, const JPH::CollideShapeResult &inCollisionResult) override
     {
 #ifdef PHYSICS_DEBUG_OUTPUT
-        LOGI("[PHYSICS] Contact validate callback\n", NULL);
+        LOGI("[PHYSICS] Contact validate callback");
 #endif
 
         return JPH::ValidateResult::AcceptAllContactsForThisBodyPair;
@@ -21,21 +21,21 @@ class ContactListener : public JPH::ContactListener
     virtual void OnContactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings) override
     {
 #ifdef PHYSICS_DEBUG_OUTPUT
-        LOGI("[PHYSICS] Contact added\n", NULL);
+        LOGI("[PHYSICS] Contact added");
 #endif
     }
 
     virtual void OnContactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings) override
     {
 #ifdef PHYSICS_DEBUG_OUTPUT
-        LOGI("[PHYSICS] Contact persisted\n", NULL);
+        LOGI("[PHYSICS] Contact persisted");
 #endif
     }
 
     virtual void OnContactRemoved(const JPH::SubShapeIDPair &inSubShapePair) override
     {
 #ifdef PHYSICS_DEBUG_OUTPUT
-        LOGI("[PHYSICS] Contact removed\n", NULL);
+        LOGI("[PHYSICS] Contact removed");
 #endif
     }
 };
@@ -46,14 +46,14 @@ public:
     virtual void OnBodyActivated(const JPH::BodyID &inBodyID, JPH::uint64 inBodyUserData) override
     {
 #ifdef PHYSICS_DEBUG_OUTPUT
-        LOGI("[PHYSICS] Body activated\n", NULL);
+        LOGI("[PHYSICS] Body activated");
 #endif
     }
 
     virtual void OnBodyDeactivated(const JPH::BodyID &inBodyID, JPH::uint64 inBodyUserData) override
     {
 #ifdef PHYSICS_DEBUG_OUTPUT
-        LOGI("[PHYSICS] Body deactivated\n", NULL);
+        LOGI("[PHYSICS] Body deactivated");
 #endif
     }
 };

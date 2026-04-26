@@ -18,34 +18,34 @@ public:
 
     virtual void Update(float deltaTime) {};
 
-    void Translate(vec3 translation) { position_ += translation; }
-    void Rotate(quat rotation) { rotation_ *= rotation; }
-    void Scale(float scale) { scale_ *= scale; }
+    void Translate(vec3 translation) { m_position += translation; }
+    void Rotate(quat rotation) { m_rotation *= rotation; }
+    void Scale(float scale) { m_scale *= scale; }
 
-    vec3 &GetPosition() { return position_; }
-    quat &GetRotation() { return rotation_; }
-    float &GetScale() { return scale_; }
+    vec3 &GetPosition() { return m_position; }
+    quat &GetRotation() { return m_rotation; }
+    float &GetScale() { return m_scale; }
 
-    const String &GetName() { return name_; }
-    Model * GetModel() { return model_; }
-    uint8_t &GetDrawFlags() { return drawFlags_; }
-    mat4 GetWorldMatrix() { return glm::translate(position_) * mat4(rotation_) * glm::scale(vec3(scale_)); }
+    const String &GetName() { return m_name; }
+    Model *GetModel() { return m_model; }
+    uint8_t &GetDrawFlags() { return m_drawFlags; }
+    mat4 GetWorldMatrix() { return glm::translate(m_position) * mat4(m_rotation) * glm::scale(vec3(m_scale)); }
 
-    void SetPosition(vec3 position) { position_ = position; }
-    void SetRotation(quat rotation) { rotation_ = rotation; }
-    void SetScale(float scale) { scale_ = scale; }
+    void SetPosition(vec3 position) { m_position = position; }
+    void SetRotation(quat rotation) { m_rotation = rotation; }
+    void SetScale(float scale) { m_scale = scale; }
 
-    void SetName(String name) { name_ = name; }
-    void SetModel(Model * model) { model_ = model; }
-    void SetDrawFlags(uint8_t newFlags) { drawFlags_ = newFlags; };
+    void SetName(String name) { m_name = name; }
+    void SetModel(Model *model) { m_model = model; }
+    void SetDrawFlags(uint8_t newFlags) { m_drawFlags = newFlags; };
 
 protected:
-    vec3 position_ = vec3();
-    quat rotation_ = glm::identity<quat>();
-    float scale_ = 1.0f;
+    vec3 m_position = vec3();
+    quat m_rotation = glm::identity<quat>();
+    float m_scale = 1.0f;
 
-    String name_ = "";
+    String m_name = "";
 
-    uint8_t drawFlags_ = kVisible;
-    Model * model_ = nullptr;
+    uint8_t m_drawFlags = kVisible;
+    Model *m_model = nullptr;
 };

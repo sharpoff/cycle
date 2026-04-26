@@ -1,8 +1,7 @@
 #include "game/world.h"
-
 #include <algorithm>
 
-void World::Init()
+void World::Initialize()
 {
 }
 
@@ -11,7 +10,9 @@ void World::Shutdown()
     for (Entity *entity : entities_) {
         RemoveEntity(entity);
     }
-    delete gWorld;
+
+    if (gWorld)
+        delete gWorld;
 }
 
 void World::Update(float deltaTime)
@@ -21,7 +22,7 @@ void World::Update(float deltaTime)
     }
 }
 
-void World::AddEntity(Entity *entity, String name)
+void World::AddEntity(Entity *entity, const String &name)
 {
     if (!entity || name.empty())
         return;
@@ -42,7 +43,8 @@ bool World::RemoveEntity(Entity *entity)
 
     entities_.erase(std::remove_if(entities_.begin(), entities_.end(), [&entity](const Entity *otherObject) -> bool {
         return &entity == &otherObject;
-    }), entities_.end());
+    }),
+    entities_.end());
 
     delete entity;
     entity = nullptr;
@@ -50,13 +52,13 @@ bool World::RemoveEntity(Entity *entity)
     return true;
 }
 
-bool World::RemoveEntityByName(String name)
+bool World::RemoveEntityByName(const String &name)
 {
     Entity *entity = GetEntityByName(name);
     return RemoveEntity(entity);
 }
 
-Entity *World::GetEntityByName(String name)
+Entity *World::GetEntityByName(const String &name)
 {
     auto it = nameObjectIDMap_.find(name);
     if (it != nameObjectIDMap_.end())

@@ -4,14 +4,9 @@
 // vma
 #define VK_NO_PROTOTYPES
 #define VMA_IMPLEMENTATION
-#if 0
-#include <stdio.h>
-// debug allocations
-#define VMA_DEBUG_LOG_FORMAT(format, ...)                                                                                                                                                              \
-    do {                                                                                                                                                                                               \
-        printf((format), __VA_ARGS__);                                                                                                                                                                 \
-        printf("\n");                                                                                                                                                                                  \
-    } while (false)
+#if 1
+#include <core/logger.h>
+#define VMA_DEBUG_LOG_FORMAT(format, ...) LOG_PRINTF((format), __VA_ARGS__) // debug allocations
 #endif
 #include <vk_mem_alloc.h>
 

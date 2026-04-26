@@ -3,6 +3,7 @@
 #include <Jolt/Jolt.h>
 #include "Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h"
 #include "Jolt/Physics/Collision/ObjectLayer.h"
+#include "core/logger.h"
 
 // Layer that objects can be in, determines which other objects it can collide with
 namespace PhysicsLayers
@@ -24,7 +25,7 @@ public:
             case PhysicsLayers::MOVING:
                 return true;
             default:
-                printf("[PHYSICS] Invalid object layer\n");
+                LOGI("[PHYSICS] Invalid object layer");
                 return false;
         }
 	}
@@ -69,7 +70,7 @@ public:
             case (static_cast<JPH::BroadPhaseLayer::Type>(PhysicsBroadPhaseLayers::MOVING)):
                 return "MOVING";
             default:
-                printf("[PHYSICS] Invalid broad phase layer name\n");
+                LOGI("[PHYSICS] Invalid broad phase layer name");
                 return "INVALID";
         }
     }
@@ -91,7 +92,7 @@ public:
             case PhysicsLayers::MOVING:
                 return true;
             default:
-                printf("[PHYSICS] Invalid object or broad phase layer\n");
+                LOGI("[PHYSICS] Invalid object or broad phase layer");
                 return false;
         }
     }

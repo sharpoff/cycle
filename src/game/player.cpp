@@ -1,11 +1,11 @@
 #include "game/player.h"
 
-Player::Player(InputManager &inputManager, float aspectRatio)
-    : inputManager_(inputManager)
+Player::Player(Input &inputManager, float aspectRatio)
+    : m_inputManager(inputManager)
 {
-    camera_.SetPerspective(glm::radians(60.0f), aspectRatio, 0.01f, 1000.0f);
-    camera_.SetPosition(vec3(0.0f, 0.0f, 1.0f));
-    camera_.SetRotation(vec3(glm::radians(10.0f), 0.0f, 0.0f));
+    m_camera.SetPerspective(glm::radians(60.0f), aspectRatio, 0.01f, 1000.0f);
+    m_camera.SetPosition(vec3(0.0f, 0.0f, 1.0f));
+    m_camera.SetRotation(vec3(glm::radians(10.0f), 0.0f, 0.0f));
 }
 
 void Player::Update(float deltaTime)

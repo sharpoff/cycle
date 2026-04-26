@@ -1,9 +1,8 @@
 #pragma once
 
-#include "SDL3/SDL_video.h"
-
+#include "core/window.h"
 #include "graphics/descriptor_set_writer.h"
-#include "graphics/vertex.h"
+#include "graphics/types.h"
 #include "graphics/vulkan_types.h"
 
 #include <math.h>
@@ -11,31 +10,31 @@
 #include "core/constants.h"
 
 #define VULKAN_API_VERSION VK_API_VERSION_1_3
-#define ENABLE_LOG_DEVICE_LIMITS false
+#define ENABLE_LOG_DEVICE_LIMITS true
 
 class RenderDevice
 {
 public:
-    void Init(SDL_Window *window);
+    bool Initialize(Window *window);
     void Shutdown();
 
-    Buffer *CreateBuffer(const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage);
-    Texture *CreateTexture(const TextureCreateInfo &createInfo);
-    Sampler *CreateSampler(const SamplerCreateInfo &createInfo);
-    RenderPipeline *CreateRenderPipeline(const RenderPipelineCreateInfo &createInfo);
-    ComputePipeline *CreateComputePipeline(const ComputePipelineCreateInfo &createInfo);
+    void CreateBuffer(Buffer &buffer, const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage);
+    void CreateTexture(Texture &texture, const TextureCreateInfo &createInfo);
+    void CreateSampler(Sampler &sampler, const SamplerCreateInfo &createInfo);
+    void CreateRenderPipeline(RenderPipeline &renderPipeline, const RenderPipelineCreateInfo &createInfo);
+    void CreateComputePipeline(ComputePipeline &computePipeline, const ComputePipelineCreateInfo &createInfo);
 
-    void DestroyBuffer(Buffer *buffer);
-    void DestroyTexture(Texture *texture);
-    void DestroySampler(Sampler *sampler);
-    void DestroyRenderPipeline(RenderPipeline *pipeline);
-    void DestroyComputePipeline(ComputePipeline *pipeline);
+    void DestroyBuffer(Buffer &buffer);
+    void DestroyTexture(Texture &texture);
+    void DestroySampler(Sampler &sampler);
+    void DestroyRenderPipeline(RenderPipeline &pipeline);
+    void DestroyComputePipeline(ComputePipeline &pipeline);
 
-    void UploadBufferData(Buffer *buffer, void *data, uint64_t size);
-    void UploadTexture(Texture *texture, TextureLoadInfo &loadInfo);
-    void UploadMeshGpuData(Buffer *&vertexBuffer, Vector<Vertex> &vertices, Buffer *&indexBuffer, Vector<uint32_t> &indices);
+    void UploadBufferData(Buffer &buffer, void *data, uint64_t size);
+    void UploadTexture(Texture &texture, TextureLoadInfo &loadInfo);
+    void UploadMeshGpuData(Buffer &vertexBuffer, Vector<Vertex> &vertices, Buffer &indexBuffer, Vector<uint32_t> &indices);
 
-    void GenerateMipmaps(Texture *texture);
+    void GenerateMipmaps(Texture &texture);
 
     VkCommandBuffer BeginCommandBuffer();
     void EndCommandBuffer(VkCommandBuffer cmd);
@@ -43,10 +42,10 @@ public:
 
     void ImmediateSubmit(Func<void(VkCommandBuffer cmd)> &&function);
 
-    void WriteDescriptor(uint32_t binding, Buffer *buffer, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void WriteDescriptor(uint32_t binding, Texture *texture, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void WriteDescriptor(uint32_t binding, Texture *texture, VkDescriptorType type, uint32_t dstArrayElement = 0);
-    void WriteDescriptor(uint32_t binding, Sampler *sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, Buffer &buffer, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, Texture &texture, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, Texture &texture, VkDescriptorType type, uint32_t dstArrayElement = 0);
+    void WriteDescriptor(uint32_t binding, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement = 0);
     void UpdateDescriptors();
 
     void WaitIdle();
@@ -76,9 +75,10 @@ private:
     void SetupImGui();
     void ShutdownImGui();
 
+    Window *window_ = nullptr;
+
     VkInstance instance = VK_NULL_HANDLE;
 
-    SDL_Window *window = nullptr;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
 
     uint32_t graphicsQueueIndex = UINT32_MAX;

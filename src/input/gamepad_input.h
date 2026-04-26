@@ -24,19 +24,13 @@ class GamepadInput
 public:
     void ProcessEvent(SDL_Event *event);
 
-    // SDL_GamepadButton button
     bool WasJustPressed(int button);
-
-    // SDL_GamepadButton button
     bool IsPressed(int button);
-
-    // SDL_GamepadButton button
     bool IsReleased(int button);
 
-    // SDL_GamepadAxis axis
     float GetAxisState(int axis);
 
-    bool IsConnected() { return gamepad != nullptr; }
+    bool IsConnected() { return m_gamepad != nullptr; }
 
 private:
     struct KeyState
@@ -45,7 +39,10 @@ private:
         bool previous = false;
     };
 
-    SDL_Gamepad *gamepad = nullptr;
-    UnorderedMap<int, float> axes; // SDL_GamepadAxis
-    UnorderedMap<int, KeyState> buttons; // SDL_GamepadButton
+    SDL_Gamepad *m_gamepad = nullptr;
+    UnorderedMap<int, float> m_axes; // SDL_GamepadAxis
+    UnorderedMap<int, KeyState> m_buttons; // SDL_GamepadButton
+
+    UnorderedMap<String, Vector<int>> m_gamepadButtonActions;
+    UnorderedMap<String, Vector<int>> m_gamepadAxisActions;
 };

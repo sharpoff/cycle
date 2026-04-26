@@ -1,43 +1,39 @@
 #pragma once
 
-#include "graphics/barrier_merger.h"
-
 #include "core/camera.h"
 #include "core/constants.h"
 #include "graphics/cascade.h"
-#include "graphics/gpu_light.h"
-#include "graphics/material.h"
+#include "graphics/types.h"
 #include "graphics/mesh.h"
 #include "graphics/model.h"
 #include "graphics/render_device.h"
-// #include "graphics/vulkan_types.h"
 
 class Renderer
 {
-    friend class Application;
+    friend class Engine;
 
 public:
-    void Init(SDL_Window *window);
+    void Initialize(Window *window);
     void Shutdown();
 
     // add texture to be used in descriptors (bindless access)
-    void AddTextureToDescriptor(Texture *texture);
+    void AddTextureToDescriptor(uint32_t textureIndex);
 
     // similar to texture variant, but you should add texture to descriptor *before* adding material, so that material's textures have ids
-    void AddMaterialToDescriptor(Material *material);
+    void AddMaterialToDescriptor(uint32_t materialIndex);
 
     // should be called *after* loading entities/materials/textures/models/etc.
-    void LoadDynamicResources();
+    void LoadResources();
 
+    void RenderFrame();
     void ReloadShaders();
-    void DrawFrame();
 
     vec2 GetScreenSize();
     float GetAspectRatio();
 
-    RenderDevice &GetDevice() { return device; }
+    RenderDevice &GetDevice() { return m_device; }
 
-    void SetCamera(Camera &camera) { camera_ = &camera; } // should be set
+    void SetCamera(Camera &camera) { m_camera = &camera; } // should be set
 
 private:
     Renderer() {};
@@ -63,38 +59,34 @@ private:
     void UpdateShadowmapCascades(Camera &camera, vec3 lightDir);
     void UpdateGpuLights();
 
-    RenderDevice device;
-    SDL_Window *window;
+    bool firstRun = true;
+    RenderDevice m_device;
 
-    Camera *camera_ = nullptr;
-    // CacheManager cacheManager;
+    Camera *m_camera = nullptr;
 
-    Vector<Texture *> descriptorTextures;
-    Vector<Material *> descriptorMaterials;
+    Vector<uint32_t> m_descriptorTextureIndices;
+    Vector<uint32_t> m_descriptorMaterialIndices;
 
-    Texture *colorImage;
-    Texture *depthImage;
+    Texture m_colorImage;
+    Texture m_depthImage;
 
-    Array<Buffer *, FRAMES_IN_FLIGHT> sceneInfoBuffers;
-    Buffer *materialsBuffer;
-    Buffer *lightsBuffer;
-    Buffer *cascadesBuffer;
+    Array<Buffer, FRAMES_IN_FLIGHT> m_sceneInfoBuffers;
+    Buffer m_materialsBuffer;
+    Buffer m_lightsBuffer;
+    Buffer m_cascadesBuffer;
 
-    Vector<GPULight> gpuLights;
-    // Vector<EntityID> lightEntities;
+    Vector<GPULight> m_gpuLights;
 
-    Sampler * linearSampler;
-    Sampler * nearestSampler;
+    Sampler m_linearSampler;
+    Sampler m_nearestSampler;
 
-    RenderPipeline * meshPipeline;
-    RenderPipeline * skyboxPipeline;
-    RenderPipeline * shadowmapPipeline;
+    RenderPipeline m_meshPipeline;
+    RenderPipeline m_skyboxPipeline;
+    RenderPipeline m_shadowmapPipeline;
 
-    BarrierMerger barriers;
-
-    // shadows
-    Array<Cascade, SHADOWMAP_CASCADES> cascades;
-    Array<Texture *, SHADOWMAP_CASCADES> shadowmapImages;
+    // Shadows
+    Array<Cascade, SHADOWMAP_CASCADES> m_cascades;
+    Array<Texture, SHADOWMAP_CASCADES> m_shadowmapImages;
 
     float cascadeSplitLambda = 0.95f;
 };

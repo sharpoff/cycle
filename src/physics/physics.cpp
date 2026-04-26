@@ -1,17 +1,21 @@
 #include "physics/physics.h"
 
-#include "Jolt/Physics/Body/BodyCreationSettings.h"
-#include "game/static_object.h"
+#include <algorithm>
+
+#include "game/entities/physics_entity.h"
+
 #include "math/math_jolt.h"
 #include "math/math_types.h"
 
+#include "Jolt/Physics/Body/BodyCreationSettings.h"
+
 #include "Jolt/Physics/Collision/Shape/BoxShape.h"
+#include "Jolt/Physics/Collision/Shape/CapsuleShape.h"
 #include "Jolt/Physics/Collision/Shape/ConvexHullShape.h"
 #include "Jolt/Physics/Collision/Shape/SphereShape.h"
 #include "Jolt/RegisterTypes.h"
-#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 
-void Physics::Init()
+void Physics::Initialize()
 {
     // Register allocation hook.
     JPH::RegisterDefaultAllocator();
@@ -41,16 +45,8 @@ void Physics::Shutdown()
     delete tempAllocator;
     delete jobSystem;
 
-    delete gPhysics;
-}
-
-StaticObject *Physics::CreateStaticObject(const PhysicsShape &physicsShape, const vec3 &position, const quat &rotation, float scale)
-{
-    auto *obj = new StaticObject(CreateStaticBody(physicsShape, position, rotation));
-    obj->SetPosition(position);
-    obj->SetRotation(rotation);
-    obj->SetScale(scale);
-    return obj;
+    if (gPhysics)
+        delete gPhysics;
 }
 
 JPH::BodyID Physics::CreateStaticBody(const PhysicsShape &physicsShape, const vec3 &position, const quat &rotation)
@@ -61,7 +57,7 @@ JPH::BodyID Physics::CreateStaticBody(const PhysicsShape &physicsShape, const ve
     if (result.IsValid()) {
         shape = result.Get();
     } else {
-        LOGE("Failed to create body shape", NULL);
+        LOGE("Failed to create body shape");
         return JPH::BodyID(JPH::BodyID::cInvalidBodyID);
     }
 
@@ -73,9 +69,8 @@ JPH::BodyID Physics::CreateStaticBody(const PhysicsShape &physicsShape, const ve
         PhysicsLayers::NON_MOVING);
 
     JPH::BodyInterface &bodyInterface = physicsSystem.GetBodyInterface();
-    bodyInterface.CreateAndAddBody(createSettings, JPH::EActivation::Activate);
-
-    return JPH::BodyID(JPH::BodyID::cInvalidBodyID);
+    JPH::BodyID id = bodyInterface.CreateAndAddBody(createSettings, JPH::EActivation::Activate);
+    return id;
 }
 
 JPH::BodyID Physics::CreateDynamicBody(const PhysicsShape &physicsShape, const vec3 &position, const quat &rotation)
@@ -86,7 +81,7 @@ JPH::BodyID Physics::CreateDynamicBody(const PhysicsShape &physicsShape, const v
     if (result.IsValid()) {
         shape = result.Get();
     } else {
-        LOGE("Failed to create body shape", NULL);
+        LOGE("Failed to create body shape");
         return JPH::BodyID(JPH::BodyID::cInvalidBodyID);
     }
 
@@ -98,30 +93,45 @@ JPH::BodyID Physics::CreateDynamicBody(const PhysicsShape &physicsShape, const v
         PhysicsLayers::MOVING);
 
     JPH::BodyInterface &bodyInterface = physicsSystem.GetBodyInterface();
-    bodyInterface.CreateAndAddBody(createSettings, JPH::EActivation::Activate);
+    JPH::BodyID id = bodyInterface.CreateAndAddBody(createSettings, JPH::EActivation::Activate);
+    return id;
+}
 
-    return JPH::BodyID(JPH::BodyID::cInvalidBodyID);
+void Physics::RegisterEntity(PhysicsEntity *entity)
+{
+    if (entity && entity->GetBodyID() != InvalidBodyID) {
+        auto it = std::find(registredEntities.begin(), registredEntities.end(), entity);
+        if (it == registredEntities.end())
+            registredEntities.push_back(entity);
+    }
+}
+
+void Physics::UnregisterEntity(PhysicsEntity *entity)
+{
+    if (entity) {
+        registredEntities.erase(std::remove_if(registredEntities.begin(), registredEntities.end(), [&entity](const PhysicsEntity *otherEntity) {
+            return &entity == &otherEntity;
+        }), registredEntities.end());
+    }
 }
 
 void Physics::PreUpdate()
 {
     JPH::BodyInterface &bodyInterface = physicsSystem.GetBodyInterface();
 
-    for (JPH::BodyID &bodyID : dynamicBodies) {
-        if (bodyInterface.IsActive(bodyID)) {
+    activeBodyExist = false;
+    for (auto &physicsEntity : registredEntities) {
+        if (physicsEntity->GetBodyID() == InvalidBodyID)
+            continue;
+
+        if (bodyInterface.IsActive(physicsEntity->GetBodyID())) {
             activeBodyExist = true;
 
-            vec3 position = math::FromJolt(bodyInterface.GetPosition(bodyID));
-            quat rotation = math::FromJolt(bodyInterface.GetRotation(bodyID));
+            vec3 position = math::FromJolt(bodyInterface.GetPosition(physicsEntity->GetBodyID()));
+            quat rotation = math::FromJolt(bodyInterface.GetRotation(physicsEntity->GetBodyID()));
 
-            auto it = bodyObjectMap.find(bodyID);
-            if (it != bodyObjectMap.end()) {
-                Entity *object = it->second;
-                if (object) {
-                    object->SetPosition(position);
-                    object->SetRotation(rotation);
-                }
-            }
+            physicsEntity->SetPosition(position);
+            physicsEntity->SetRotation(rotation);
         }
     }
 }

@@ -1,92 +1,92 @@
-#include "gamepad_input.h"
+#include "input/gamepad_input.h"
 #include "core/logger.h"
 
 void GamepadInput::ProcessEvent(SDL_Event *event)
 {
     if (event->type == SDL_EVENT_GAMEPAD_ADDED) {
-        LOGI("Gamepad added.", NULL);
-        if (!gamepad) {
-            gamepad = SDL_OpenGamepad(event->gdevice.which);
+        LOGI("Gamepad added");
+        if (!m_gamepad) {
+            m_gamepad = SDL_OpenGamepad(event->gdevice.which);
         }
     } else if (event->type == SDL_EVENT_GAMEPAD_REMOVED) {
-        LOGI("Gamepad removed.", NULL);
-        if (gamepad) {
-            SDL_CloseGamepad(gamepad);
-            gamepad = nullptr;
+        LOGI("Gamepad removed");
+        if (m_gamepad) {
+            SDL_CloseGamepad(m_gamepad);
+            m_gamepad = nullptr;
         }
     } else if (event->type == SDL_EVENT_GAMEPAD_AXIS_MOTION) {
-        axes[SDL_GAMEPAD_AXIS_LEFTX] = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX);
-        axes[SDL_GAMEPAD_AXIS_LEFTY] = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY);
-        axes[SDL_GAMEPAD_AXIS_RIGHTX] = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTX);
-        axes[SDL_GAMEPAD_AXIS_RIGHTY] = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTY);
-        axes[SDL_GAMEPAD_AXIS_LEFT_TRIGGER] = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
-        axes[SDL_GAMEPAD_AXIS_RIGHT_TRIGGER] = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
+        m_axes[SDL_GAMEPAD_AXIS_LEFTX] = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_LEFTX);
+        m_axes[SDL_GAMEPAD_AXIS_LEFTY] = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_LEFTY);
+        m_axes[SDL_GAMEPAD_AXIS_RIGHTX] = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_RIGHTX);
+        m_axes[SDL_GAMEPAD_AXIS_RIGHTY] = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_RIGHTY);
+        m_axes[SDL_GAMEPAD_AXIS_LEFT_TRIGGER] = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
+        m_axes[SDL_GAMEPAD_AXIS_RIGHT_TRIGGER] = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
     } else if ((event->type == SDL_EVENT_GAMEPAD_BUTTON_UP) || (event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN)) {
         bool down = event->gbutton.down;
 
-        buttons[SDL_GAMEPAD_BUTTON_SOUTH].previous = buttons[SDL_GAMEPAD_BUTTON_SOUTH].current;
-        buttons[SDL_GAMEPAD_BUTTON_SOUTH].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH;
+        m_buttons[SDL_GAMEPAD_BUTTON_SOUTH].previous = m_buttons[SDL_GAMEPAD_BUTTON_SOUTH].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_SOUTH].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH;
 
-        buttons[SDL_GAMEPAD_BUTTON_EAST].previous = buttons[SDL_GAMEPAD_BUTTON_EAST].current;
-        buttons[SDL_GAMEPAD_BUTTON_EAST].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_EAST;
+        m_buttons[SDL_GAMEPAD_BUTTON_EAST].previous = m_buttons[SDL_GAMEPAD_BUTTON_EAST].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_EAST].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_EAST;
 
-        buttons[SDL_GAMEPAD_BUTTON_WEST].previous = buttons[SDL_GAMEPAD_BUTTON_WEST].current;
-        buttons[SDL_GAMEPAD_BUTTON_WEST].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_WEST;
+        m_buttons[SDL_GAMEPAD_BUTTON_WEST].previous = m_buttons[SDL_GAMEPAD_BUTTON_WEST].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_WEST].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_WEST;
 
-        buttons[SDL_GAMEPAD_BUTTON_NORTH].previous = buttons[SDL_GAMEPAD_BUTTON_NORTH].current;
-        buttons[SDL_GAMEPAD_BUTTON_NORTH].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_NORTH;
+        m_buttons[SDL_GAMEPAD_BUTTON_NORTH].previous = m_buttons[SDL_GAMEPAD_BUTTON_NORTH].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_NORTH].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_NORTH;
 
-        buttons[SDL_GAMEPAD_BUTTON_BACK].previous = buttons[SDL_GAMEPAD_BUTTON_BACK].current;
-        buttons[SDL_GAMEPAD_BUTTON_BACK].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_BACK;
+        m_buttons[SDL_GAMEPAD_BUTTON_BACK].previous = m_buttons[SDL_GAMEPAD_BUTTON_BACK].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_BACK].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_BACK;
 
-        buttons[SDL_GAMEPAD_BUTTON_GUIDE].previous = buttons[SDL_GAMEPAD_BUTTON_GUIDE].current;
-        buttons[SDL_GAMEPAD_BUTTON_GUIDE].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_GUIDE;
+        m_buttons[SDL_GAMEPAD_BUTTON_GUIDE].previous = m_buttons[SDL_GAMEPAD_BUTTON_GUIDE].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_GUIDE].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_GUIDE;
 
-        buttons[SDL_GAMEPAD_BUTTON_START].previous = buttons[SDL_GAMEPAD_BUTTON_START].current;
-        buttons[SDL_GAMEPAD_BUTTON_START].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_START;
+        m_buttons[SDL_GAMEPAD_BUTTON_START].previous = m_buttons[SDL_GAMEPAD_BUTTON_START].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_START].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_START;
 
-        buttons[SDL_GAMEPAD_BUTTON_LEFT_STICK].previous = buttons[SDL_GAMEPAD_BUTTON_LEFT_STICK].current;
-        buttons[SDL_GAMEPAD_BUTTON_LEFT_STICK].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK;
+        m_buttons[SDL_GAMEPAD_BUTTON_LEFT_STICK].previous = m_buttons[SDL_GAMEPAD_BUTTON_LEFT_STICK].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_LEFT_STICK].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK;
 
-        buttons[SDL_GAMEPAD_BUTTON_RIGHT_STICK].previous = buttons[SDL_GAMEPAD_BUTTON_RIGHT_STICK].current;
-        buttons[SDL_GAMEPAD_BUTTON_RIGHT_STICK].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_RIGHT_STICK;
+        m_buttons[SDL_GAMEPAD_BUTTON_RIGHT_STICK].previous = m_buttons[SDL_GAMEPAD_BUTTON_RIGHT_STICK].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_RIGHT_STICK].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_RIGHT_STICK;
 
-        buttons[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER].previous = buttons[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER].current;
-        buttons[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
+        m_buttons[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER].previous = m_buttons[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
 
-        buttons[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER].previous = buttons[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER].current;
-        buttons[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
+        m_buttons[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER].previous = m_buttons[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
 
-        buttons[SDL_GAMEPAD_BUTTON_DPAD_UP].previous = buttons[SDL_GAMEPAD_BUTTON_DPAD_UP].current;
-        buttons[SDL_GAMEPAD_BUTTON_DPAD_UP].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_UP;
+        m_buttons[SDL_GAMEPAD_BUTTON_DPAD_UP].previous = m_buttons[SDL_GAMEPAD_BUTTON_DPAD_UP].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_DPAD_UP].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_UP;
 
-        buttons[SDL_GAMEPAD_BUTTON_DPAD_DOWN].previous = buttons[SDL_GAMEPAD_BUTTON_DPAD_DOWN].current;
-        buttons[SDL_GAMEPAD_BUTTON_DPAD_DOWN].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_DOWN;
+        m_buttons[SDL_GAMEPAD_BUTTON_DPAD_DOWN].previous = m_buttons[SDL_GAMEPAD_BUTTON_DPAD_DOWN].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_DPAD_DOWN].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_DOWN;
 
-        buttons[SDL_GAMEPAD_BUTTON_DPAD_LEFT].previous = buttons[SDL_GAMEPAD_BUTTON_DPAD_LEFT].current;
-        buttons[SDL_GAMEPAD_BUTTON_DPAD_LEFT].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_LEFT;
+        m_buttons[SDL_GAMEPAD_BUTTON_DPAD_LEFT].previous = m_buttons[SDL_GAMEPAD_BUTTON_DPAD_LEFT].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_DPAD_LEFT].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_LEFT;
 
-        buttons[SDL_GAMEPAD_BUTTON_DPAD_RIGHT].previous = buttons[SDL_GAMEPAD_BUTTON_DPAD_RIGHT].current;
-        buttons[SDL_GAMEPAD_BUTTON_DPAD_RIGHT].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
+        m_buttons[SDL_GAMEPAD_BUTTON_DPAD_RIGHT].previous = m_buttons[SDL_GAMEPAD_BUTTON_DPAD_RIGHT].current;
+        m_buttons[SDL_GAMEPAD_BUTTON_DPAD_RIGHT].current = down && event->gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
     }
 }
 
 bool GamepadInput::WasJustPressed(int button)
 {
-    return buttons[button].current && !buttons[button].previous;
+    return m_buttons[button].current && !m_buttons[button].previous;
 }
 
 bool GamepadInput::IsPressed(int button)
 {
-    return buttons[button].current;
+    return m_buttons[button].current;
 }
 
 bool GamepadInput::IsReleased(int button)
 {
-    return !buttons[button].current;
+    return !m_buttons[button].current;
 }
 
 float GamepadInput::GetAxisState(int axis)
 {
-    return axes[axis];
+    return m_axes[axis];
 }

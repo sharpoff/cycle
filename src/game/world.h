@@ -1,25 +1,23 @@
 #pragma once
 
 #include "game/entity.h"
-#include "core/notifier.h"
-#include "game/world_observer.h"
 
 class World
 {
 public:
-    friend class Application;
+    friend class Engine;
 
-    void Init();
+    void Initialize();
     void Shutdown();
 
     void Update(float deltaTime);
 
-    void AddEntity(Entity *entity, String name);
+    void AddEntity(Entity *entity, const String &name);
 
     bool RemoveEntity(Entity *entity);
-    bool RemoveEntityByName(String name);
+    bool RemoveEntityByName(const String &name);
 
-    Entity *GetEntityByName(String name);
+    Entity *GetEntityByName(const String &name);
     Vector<Entity *> GetEntities() { return entities_; }
 
 private:
@@ -31,8 +29,6 @@ private:
 
     Vector<Entity *> entities_;
     UnorderedMap<String, uint32_t> nameObjectIDMap_;
-
-    Notifier<WorldObserver> notifier;
 };
 
 inline World *gWorld = nullptr;

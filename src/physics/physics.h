@@ -8,22 +8,25 @@
 #include "Jolt/Physics/PhysicsSystem.h"
 #include "core/containers.h"
 
-#include "game/entity.h"
 #include "physics/physics_layers.h"
 #include "physics/physics_listeners.h"
 #include "physics/physics_shape.h"
 
-class StaticObject;
+class PhysicsEntity;
 
 class Physics
 {
 public:
-    friend class Application;
+    friend class Engine;
 
-    void Init();
+    void Initialize();
     void Shutdown();
 
-    StaticObject *CreateStaticObject(const PhysicsShape &physicsShape, const vec3 &position = vec3(0.0f), const quat &rotation = glm::identity<quat>(), float scale = 1.0f);
+    JPH::BodyID CreateStaticBody(const PhysicsShape &physicsShape, const vec3 &position = vec3(0.0f), const quat &rotation = glm::identity<quat>());
+    JPH::BodyID CreateDynamicBody(const PhysicsShape &physicsShape, const vec3 &position = vec3(0.0f), const quat &rotation = glm::identity<quat>());
+
+    void RegisterEntity(PhysicsEntity *entity);
+    void UnregisterEntity(PhysicsEntity *entity);
 
     void PreUpdate();
     void Update();
@@ -35,9 +38,6 @@ private:
     Physics(Physics &&) = delete;
     Physics &operator=(const Physics &) = delete;
     Physics &operator=(Physics &&) = delete;
-
-    JPH::BodyID CreateStaticBody(const PhysicsShape &physicsShape, const vec3 &position = vec3(0.0f), const quat &rotation = glm::identity<quat>());
-    JPH::BodyID CreateDynamicBody(const PhysicsShape &physicsShape, const vec3 &position = vec3(0.0f), const quat &rotation = glm::identity<quat>());
 
     JPH::Shape::ShapeResult CreateShape(const PhysicsShape &physicsShape);
 
@@ -54,6 +54,8 @@ private:
     // This is the max amount of body pairs that can be queued at any time (the broad phase will detect overlapping
     // body pairs based on their bounding boxes and will insert them into a queue for the narrowphase).
     const uint maxContactConstraints = 1024;
+
+    const JPH::BodyID InvalidBodyID = JPH::BodyID(JPH::BodyID::cInvalidBodyID);
 
     // Create mapping table from object layer to broadphase layer
     BPLayerInterfaceImpl broadPhaseLayerInterface;
@@ -72,8 +74,7 @@ private:
 
     bool activeBodyExist = false;
 
-    Vector<JPH::BodyID> dynamicBodies;
-    UnorderedMap<JPH::BodyID, Entity*> bodyObjectMap;
+    Vector<PhysicsEntity*> registredEntities;
 };
 
 inline Physics *gPhysics = nullptr;

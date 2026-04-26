@@ -30,6 +30,7 @@ target_link_libraries(engine
 	Jolt
     ktx
     soloud
+    spdlog
 )
 
 set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")

@@ -1,7 +1,7 @@
 #include "audio.h"
 #include "core/logger.h"
 
-void Audio::Init()
+void Audio::Initialize()
 {
     soloud.init();
 }
@@ -9,19 +9,20 @@ void Audio::Init()
 void Audio::Shutdown()
 {
     soloud.deinit();
-    delete gAudio;
+
+    if (gAudio)
+        delete gAudio;
 }
 
-void Audio::Load(FilePath filepath, String name)
+void Audio::Load(const FilePath &filepath, const String &name)
 {
-    if (name.empty() || filepath.empty() || !std::filesystem::exists(filepath)) {
-        LOGI("Failed to load audio sample. Wrong path or name. %s", filepath.c_str());
+    if (name.empty() || !std::filesystem::exists(filepath)) {
+        LOGI("Failed to load '{}' audio sample. Wrong path or name.", filepath.string());
         return;
     }
-    filepath = std::filesystem::absolute(filepath);
 
     if (HasSample(name)) {
-        LOGI("%s", "Failed to load audio sample. Sample with this name already exists");
+        LOGI("Failed to load '{}' audio sample. Sample with this name already exists.", filepath.string());
         return;
     }
 
@@ -30,10 +31,10 @@ void Audio::Load(FilePath filepath, String name)
     nameSampleMap[name] = samples.size() - 1;
 }
 
-void Audio::Play(String name, bool looping)
+void Audio::Play(const String &name, bool looping)
 {
     if (!HasSample(name)) {
-        LOGI("Failed to play audio sample '%s'.", name.c_str());
+        LOGI("Failed to play audio sample '{}'.", name);
         return;
     }
 
@@ -41,7 +42,7 @@ void Audio::Play(String name, bool looping)
     soloud.setLooping(handle, looping);
 }
 
-bool Audio::HasSample(String name)
+bool Audio::HasSample(const String &name)
 {
     auto it = nameSampleMap.find(name);
     return it != nameSampleMap.end();

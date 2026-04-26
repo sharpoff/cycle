@@ -13,30 +13,30 @@ public:
     void SetPerspective(float fov, float aspectRatio, float near, float far);
     void SetAspectRatio(float aspectRatio);
 
-    mat4 GetProjection() { return projection_; }
-    mat4 GetView() { return view_; }
-    vec3 GetDirection() { return vec3(view_[0][2], view_[1][2], view_[2][2]); }
+    mat4 GetProjection() { return m_projection; }
+    mat4 GetView() { return m_view; }
+    vec3 GetDirection() { return vec3(m_view[0][2], m_view[1][2], m_view[2][2]); }
 
-    vec3 GetPosition() { return position_; }
-    vec3 GetRotation() { return rotation_; }
+    vec3 GetPosition() { return m_position; }
+    vec3 GetRotation() { return m_rotation; }
     mat4 GetRotationMatrix();
 
-    float GetFov() { return fov_; }
-    float GetAspectRatio() { return aspectRatio_; }
-    float GetNearClip() { return nearClip_; }
-    float GetFarClip() { return farClip_; }
+    float GetFov() { return m_fov; }
+    float GetAspectRatio() { return m_aspectRatio; }
+    float GetNearClip() { return m_nearClip; }
+    float GetFarClip() { return m_farClip; }
 
 private:
     void UpdateView();
 
-    mat4 projection_ = mat4(1.0f);
-    mat4 view_ = mat4(1.0f);
+    mat4 m_projection = mat4(1.0f);
+    mat4 m_view = mat4(1.0f);
 
-    float fov_ = 60.0f;
-    float aspectRatio_ = 0.0f;
-    float nearClip_ = 0.01f;
-    float farClip_ = 1000.0f;
+    float m_fov = 60.0f;
+    float m_aspectRatio = 0.0f;
+    float m_nearClip = 0.01f;
+    float m_farClip = 1000.0f;
 
-    vec3 position_ = vec3(0.0f);
-    vec3 rotation_ = vec3(0.0f);
+    vec3 m_position = vec3(0.0f);
+    vec3 m_rotation = vec3(0.0f);
 };

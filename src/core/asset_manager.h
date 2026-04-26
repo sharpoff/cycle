@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/filesystem.h"
 #include "graphics/material.h"
 #include "graphics/model.h"
 #include "graphics/vulkan_types.h"
@@ -8,32 +7,27 @@
 class AssetManager
 {
 public:
-    friend class Application;
+    friend class Engine;
 
-    void Init();
+    void Initialize();
     void Shutdown();
 
-    Model *CreateModel(FilePath filename, String name);
-    Texture *CreateTexture(FilePath filename, String name);
-    Texture *CreateTexture(unsigned char *data, uint32_t size, String name);
-    Material *CreateMaterial(String name);
+    uint32_t CreateModel(const FilePath &filename, const String &name);
+    uint32_t CreateTexture(const FilePath &filename, const String &name);
+    uint32_t CreateTexture(unsigned char *data, uint32_t size, const String &name);
+    uint32_t CreateMaterial(const String &name);
 
-    void RemoveModel(Model *model);
-    void RemoveModel(String name);
+    Model *GetModelByName(const String &name);
+    Texture *GetTextureByName(const String &name);
+    Material *GetMaterialByName(const String &name);
 
-    void RemoveTexture(Texture *texture);
-    void RemoveTexture(String name);
+    Model *GetModelByIndex(uint32_t index);
+    Texture *GetTextureByIndex(uint32_t index);
+    Material *GetMaterialByIndex(uint32_t index);
 
-    void RemoveMaterial(Material *material);
-    void RemoveMaterial(String name);
-
-    Model *GetModel(String name);
-    Texture *GetTexture(String name);
-    Material *GetMaterial(String name);
-
-    Vector<Model *> &GetModels() { return models; }
-    Vector<Texture *> &GetTextures() { return textures; }
-    Vector<Material *> &GetMaterials() { return materials; }
+    Vector<Model> &GetModels() { return models; }
+    Vector<Texture> &GetTextures() { return textures; }
+    Vector<Material> &GetMaterials() { return materials; }
 
 private:
     AssetManager() {}
@@ -42,18 +36,17 @@ private:
     AssetManager &operator=(const AssetManager &) = delete;
     AssetManager &operator=(AssetManager &&) = delete;
 
-    bool LoadImageInfo(FilePath filepath, TextureLoadInfo &info, bool flip = false);
+    bool LoadImageInfo(const FilePath &filepath, TextureLoadInfo &info, bool flip = false);
     bool LoadImageInfo(unsigned char *data, uint32_t size, TextureLoadInfo &info, bool flip = false);
     void FreeImageInfo(TextureLoadInfo &info);
 
-    Vector<Model *> models;
-    UnorderedMap<String, uint32_t> nameModelIdxMap;
+    Vector<Model> models;
+    Vector<Texture> textures;
+    Vector<Material> materials;
 
-    Vector<Texture *> textures;
-    UnorderedMap<String, uint32_t> nameTextureIdxMap;
-
-    Vector<Material *> materials;
-    UnorderedMap<String, uint32_t> nameMaterialIdxMap;
+    UnorderedMap<String, uint32_t> nameModelIndexMap;
+    UnorderedMap<String, uint32_t> nameTextureIndexMap;
+    UnorderedMap<String, uint32_t> nameMaterialIndexMap;
 };
 
 inline AssetManager *gAssetManager = nullptr;

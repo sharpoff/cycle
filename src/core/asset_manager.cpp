@@ -7,60 +7,75 @@
 
 #include "ktx.h"
 #include "stb_image.h"
-#include <algorithm>
 
-void AssetManager::Init()
+void AssetManager::Initialize()
 {
 }
 
 void AssetManager::Shutdown()
 {
-    delete gAssetManager;
-}
+    // destroy textures
+    for (auto &texture : textures)
+        gRenderer->GetDevice().DestroyTexture(texture);
 
-Model *AssetManager::CreateModel(FilePath filename, String name)
-{
-    auto it = nameModelIdxMap.find(name);
-    if (it != nameModelIdxMap.end()) {
-        LOGW("createModel() - model with name '%s' already exists, skipping...", name.c_str());
-        return models[it->second];
+    // destroy mesh buffers
+    for (auto &model : models) {
+        for (auto &mesh : model.meshes) {
+            for (auto &prim : mesh.primitives) {
+                gRenderer->GetDevice().DestroyBuffer(prim.vertexBuffer);
+                gRenderer->GetDevice().DestroyBuffer(prim.indexBuffer);
+            }
+        }
     }
 
-    Model *model = new Model();
+    if (gAssetManager)
+        delete gAssetManager;
+}
+
+uint32_t AssetManager::CreateModel(const FilePath &filename, const String &name)
+{
+    auto it = nameModelIndexMap.find(name);
+    if (it != nameModelIndexMap.end()) {
+        LOGW("model with name '{}' already exists, skipping...", name);
+        return it->second;
+    }
+
+    Model model;
     if (filename.extension() == ".gltf" || filename.extension() == ".glb") {
         gltf::Scene scene;
         if (!gltf::Loader::Load(scene, filename))
-            return nullptr;
+            return InvalidIndex;
 
         if (!gltf::ConvertToModel(model, scene))
-            return nullptr;
+            return InvalidIndex;
     }
 
     models.push_back(model);
-    nameModelIdxMap[name] = models.size() - 1;
-    return model;
+    return models.size() - 1;
 }
 
-Texture *AssetManager::CreateTexture(FilePath file, String name)
+uint32_t AssetManager::CreateTexture(const FilePath &file, const String &name)
 {
-    auto it = nameTextureIdxMap.find(name);
-    if (it != nameTextureIdxMap.end()) {
-        LOGW("createTexture() - model with name '%s' already exists, skipping...", name.c_str());
-        return textures[it->second];
+    auto it = nameTextureIndexMap.find(name);
+    if (it != nameTextureIndexMap.end()) {
+        LOGW("texture with name '{}' already exists, skipping...", name);
+        return it->second;
     }
 
     // check if compressed ktx image exists
-    auto ktxFile = file;
+    FilePath filename = file;
+    auto ktxFile = filename;
+
     ktxFile.replace_extension(".ktx");
     FilePath ktxPath = ktxFile.parent_path() / "compressed" / ktxFile.filename();
 
     if (std::filesystem::exists(ktxPath))
-        file = ktxPath;
+        filename = ktxPath;
 
     TextureLoadInfo info = {};
-    if (!LoadImageInfo(file, info)) {
-        LOGE("createTexture() - failed to load a texture from path '%s'", file.c_str());
-        return nullptr;
+    if (!LoadImageInfo(filename, info)) {
+        LOGE("failed to load a texture from path '{}'", filename.string());
+        return InvalidIndex;
     }
 
     const TextureCreateInfo createInfo = {
@@ -73,7 +88,8 @@ Texture *AssetManager::CreateTexture(FilePath file, String name)
         .format = VK_FORMAT_R8G8B8A8_SRGB, // XXX: add this as a parameter or something
     };
 
-    Texture *texture = gRenderer->GetDevice().CreateTexture(createInfo);
+    Texture texture;
+    gRenderer->GetDevice().CreateTexture(texture, createInfo);
     gRenderer->GetDevice().UploadTexture(texture, info);
     FreeImageInfo(info);
 
@@ -81,17 +97,18 @@ Texture *AssetManager::CreateTexture(FilePath file, String name)
     if (!info.textureKTX && createInfo.mipLevels > 1)
         gRenderer->GetDevice().GenerateMipmaps(texture);
 
+    uint32_t id = textures.size();
+    nameTextureIndexMap[name] = id;
     textures.push_back(texture);
-    nameTextureIdxMap[name] = textures.size() - 1;
-    return texture;
+    return id;
 }
 
-Texture *AssetManager::CreateTexture(unsigned char *data, uint32_t size, String name)
+uint32_t AssetManager::CreateTexture(unsigned char *data, uint32_t size, const String &name)
 {
     TextureLoadInfo info = {};
     if (!LoadImageInfo(data, size, info)) {
-        LOGE("%s", "Failed to load a texture from memory");
-        return nullptr;
+        LOGE("Failed to load a texture from memory");
+        return InvalidIndex;
     }
 
     const TextureCreateInfo createInfo = {
@@ -104,7 +121,8 @@ Texture *AssetManager::CreateTexture(unsigned char *data, uint32_t size, String 
         .format = VK_FORMAT_R8G8B8A8_SRGB, // XXX: add this as a parameter or something
     };
 
-    Texture *texture = gRenderer->GetDevice().CreateTexture(createInfo);
+    Texture texture;
+    gRenderer->GetDevice().CreateTexture(texture, createInfo);
     gRenderer->GetDevice().UploadTexture(texture, info);
     FreeImageInfo(info);
 
@@ -112,109 +130,90 @@ Texture *AssetManager::CreateTexture(unsigned char *data, uint32_t size, String 
     if (!info.textureKTX && createInfo.mipLevels > 1)
         gRenderer->GetDevice().GenerateMipmaps(texture);
 
+    uint32_t id = textures.size();
+    nameTextureIndexMap[name] = id;
     textures.push_back(texture);
-    nameTextureIdxMap[name] = textures.size() - 1;
-    return texture;
+    return id;
 }
 
-Material *AssetManager::CreateMaterial(String name)
+uint32_t AssetManager::CreateMaterial(const String &name)
 {
-    auto it = nameMaterialIdxMap.find(name);
-    if (it != nameMaterialIdxMap.end()) {
-        LOGW("createMaterial() - model with name '%s' already exists, skipping...", name.c_str());
-        return materials[it->second];
+    auto it = nameMaterialIndexMap.find(name);
+    if (it != nameMaterialIndexMap.end()) {
+        LOGW("material with name '{}' already exists, skipping...", name);
+        return it->second;
     }
 
-    Material *material = materials.emplace_back(new Material());
-    nameMaterialIdxMap[name] = materials.size() - 1;
-    return material;
+    uint32_t id = materials.size();
+    nameMaterialIndexMap[name] = id;
+    materials.emplace_back();
+
+    return id;
 }
 
-void AssetManager::RemoveModel(Model *model)
+Model *AssetManager::GetModelByName(const String &name)
 {
-    models.erase(std::remove_if(models.begin(), models.end(), [&model](const Model *otherModel) {
-        return &model == &otherModel;
-    }),
-    models.end());
-}
-
-void AssetManager::RemoveModel(String name)
-{
-    Model *model = GetModel(name);
-    if (model)
-        RemoveModel(model);
-}
-
-void AssetManager::RemoveTexture(Texture *texture)
-{
-    textures.erase(std::remove_if(textures.begin(), textures.end(), [&texture](const Texture *otherTexture) {
-        return &texture == &otherTexture;
-    }),
-    textures.end());
-}
-
-void AssetManager::RemoveTexture(String name)
-{
-    Texture *texture = GetTexture(name);
-    if (texture)
-        RemoveTexture(texture);
-}
-
-void AssetManager::RemoveMaterial(Material *material)
-{
-    materials.erase(std::remove_if(materials.begin(), materials.end(), [&material](const Material *otherMaterial) {
-        return &material == &otherMaterial;
-    }),
-    materials.end());
-}
-
-void AssetManager::RemoveMaterial(String name)
-{
-    Material *material = GetMaterial(name);
-    if (material)
-        RemoveMaterial(material);
-}
-
-Model *AssetManager::GetModel(String name)
-{
-    auto it = nameModelIdxMap.find(name);
-    if (it != nameModelIdxMap.end()) {
-        return models[it->second];
+    auto it = nameModelIndexMap.find(name);
+    if (it != nameModelIndexMap.end()) {
+        return &models[it->second];
     }
 
-    LOGW("getModel() - model with name '%s' not found.", name.c_str());
+    LOGW("model with name '{}' not found.", name);
     return nullptr;
 }
 
-Texture *AssetManager::GetTexture(String name)
+Texture *AssetManager::GetTextureByName(const String &name)
 {
-    auto it = nameTextureIdxMap.find(name);
-    if (it != nameTextureIdxMap.end()) {
-        return textures[it->second];
+    auto it = nameTextureIndexMap.find(name);
+    if (it != nameTextureIndexMap.end()) {
+        return &textures[it->second];
     }
 
-    LOGW("getTexture() - texture with name '%s' not found.", name.c_str());
+    LOGW("texture with name '{}' not found.", name);
     return nullptr;
 }
 
-Material *AssetManager::GetMaterial(String name)
+Material *AssetManager::GetMaterialByName(const String &name)
 {
-    auto it = nameMaterialIdxMap.find(name);
-    if (it != nameMaterialIdxMap.end()) {
-        return materials[it->second];
+    auto it = nameMaterialIndexMap.find(name);
+    if (it != nameMaterialIndexMap.end()) {
+        return &materials[it->second];
     }
 
-    LOGW("getMaterial() - material with name '%s' not found.", name.c_str());
+    LOGW("material with name '{}' not found.", name);
     return nullptr;
 }
 
-bool AssetManager::LoadImageInfo(FilePath filepath, TextureLoadInfo &info, bool flip)
+Model *AssetManager::GetModelByIndex(uint32_t index)
+{
+    if (index < models.size())
+        return &models[index];
+
+    return nullptr;
+}
+
+Texture *AssetManager::GetTextureByIndex(uint32_t index)
+{
+    if (index < textures.size())
+        return &textures[index];
+
+    return nullptr;
+}
+
+Material *AssetManager::GetMaterialByIndex(uint32_t index)
+{
+    if (index < materials.size())
+        return &materials[index];
+
+    return nullptr;
+}
+
+bool AssetManager::LoadImageInfo(const FilePath &filepath, TextureLoadInfo &info, bool flip)
 {
     if (!std::filesystem::exists(filepath))
         return false;
 
     if (String(filepath).ends_with(".ktx")) { // compressed ktx image
-        // LOGI("Loading KTX texture: %s", filepath.c_str());
         ktxResult result;
 
         ktxTexture *textureKTX = nullptr;
@@ -231,7 +230,6 @@ bool AssetManager::LoadImageInfo(FilePath filepath, TextureLoadInfo &info, bool 
         info.size = ktxTexture_GetDataSize(textureKTX);
         info.textureKTX = textureKTX;
     } else { // other image types
-        // LOGI("Loading regular texture: %s", filepath.c_str());
 
         int loadedChannels;
         info.data = stbi_load(filepath.c_str(), (int *)&info.width, (int *)&info.height, (int *)&loadedChannels, STBI_rgb_alpha);

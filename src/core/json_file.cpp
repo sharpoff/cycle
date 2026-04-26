@@ -2,6 +2,7 @@
 #include "nlohmann/json.hpp"
 #include <fstream>
 
+// TODO: implement it
 JsonFile::JsonFile(FilePath path)
 {
     std::ifstream file(path);
@@ -11,5 +12,4 @@ JsonFile::JsonFile(FilePath path)
 
     auto j = nlohmann::json::parse(file, nullptr, false);
     assert(0 && "TODO: JsonFile()");
-    // TODO
 }

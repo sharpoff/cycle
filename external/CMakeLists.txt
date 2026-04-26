@@ -40,3 +40,6 @@ file(GLOB_RECURSE SOLOUD_SOURCES "soloud/src/audiosource/*.cpp" "soloud/src/audi
 add_library(soloud STATIC ${SOLOUD_SOURCES})
 target_include_directories(soloud PUBLIC "soloud/include" "soloud/src/backend/miniaudio/")
 target_compile_definitions(soloud PUBLIC WITH_MINIAUDIO)
+
+# spdlog
+add_subdirectory(spdlog)

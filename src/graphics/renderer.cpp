@@ -1,21 +1,23 @@
-#include "renderer.h"
+#include "graphics/renderer.h"
 
 #include <filesystem>
 
 #include "core/asset_manager.h"
 #include "core/filesystem.h"
+#include "core/logger.h"
 #include "game/world.h"
 #include "graphics/material.h"
 #include "graphics/push_constants.h"
 #include "graphics/scene_info.h"
 #include "graphics/vulkan_helpers.h"
+#include "graphics/barrier_merger.h"
 
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
 
-void Renderer::Init(SDL_Window *window)
+void Renderer::Initialize(Window *window)
 {
-    device.Init(window);
+    m_device.Initialize(window);
     CreateAttachmentImages();
 
     { // shadowmap image
@@ -23,7 +25,7 @@ void Renderer::Init(SDL_Window *window)
             .width = SHADOWMAP_DIM,
             .height = SHADOWMAP_DIM,
             .mipLevels = 1,
-            .sampleCount = device.maxSampleCount,
+            .sampleCount = m_device.maxSampleCount,
             .type = VK_IMAGE_VIEW_TYPE_2D,
             .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             .format = VK_FORMAT_D32_SFLOAT,
@@ -31,7 +33,7 @@ void Renderer::Init(SDL_Window *window)
         };
 
         for (uint32_t i = 0; i < SHADOWMAP_CASCADES; i++) {
-            shadowmapImages[i] = device.CreateTexture(createInfo);
+            m_device.CreateTexture(m_shadowmapImages[i], createInfo);
         }
     }
 
@@ -43,18 +45,18 @@ void Renderer::Init(SDL_Window *window)
         };
 
         for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-            sceneInfoBuffers[i] = device.CreateBuffer(createInfo, VMA_MEMORY_USAGE_CPU_TO_GPU);
+            m_device.CreateBuffer(m_sceneInfoBuffers[i], createInfo, VMA_MEMORY_USAGE_CPU_TO_GPU);
         }
     }
 
     // create cascades matrices buffer
     {
         const BufferCreateInfo createInfo = {
-            .size = sizeof(Cascade) * cascades.size(),
+            .size = sizeof(Cascade) * m_cascades.size(),
             .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         };
 
-        cascadesBuffer = device.CreateBuffer(createInfo, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        m_device.CreateBuffer(m_cascadesBuffer, createInfo, VMA_MEMORY_USAGE_CPU_TO_GPU);
     }
 
     // create common samplers
@@ -67,7 +69,7 @@ void Renderer::Init(SDL_Window *window)
         samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerCreateInfo.maxLod = 4;
 
-        linearSampler = device.CreateSampler(samplerCreateInfo);
+        m_device.CreateSampler(m_linearSampler, samplerCreateInfo);
     }
 
     { // nearest
@@ -79,85 +81,76 @@ void Renderer::Init(SDL_Window *window)
         samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerCreateInfo.maxLod = 4;
 
-        nearestSampler = device.CreateSampler(samplerCreateInfo);
+        m_device.CreateSampler(m_nearestSampler, samplerCreateInfo);
     }
 
     CreatePipelines();
 
     // write static descriptors
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        device.WriteDescriptor(0, sceneInfoBuffers[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        m_device.WriteDescriptor(0, m_sceneInfoBuffers[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     }
-    device.WriteDescriptor(2, linearSampler, VK_DESCRIPTOR_TYPE_SAMPLER, SAMPLER_LINEAR_ID);
-    device.WriteDescriptor(2, nearestSampler, VK_DESCRIPTOR_TYPE_SAMPLER, SAMPLER_NEAREST_ID);
+    m_device.WriteDescriptor(2, m_linearSampler, VK_DESCRIPTOR_TYPE_SAMPLER, SAMPLER_LINEAR_ID);
+    m_device.WriteDescriptor(2, m_nearestSampler, VK_DESCRIPTOR_TYPE_SAMPLER, SAMPLER_NEAREST_ID);
 
-    device.UpdateDescriptors();
+    m_device.UpdateDescriptors();
 }
 
 void Renderer::Shutdown()
 {
-    device.WaitIdle();
+    m_device.WaitIdle();
 
     DestroyAttachmentImages();
 
-    for (auto &shadowmap : shadowmapImages) {
-        device.DestroyTexture(shadowmap);
+    for (auto &shadowmap : m_shadowmapImages) {
+        m_device.DestroyTexture(shadowmap);
     }
 
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        device.DestroyBuffer(sceneInfoBuffers[i]);
+        m_device.DestroyBuffer(m_sceneInfoBuffers[i]);
     }
-    device.DestroyBuffer(materialsBuffer);
-    device.DestroyBuffer(lightsBuffer);
-    device.DestroyBuffer(cascadesBuffer);
+    m_device.DestroyBuffer(m_materialsBuffer);
+    m_device.DestroyBuffer(m_lightsBuffer);
+    m_device.DestroyBuffer(m_cascadesBuffer);
 
-    device.DestroySampler(linearSampler);
-    device.DestroySampler(nearestSampler);
+    m_device.DestroySampler(m_linearSampler);
+    m_device.DestroySampler(m_nearestSampler);
 
     DestroyPipelines();
 
-    device.Shutdown();
-    delete gRenderer;
+    m_device.Shutdown();
+
+    if (gRenderer)
+        delete gRenderer;
 }
 
-void Renderer::AddTextureToDescriptor(Texture *texture)
+void Renderer::AddTextureToDescriptor(uint32_t textureIndex)
 {
-    if (texture) {
-        texture->SetID(descriptorTextures.size());
-        descriptorTextures.push_back(texture);
-    }
+    m_descriptorTextureIndices.push_back(textureIndex);
 }
 
-void Renderer::AddMaterialToDescriptor(Material *material)
+void Renderer::AddMaterialToDescriptor(uint32_t materialIndex)
 {
-    if (material) {
-        material->SetID(descriptorMaterials.size());
-        descriptorMaterials.push_back(material);
-    }
+    m_descriptorMaterialIndices.push_back(materialIndex);
 }
 
-void Renderer::LoadDynamicResources()
+void Renderer::LoadResources()
 {
     // create materials buffer
-    if (!descriptorMaterials.empty()) {
+    if (!m_descriptorMaterialIndices.empty()) {
         // if (materialsBuffer->size > 0) { // delete existing materials buffer
         //     device.DestroyBuffer(materialsBuffer);
         // }
 
-        Func<uint32_t(Texture*)> getIdOrNull = [](Texture *tex) {
-            if (tex)
-                return tex->GetID();
-            return UINT32_MAX;
-        };
-
-        Vector<GPUMaterial> gpuMaterials(descriptorMaterials.size());
-        for (uint32_t i = 0; i < descriptorMaterials.size(); i++) {
-            gpuMaterials[i].baseColorTexID = getIdOrNull(descriptorMaterials[i]->baseColorTex);
-            gpuMaterials[i].metallicRoughnessTexID = getIdOrNull(descriptorMaterials[i]->metallicRoughnessTex);
-            gpuMaterials[i].normalTexID = getIdOrNull(descriptorMaterials[i]->normalTex);
-            gpuMaterials[i].emissiveTexID = getIdOrNull(descriptorMaterials[i]->emissiveTex);
-            gpuMaterials[i].roughnessFactor = descriptorMaterials[i]->roughnessFactor;
-            gpuMaterials[i].metallicFactor = descriptorMaterials[i]->metallicFactor;
+        Vector<GPUMaterial> gpuMaterials(m_descriptorMaterialIndices.size());
+        for (uint32_t i = 0; i < m_descriptorMaterialIndices.size(); i++) {
+            Material *material = gAssetManager->GetMaterialByIndex(m_descriptorMaterialIndices[i]);
+            gpuMaterials[i].baseColorTexID = material->baseColorTextureIndex;
+            gpuMaterials[i].metallicRoughnessTexID = material->metallicRoughnessTextureIndex;
+            gpuMaterials[i].normalTexID = material->normalTextureIndex;
+            gpuMaterials[i].emissiveTexID = material->emissiveTextureIndex;
+            gpuMaterials[i].roughnessFactor = material->roughnessFactor;
+            gpuMaterials[i].metallicFactor = material->metallicFactor;
         }
 
         const BufferCreateInfo createInfo = {
@@ -165,8 +158,8 @@ void Renderer::LoadDynamicResources()
             .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
-        materialsBuffer = device.CreateBuffer(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
-        device.UploadBufferData(materialsBuffer, gpuMaterials.data(), createInfo.size);
+        m_device.CreateBuffer(m_materialsBuffer, createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+        m_device.UploadBufferData(m_materialsBuffer, gpuMaterials.data(), createInfo.size);
     }
 
     // create lights buffer
@@ -188,23 +181,23 @@ void Renderer::LoadDynamicResources()
     // }
 
     // write dynamic descriptors
-    for (size_t i = 0; i < descriptorTextures.size(); i++)
-        device.WriteDescriptor(1, descriptorTextures[i], VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorTextures[i]->GetID());
+    for (size_t i = 0; i < m_descriptorTextureIndices.size(); i++)
+        m_device.WriteDescriptor(1, *gAssetManager->GetTextureByIndex(m_descriptorTextureIndices[i]), VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, m_descriptorTextureIndices[i]);
 
-    if (!descriptorMaterials.empty())
-        device.WriteDescriptor(3, materialsBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+    if (!m_descriptorMaterialIndices.empty())
+        m_device.WriteDescriptor(3, m_materialsBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 
     // if (lightEntities.size() > 0)
     //     device.writeDescriptor(4, lightsBuffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 
-    device.WriteDescriptor(5, cascadesBuffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    m_device.WriteDescriptor(5, m_cascadesBuffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 
-    device.UpdateDescriptors();
+    m_device.UpdateDescriptors();
 }
 
 void Renderer::ReloadShaders()
 {
-    device.WaitIdle();
+    m_device.WaitIdle();
 
     CompileShaders();
 
@@ -212,12 +205,17 @@ void Renderer::ReloadShaders()
     CreatePipelines();
 }
 
-void Renderer::DrawFrame()
+void Renderer::RenderFrame()
 {
-    assert(camera_ && "Camera should be set!");
+    if (firstRun) {
+        LoadResources();
+        firstRun = false;
+    }
+
+    assert(m_camera && "Camera should be set!");
 
     VkCommandBuffer cmd = VK_NULL_HANDLE;
-    if (cmd = device.BeginCommandBuffer(); cmd == VK_NULL_HANDLE) {
+    if (cmd = m_device.BeginCommandBuffer(); cmd == VK_NULL_HANDLE) {
         // resize swapchain and recreate attachment images
         ResizeWindow();
         return;
@@ -226,27 +224,28 @@ void Renderer::DrawFrame()
     UpdateDynamicData();
 
     // pre-render barriers
-    barriers.TransitionImage2(colorImage->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
-    barriers.TransitionImage2(depthImage->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
-    for (auto &shadowmap : shadowmapImages)
-        barriers.TransitionImage2(shadowmap->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
-    barriers.TransitionImage2(device.GetSwapchainImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    BarrierMerger barriers;
+    barriers.TransitionImage2(m_colorImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    barriers.TransitionImage2(m_depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
+    for (auto &shadowmap : m_shadowmapImages)
+        barriers.TransitionImage2(shadowmap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
+    barriers.TransitionImage2(m_device.GetSwapchainImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
     barriers.FlushBarriers(cmd);
 
-    const uint32_t currentFrame = device.GetCurrentFrame();
-    VkExtent2D renderArea = {device.GetSwapchainWidth(), device.GetSwapchainHeight()};
+    const uint32_t currentFrame = m_device.GetCurrentFrame();
+    VkExtent2D renderArea = {m_device.GetSwapchainWidth(), m_device.GetSwapchainHeight()};
     const float color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    VkRenderingAttachmentInfo depthAttachment = vulkan::CreateAttachmentInfo(depthImage->view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, false, true);
+    VkRenderingAttachmentInfo depthAttachment = vulkan::CreateAttachmentInfo(m_depthImage.view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, false, true);
 
     //===========================
     // Render skybox
     //===========================
-#if 1
+#if 0
     {
         vulkan::BeginDebugLabel(cmd, "skybox");
         Vector<VkRenderingAttachmentInfo> colorAttachments = {
-            vulkan::CreateAttachmentInfo(colorImage->view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, false, true),
+            vulkan::CreateAttachmentInfo(m_colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, false, true),
         };
         VkRenderingInfo renderingInfo = vulkan::CreateRenderingInfo(renderArea, colorAttachments, &depthAttachment);
         vkCmdBeginRendering(cmd, &renderingInfo);
@@ -263,11 +262,11 @@ void Renderer::DrawFrame()
         scissor.extent.height = renderArea.height;
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline->pipeline);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline->layout, 0, 1, &device.GetBindlessDescriptor(), 0, 0);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_skyboxPipeline->pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_skyboxPipeline->layout, 0, 1, &m_device.GetBindlessDescriptor(), 0, 0);
 
         // draw skybox cube
-        DrawModel(cmd, gAssetManager->GetModel("cube"), mat4(1.0f));
+        DrawModel(cmd, gAssetManager->GetModelByName("cube"), mat4(1.0f));
 
         vkCmdEndRendering(cmd);
         vulkan::EndDebugLabel(cmd);
@@ -279,17 +278,17 @@ void Renderer::DrawFrame()
     //===========================
 #if 0
     vulkan::BeginDebugLabel(cmd, "shadowmapping");
-    for (uint32_t i = 0; i < shadowmapImages.size(); i++) {
-        Texture * shadowmap = shadowmapImages[i];
+    for (uint32_t i = 0; i < m_shadowmapImages.size(); i++) {
+        Texture &shadowmap = m_shadowmapImages[i];
 
-        VkRenderingAttachmentInfo shadowmapDepthAttachment = vulkan::CreateAttachmentInfo(shadowmap->view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, false, true);
+        VkRenderingAttachmentInfo shadowmapDepthAttachment = vulkan::CreateAttachmentInfo(shadowmap.view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, false, true);
 
-        VkRenderingInfo renderingInfo = vulkan::CreateRenderingInfo({shadowmap->width, shadowmap->height}, {}, &shadowmapDepthAttachment);
+        VkRenderingInfo renderingInfo = vulkan::CreateRenderingInfo({shadowmap.width, shadowmap.height}, {}, &shadowmapDepthAttachment);
         vkCmdBeginRendering(cmd, &renderingInfo);
 
         VkViewport viewport = {};
-        viewport.width = shadowmap->width;
-        viewport.height = shadowmap->height;
+        viewport.width = shadowmap.width;
+        viewport.height = shadowmap.height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &viewport);
@@ -301,15 +300,15 @@ void Renderer::DrawFrame()
         scissor.extent.height = renderArea.height;
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowmapPipeline->pipeline);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowmapPipeline->layout, 0, 1, &device.GetBindlessDescriptor(), 0, 0);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowmapPipeline.pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowmapPipeline.layout, 0, 1, &m_device.GetBindlessDescriptor(), 0, 0);
 
         // render all entities that cast shadows
-        for (Entity *object : gWorld->GetObjects()) {
-            if (!object || (object->GetDrawFlags() & Entity::kCastShadows) != Entity::kCastShadows)
+        for (Entity *entity : gWorld->GetEntities()) {
+            if (!entity || (entity->GetDrawFlags() & Entity::kCastShadows) != Entity::kCastShadows)
                 continue;
 
-            DrawModel(cmd, object->GetModel(), object->GetWorldMatrix());
+            DrawModel(cmd, entity->GetModel(), entity->GetWorldMatrix());
         }
 
         vkCmdEndRendering(cmd);
@@ -324,7 +323,7 @@ void Renderer::DrawFrame()
     {
         vulkan::BeginDebugLabel(cmd, "models");
         Vector<VkRenderingAttachmentInfo> colorAttachments = {
-            vulkan::CreateAttachmentInfo(colorImage->view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, true),
+            vulkan::CreateAttachmentInfo(m_colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, true),
         };
 
         VkRenderingInfo renderingInfo = vulkan::CreateRenderingInfo(renderArea, colorAttachments, &depthAttachment);
@@ -342,8 +341,8 @@ void Renderer::DrawFrame()
         scissor.extent.height = renderArea.height;
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline->pipeline);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline->layout, 0, 1, &device.GetBindlessDescriptor(), 0, 0);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipeline.pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipeline.layout, 0, 1, &m_device.GetBindlessDescriptor(), 0, 0);
 
         // render all entities that are visible
         for (Entity *entity : gWorld->GetEntities()) {
@@ -366,7 +365,7 @@ void Renderer::DrawFrame()
     {
         vulkan::BeginDebugLabel(cmd, "imgui");
         Vector<VkRenderingAttachmentInfo> colorAttachments = {
-            vulkan::CreateAttachmentInfo(colorImage->view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, true, device.GetSwapchainImageView(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
+            vulkan::CreateAttachmentInfo(m_colorImage.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, true, true, m_device.GetSwapchainImageView(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
         };
 
         VkRenderingInfo renderingInfo = vulkan::CreateRenderingInfo(renderArea, colorAttachments, &depthAttachment);
@@ -401,12 +400,12 @@ void Renderer::DrawFrame()
 #endif
 
     // post-render barriers
-    barriers.TransitionImage2(device.GetSwapchainImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    barriers.TransitionImage2(m_device.GetSwapchainImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
     barriers.FlushBarriers(cmd);
 
-    device.EndCommandBuffer(cmd);
+    m_device.EndCommandBuffer(cmd);
 
-    if (!device.SwapchainPresent()) {
+    if (!m_device.SwapchainPresent()) {
         ResizeWindow();
         return;
     }
@@ -414,7 +413,7 @@ void Renderer::DrawFrame()
 
 void Renderer::DrawImGuiDebug()
 {
-    ImGui::Begin("Entities");
+    ImGui::Begin("World entities");
     for (auto &entity : gWorld->GetEntities()) {
         ImGui::Selectable(entity->GetName().c_str());
     }
@@ -423,7 +422,7 @@ void Renderer::DrawImGuiDebug()
 
 vec2 Renderer::GetScreenSize()
 {
-    return vec2(device.GetSwapchainWidth(), device.GetSwapchainHeight());
+    return vec2(m_device.GetSwapchainWidth(), m_device.GetSwapchainHeight());
 }
 
 float Renderer::GetAspectRatio()
@@ -434,8 +433,10 @@ float Renderer::GetAspectRatio()
 
 void Renderer::DrawModel(VkCommandBuffer cmd, Model *model, mat4 worldMatrix)
 {
-    if (!model)
+    if (!model) {
+        LOGE("model is null!");
         return;
+    }
 
     for (auto &mesh : model->meshes) {
         DrawMesh(cmd, mesh, worldMatrix);
@@ -448,11 +449,11 @@ void Renderer::DrawMesh(VkCommandBuffer cmd, Mesh &mesh, mat4 worldMatrix)
     for (MeshPrimitive &prim : mesh.primitives) {
         MeshPushConstants push = {};
         push.worldMatrix = worldMatrix * prim.worldMatrix;
-        push.vertexBufferAddress = prim.vertexBuffer->address;
+        push.vertexBufferAddress = prim.vertexBuffer.address;
         push.materialId = prim.material ? prim.material->GetID() : UINT32_MAX;
-        vkCmdPushConstants(cmd, meshPipeline->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+        vkCmdPushConstants(cmd, m_meshPipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 
-        vkCmdBindIndexBuffer(cmd, prim.indexBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(cmd, prim.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd, prim.indices.size(), 1, 0, 0, 0);
     }
 }
@@ -468,43 +469,43 @@ void Renderer::CreateAttachmentImages()
 {
     { // color image
         TextureCreateInfo createInfo = {
-            .width = device.GetSwapchainWidth(),
-            .height = device.GetSwapchainHeight(),
+            .width = m_device.GetSwapchainWidth(),
+            .height = m_device.GetSwapchainHeight(),
             .mipLevels = 1,
-            .sampleCount = device.maxSampleCount,
+            .sampleCount = m_device.maxSampleCount,
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .format = device.GetSurfaceFormat().format,
+            .format = m_device.GetSurfaceFormat().format,
             .debugName = "color"};
 
-        colorImage = device.CreateTexture(createInfo);
+        m_device.CreateTexture(m_colorImage, createInfo);
     }
 
     { // depth image
         TextureCreateInfo createInfo = {
-            .width = device.GetSwapchainWidth(),
-            .height = device.GetSwapchainHeight(),
+            .width = m_device.GetSwapchainWidth(),
+            .height = m_device.GetSwapchainHeight(),
             .mipLevels = 1,
-            .sampleCount = device.maxSampleCount,
+            .sampleCount = m_device.maxSampleCount,
             .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             .format = VK_FORMAT_D32_SFLOAT,
             .aspect = VK_IMAGE_ASPECT_DEPTH_BIT,
             .debugName = "depth"};
 
-        depthImage = device.CreateTexture(createInfo);
+        m_device.CreateTexture(m_depthImage, createInfo);
     }
 }
 
 void Renderer::DestroyAttachmentImages()
 {
-    device.WaitIdle();
-    device.DestroyTexture(colorImage);
-    device.DestroyTexture(depthImage);
+    m_device.WaitIdle();
+    m_device.DestroyTexture(m_colorImage);
+    m_device.DestroyTexture(m_depthImage);
 }
 
 void Renderer::CompileShaders()
 {
-    std::filesystem::create_directory(shadersBinaryDir);
-    for (auto &entry : std::filesystem::directory_iterator(shadersDir)) {
+    std::filesystem::create_directory(ShadersBinaryDir);
+    for (auto &entry : std::filesystem::directory_iterator(ShadersDir)) {
         if (!entry.is_regular_file())
             continue;
 
@@ -514,7 +515,7 @@ void Renderer::CompileShaders()
             String filename = filepath.filename();
 
             // HACK: this uses command line to recompile all shaders
-            String cmd = "glslangValidator -V " + filepath.string() + " -o " + String(shadersBinaryDir / (filename + ".spv"));
+            String cmd = "glslangValidator -V " + filepath.string() + " -o " + String(ShadersBinaryDir / (filename + ".spv"));
             system(cmd.c_str());
         }
     }
@@ -530,16 +531,16 @@ void Renderer::CreatePipelines()
             .pushConstantRanges = pushConstantRanges,
             .cullMode = VK_CULL_MODE_BACK_BIT,
             .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-            .sampleCount = device.maxSampleCount,
+            .sampleCount = m_device.maxSampleCount,
             .depthCompareOp = VK_COMPARE_OP_GREATER,
             .depthWriteEnable = true,
             .colorAttachmentFormats = {VK_FORMAT_B8G8R8A8_SRGB},
             .depthAttachmentFormat = VK_FORMAT_D32_SFLOAT,
-            .vertexCode = ReadFile(shadersBinaryDir / "mesh.vert.spv", true),
-            .fragmentCode = ReadFile(shadersBinaryDir / "mesh.frag.spv", true),
+            .vertexCode = ReadFile(ShadersBinaryDir / "mesh.vert.spv", true),
+            .fragmentCode = ReadFile(ShadersBinaryDir / "mesh.frag.spv", true),
         };
 
-        meshPipeline = device.CreateRenderPipeline(createInfo);
+        m_device.CreateRenderPipeline(m_meshPipeline, createInfo);
     }
 
     { // skybox pipeline
@@ -550,16 +551,16 @@ void Renderer::CreatePipelines()
             .pushConstantRanges = pushConstantRanges,
             .cullMode = VK_CULL_MODE_FRONT_BIT,
             .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-            .sampleCount = device.maxSampleCount,
+            .sampleCount = m_device.maxSampleCount,
             .depthCompareOp = VK_COMPARE_OP_GREATER,
             .depthWriteEnable = true,
             .colorAttachmentFormats = {VK_FORMAT_B8G8R8A8_SRGB},
             .depthAttachmentFormat = VK_FORMAT_D32_SFLOAT,
-            .vertexCode = ReadFile(shadersBinaryDir / "skybox.vert.spv", true),
-            .fragmentCode = ReadFile(shadersBinaryDir / "skybox.frag.spv", true),
+            .vertexCode = ReadFile(ShadersBinaryDir / "skybox.vert.spv", true),
+            .fragmentCode = ReadFile(ShadersBinaryDir / "skybox.frag.spv", true),
         };
 
-        skyboxPipeline = device.CreateRenderPipeline(createInfo);
+        m_device.CreateRenderPipeline(m_skyboxPipeline, createInfo);
     }
 
     { // shadowmap pipeline
@@ -569,71 +570,56 @@ void Renderer::CreatePipelines()
         RenderPipelineCreateInfo createInfo = {
             .pushConstantRanges = pushConstantRanges,
             .cullMode = VK_CULL_MODE_NONE,
-            .sampleCount = device.maxSampleCount,
+            .sampleCount = m_device.maxSampleCount,
             .depthCompareOp = VK_COMPARE_OP_GREATER,
             .depthWriteEnable = true,
             .depthAttachmentFormat = VK_FORMAT_D32_SFLOAT,
-            .vertexCode = ReadFile(shadersBinaryDir / "shadowmap.vert.spv", true),
+            .vertexCode = ReadFile(ShadersBinaryDir / "shadowmap.vert.spv", true),
         };
 
-        shadowmapPipeline = device.CreateRenderPipeline(createInfo);
+        m_device.CreateRenderPipeline(m_shadowmapPipeline, createInfo);
     }
 }
 
 void Renderer::DestroyPipelines()
 {
-    device.DestroyRenderPipeline(meshPipeline);
-    device.DestroyRenderPipeline(skyboxPipeline);
-    device.DestroyRenderPipeline(shadowmapPipeline);
+    m_device.DestroyRenderPipeline(m_meshPipeline);
+    m_device.DestroyRenderPipeline(m_skyboxPipeline);
+    m_device.DestroyRenderPipeline(m_shadowmapPipeline);
 }
 
 void Renderer::UpdateDynamicData()
 {
     // lights
     UpdateGpuLights();
-    if (gpuLights.size() > 0) {
-        device.UploadBufferData(lightsBuffer, gpuLights.data(), sizeof(GPULight) * gpuLights.size());
+    if (m_gpuLights.size() > 0) {
+        m_device.UploadBufferData(m_lightsBuffer, m_gpuLights.data(), sizeof(GPULight) * m_gpuLights.size());
 
         // HACK: uses first light
-        UpdateShadowmapCascades(*camera_, gpuLights[0].direction);
-        device.UploadBufferData(cascadesBuffer, cascades.data(), cascades.size() * sizeof(Cascade));
+        UpdateShadowmapCascades(*m_camera, m_gpuLights[0].direction);
+        m_device.UploadBufferData(m_cascadesBuffer, m_cascades.data(), m_cascades.size() * sizeof(Cascade));
     }
 
     // scene info
     SceneInfo sceneInfo = {};
-    sceneInfo.view = camera_->GetView();
-    sceneInfo.projection = camera_->GetProjection();
-    sceneInfo.cameraPos = camera_->GetPosition();
-    sceneInfo.lightsCount = gpuLights.size();
-    sceneInfo.skyboxTexID = gAssetManager->GetTexture("skybox")->GetID();
+    sceneInfo.view = m_camera->GetView();
+    sceneInfo.projection = m_camera->GetProjection();
+    sceneInfo.cameraPos = m_camera->GetPosition();
+    sceneInfo.lightsCount = m_gpuLights.size();
+    sceneInfo.skyboxTexID = gAssetManager->GetTextureByName("skybox")->GetID();
 
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++)
-        device.UploadBufferData(sceneInfoBuffers[i], &sceneInfo, sizeof(sceneInfo));
+        m_device.UploadBufferData(m_sceneInfoBuffers[i], &sceneInfo, sizeof(sceneInfo));
 }
 
 void Renderer::UpdateGpuLights()
 {
-    gpuLights.clear();
-    // TODO: check if entity is dirty (changed position, direction, color, etc.), so we don't update every light
-    // for (EntityID lightID : lightEntities) {
-    //     LightComponent     *lightComponent = EntityManager::get()->lights.getComponent(lightID);
-    //     TransformComponent *transformComponent = EntityManager::get()->transforms.getComponent(lightID);
-    //     if (!lightComponent || !transformComponent)
-    //         continue;
-
-    //     GPULight &light = gpuLights.emplace_back();
-    //     light.intensity = 1.0f;
-    //     light.position = math::getPosition(transformComponent->transform);
-    //     light.direction = lightComponent->direction;
-    //     light.color = lightComponent->color;
-    //     light.type = lightComponent->lightType;
-    // }
+    m_gpuLights.clear();
 }
 
-// references: https://johanmedestrom.wordpress.com/2016/03/18/opengl-cascaded-shadow-maps/
-//          and https://github.com/SaschaWillems/Vulkan/blob/master/examples/shadowmappingcascade/shadowmappingcascade.cpp
 void Renderer::UpdateShadowmapCascades(Camera &camera, vec3 lightDir)
 {
+    // references: https://johanmedestrom.wordpress.com/2016/03/18/opengl-cascaded-shadow-maps/ and https://github.com/SaschaWillems/Vulkan/blob/master/examples/shadowmappingcascade/shadowmappingcascade.cpp
     float cascadeSplits[SHADOWMAP_CASCADES];
 
     float nearClip = camera.GetNearClip();
@@ -709,8 +695,8 @@ void Renderer::UpdateShadowmapCascades(Camera &camera, vec3 lightDir)
         glm::mat4 lightOrthoMatrix = glm::ortho(minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z - minExtents.z);
 
         // Store split distance and matrix in cascade
-        cascades[i].depth = (camera.GetNearClip() + splitDist * clipRange) * -1.0f;
-        cascades[i].viewProjection = lightOrthoMatrix * lightViewMatrix;
+        m_cascades[i].depth = (camera.GetNearClip() + splitDist * clipRange) * -1.0f;
+        m_cascades[i].viewProjection = lightOrthoMatrix * lightViewMatrix;
 
         lastSplitDist = cascadeSplits[i];
     }

@@ -10,7 +10,7 @@ enum LightType : uint8_t
     LIGHT_TYPE_SPOT = 2,
 };
 
-struct Light : public Object
+struct Light : public Entity
 {
     LightType lightType = LIGHT_TYPE_DIRECTIONAL;
     vec3 color = vec3(1.0f);

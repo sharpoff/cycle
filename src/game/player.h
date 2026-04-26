@@ -1,9 +1,9 @@
 #pragma once
 
 #include "core/camera.h"
-#include "game/character.h"
+#include "game/entity.h"
 #include "game/interfaces.h"
-#include "input/input_manager.h"
+#include "input/input.h"
 
 enum class WeaponType
 {
@@ -14,10 +14,10 @@ enum class WeaponType
     Count,
 };
 
-class Player : public Character, public IDamagable
+class Player : public Entity, public IDamagable
 {
 public:
-    Player(InputManager &inputManager, float aspectRatio);
+    Player(Input &inputManager, float aspectRatio);
 
     virtual void Update(float deltaTime) override;
 
@@ -25,6 +25,6 @@ public:
     void Shoot();
 
 private:
-    Camera camera_;
-    InputManager &inputManager_;
+    Camera m_camera;
+    Input &m_inputManager;
 };

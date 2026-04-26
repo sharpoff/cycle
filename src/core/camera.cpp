@@ -8,48 +8,48 @@ Camera::Camera()
 
 void Camera::SetPosition(vec3 position)
 {
-    position_ = position;
+    m_position = position;
     UpdateView();
 }
 
 void Camera::SetRotation(vec3 rotation)
 {
-    rotation_ = rotation;
+    m_rotation = rotation;
     UpdateView();
 }
 
 void Camera::SetPerspectiveInf(float fov, float aspectRatio, float near)
 {
-    fov_ = fov;
-    aspectRatio_ = aspectRatio;
-    nearClip_ = near;
-    projection_ = math::PerspectiveInf(fov, aspectRatio, near);
+    m_fov = fov;
+    m_aspectRatio = aspectRatio;
+    m_nearClip = near;
+    m_projection = math::PerspectiveInf(fov, aspectRatio, near);
 }
 
 void Camera::SetPerspective(float fov, float aspectRatio, float near, float far)
 {
-    fov_ = fov;
-    aspectRatio_ = aspectRatio;
-    nearClip_ = near;
-    farClip_ = far;
-    projection_ = math::Perspective(fov, aspectRatio, near, far);
+    m_fov = fov;
+    m_aspectRatio = aspectRatio;
+    m_nearClip = near;
+    m_farClip = far;
+    m_projection = math::Perspective(fov, aspectRatio, near, far);
 }
 
 void Camera::SetAspectRatio(float aspectRatio)
 {
-    SetPerspective(fov_, aspectRatio, nearClip_, farClip_);
+    SetPerspective(m_fov, aspectRatio, m_nearClip, m_farClip);
 }
 
 void Camera::UpdateView()
 {
-    view_ = glm::inverse(glm::translate(position_) * GetRotationMatrix());
+    m_view = glm::inverse(glm::translate(m_position) * GetRotationMatrix());
 }
 
 mat4 Camera::GetRotationMatrix()
 {
-    quat pitch = glm::angleAxis(rotation_.x, vec3(1.0f, 0.0f, 0.0f));
-    quat yaw = glm::angleAxis(rotation_.y, vec3(0.0f, -1.0f, 0.0f));
-    quat roll = glm::angleAxis(rotation_.z, vec3(0.0f, 0.0f, 1.0f));
+    quat pitch = glm::angleAxis(m_rotation.x, vec3(1.0f, 0.0f, 0.0f));
+    quat yaw = glm::angleAxis(m_rotation.y, vec3(0.0f, -1.0f, 0.0f));
+    quat roll = glm::angleAxis(m_rotation.z, vec3(0.0f, 0.0f, 1.0f));
 
     return glm::toMat4(yaw) * glm::toMat4(roll) * glm::toMat4(pitch);
 }

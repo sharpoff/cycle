@@ -1,7 +1,7 @@
 #ifndef PBR_GLSL
 #define PBR_GLSL
 
-#define PI 3.1415
+#include "constants.glsl"
 
 // reference: https://google.github.io/filament/Filament.md.html
 

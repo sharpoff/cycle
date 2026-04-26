@@ -13,7 +13,7 @@ namespace gltf
     class Loader
     {
     public:
-        static bool Load(Scene &scene, FilePath filename);
+        static bool Load(Scene &scene, const FilePath &filename);
 
     private:
         static void ProcessNode(SceneNode &node, cgltf_data *data, cgltf_node *gltfNode, String baseDir);

@@ -1,14 +1,14 @@
 #pragma once
 
-#include "graphics/vulkan_types.h"
+#include "core/constants.h"
 
 struct Material
 {
 public:
-    Texture * baseColorTex = nullptr;
-    Texture * metallicRoughnessTex = nullptr;
-    Texture * normalTex = nullptr;
-    Texture * emissiveTex = nullptr;
+    uint32_t baseColorTextureIndex = InvalidIndex;
+    uint32_t metallicRoughnessTextureIndex = InvalidIndex;
+    uint32_t normalTextureIndex = InvalidIndex;
+    uint32_t emissiveTextureIndex = InvalidIndex;
     float roughnessFactor = 0.0f;
     float metallicFactor = 0.0f;
 
@@ -17,14 +17,4 @@ public:
 
 private:
     uint32_t id = UINT32_MAX;
-};
-
-struct GPUMaterial
-{
-    uint32_t baseColorTexID = UINT32_MAX;
-    uint32_t metallicRoughnessTexID = UINT32_MAX;
-    uint32_t normalTexID = UINT32_MAX;
-    uint32_t emissiveTexID = UINT32_MAX;
-    float roughnessFactor = 0.0f;
-    float metallicFactor = 0.0f;
 };

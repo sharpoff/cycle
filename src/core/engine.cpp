@@ -1,109 +1,92 @@
-#include "core/application.h"
+#include "core/engine.h"
 
 #include <chrono>
 
 #include "core/asset_manager.h"
 #include "core/audio.h"
-#include "core/logger.h"
+#include "game/entities/static_body.h"
 #include "game/world.h"
-#include "input/input_manager.h"
+#include "input/input.h"
 #include "physics/physics.h"
+#include "core/logger.h"
 
 #include "imgui_impl_sdl3.h"
 #include <SDL3/SDL.h>
 
-Application::Application(const char *title, uint32_t width, uint32_t height)
+Engine::Engine(const char *title, uint32_t width, uint32_t height)
 {
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
-        LOGE("Failed to initialize SDL: %s", SDL_GetError());
-        exit(EXIT_FAILURE);
-    }
+    m_window.Create(title, width, height);
 
-    window_ = SDL_CreateWindow(title, width, height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-    if (!window_) {
-        LOGE("Failed to create SDL window: %s", SDL_GetError());
-        exit(EXIT_FAILURE);
-    }
+    gLogger = new Logger();
+    gLogger->Initialize();
 
-    SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-    SDL_RaiseWindow(window_);
-
-    gInput = new InputManager();
-    gInput->Init();
+    gInput = new Input();
+    gInput->Initialize();
 
     gRenderer = new Renderer();
-    gRenderer->Init(window_);
+    gRenderer->Initialize(&m_window);
 
     gAssetManager = new AssetManager();
-    gAssetManager->Init();
+    gAssetManager->Initialize();
 
     gPhysics = new Physics();
-    gPhysics->Init();
+    gPhysics->Initialize();
 
     gAudio = new Audio();
-    gAudio->Init();
+    gAudio->Initialize();
+
+    gWorld = new World();
+    gWorld->Initialize();
 
     // create default material
-    Material *defaultMaterial = gAssetManager->CreateMaterial("default");
-    defaultMaterial->baseColorTex = gAssetManager->CreateTexture(texturesDir / "compressed/checkerboard.ktx", "default");
-    gRenderer->AddTextureToDescriptor(defaultMaterial->baseColorTex);
-    gRenderer->AddMaterialToDescriptor(defaultMaterial);
+    uint32_t defaultMaterialIndex = gAssetManager->CreateMaterial("default");
+    Material *defaultMaterial = gAssetManager->GetMaterialByIndex(defaultMaterialIndex);
+    defaultMaterial->baseColorTextureIndex = gAssetManager->CreateTexture(TexturesDir / "compressed/checkerboard.ktx", "default");
+    gRenderer->AddTextureToDescriptor(defaultMaterial->baseColorTextureIndex);
+    gRenderer->AddMaterialToDescriptor(defaultMaterialIndex);
 
     // load common textures
-    gRenderer->AddTextureToDescriptor(gAssetManager->CreateTexture(texturesDir / "sky_cubemap/sky_cubemap.ktx", "skybox"));
+    gRenderer->AddTextureToDescriptor(gAssetManager->CreateTexture(TexturesDir / "sky_cubemap/sky_cubemap.ktx", "skybox"));
 
     // load models
-    gAssetManager->CreateModel(modelsDir / "monkey.gltf", "monkey");
-    gAssetManager->CreateModel(modelsDir / "cube.gltf", "cube");
-    gAssetManager->CreateModel(modelsDir / "sponza/Sponza.gltf", "sponza");
+    gAssetManager->CreateModel(ModelsDir / "monkey.gltf", "monkey");
+    gAssetManager->CreateModel(ModelsDir / "cube.gltf", "cube");
+    gAssetManager->CreateModel(ModelsDir / "sponza/Sponza.gltf", "sponza");
     // gAssetManager->CreateModel(modelsDir / "de_dust2/de_dust2.gltf", "de_dust2");
     // gAssetManager->CreateModel(modelsDir / "ak47/v_ak47.gltf", "ak47");
 
     // TODO: add textures/materials to descriptors using AddTextureToDescriptor, etc.
 
-    gRenderer->LoadDynamicResources();
-
     debugCamera.SetPerspective(glm::radians(60.0f), gRenderer->GetAspectRatio(), 0.1f, 100.0f);
     debugCamera.SetPosition(vec3(0, 2, 2));
     gRenderer->SetCamera(debugCamera);
 
-    gWorld = new World();
-    gWorld->Init();
+    // create entities
 
-    Entity *entity = new Entity();
-    entity->SetModel(gAssetManager->GetModel("monkey"));
-    gWorld->AddEntity(entity, "entity");
+    StaticBody *monkeyEntity = new StaticBody();
+    monkeyEntity->SetPosition(vec3(0, 0, 0));
+    monkeyEntity->SetModel(gAssetManager->GetModelByName("monkey"));
+    // monkeyEntity->CreateBodyFromShape(BoxShape{.halfExtents = gAssetManager->GetModel("monkey")->bounds.getHalfExtents()});
+    monkeyEntity->CreateBodyFromModel();
+    gPhysics->RegisterEntity(monkeyEntity);
+
+    gWorld->AddEntity(monkeyEntity, "monkey");
 }
 
-Application::~Application()
+Engine::~Engine()
 {
     gWorld->Shutdown();
     gAudio->Shutdown();
     gPhysics->Shutdown();
-
-    // destroy textures
-    auto &textures = gAssetManager->GetTextures();
-    for (auto &texture : textures) {
-        gRenderer->GetDevice().DestroyTexture(texture);
-    }
-
-    // destroy mesh buffers
-    auto &models = gAssetManager->GetModels();
-    for (auto &model : models) {
-        for (auto &mesh : model->meshes) {
-            for (auto &prim : mesh.primitives) {
-                gRenderer->GetDevice().DestroyBuffer(prim.vertexBuffer);
-                gRenderer->GetDevice().DestroyBuffer(prim.indexBuffer);
-            }
-        }
-    }
-
     gAssetManager->Shutdown();
     gRenderer->Shutdown();
     gInput->Shutdown();
+    gLogger->Shutdown();
+
+    m_window.Destroy();
 }
 
-void Application::Run()
+void Engine::Run()
 {
     auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -117,14 +100,14 @@ void Application::Run()
         ProcessEvents(deltaTime);
         Update(deltaTime);
 
-        if (!minimized_) {
+        if (!m_window.IsMinimized()) {
             ImGui_ImplSDL3_NewFrame();
-            gRenderer->DrawFrame();
+            gRenderer->RenderFrame();
         }
     }
 }
 
-void Application::ProcessEvents(float deltaTime)
+void Engine::ProcessEvents(float deltaTime)
 {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -134,11 +117,6 @@ void Application::ProcessEvents(float deltaTime)
 
         ImGui_ImplSDL3_ProcessEvent(&event);
         gInput->ProcessEvent(&event);
-    }
-
-    minimized_ = false;
-    if (SDL_GetWindowFlags(window_) & SDL_WINDOW_MINIMIZED) {
-        minimized_ = true;
     }
 
 #ifndef NDEBUG
@@ -177,7 +155,7 @@ void Application::ProcessEvents(float deltaTime)
 #endif
 }
 
-void Application::Update(float deltaTime)
+void Engine::Update(float deltaTime)
 {
     gInput->Update();
     gWorld->Update(deltaTime);

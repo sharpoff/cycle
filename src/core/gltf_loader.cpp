@@ -14,7 +14,7 @@ namespace gltf
 {
     static uint32_t uniqueNumber = 0;
 
-    bool Loader::Load(Scene &scene, FilePath filename)
+    bool Loader::Load(Scene &scene, const FilePath &filename)
     {
         if (!std::filesystem::exists(filename))
             return false;
@@ -119,10 +119,10 @@ namespace gltf
                             String name = gltfImage->name ? gltfImage->name : GetUniqueName();
 
                             if (gltfImage->uri) {
-                                material->baseColorTex = gAssetManager->CreateTexture(baseDir / FilePath(gltfImage->uri), name);
+                                material->baseColorTextureIndex = gAssetManager->CreateTexture(baseDir / FilePath(gltfImage->uri), name);
                             } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
                                 unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
-                                material->baseColorTex = gAssetManager->CreateTexture(data, gltfImage->buffer_view->buffer->size, name);
+                                material->baseColorTextureIndex = gAssetManager->CreateTexture(data, gltfImage->buffer_view->buffer->size, name);
                             }
                         }
 
@@ -132,10 +132,10 @@ namespace gltf
                             String name = gltfImage->name ? gltfImage->name : GetUniqueName();
 
                             if (gltfImage->uri) {
-                                material->metallicRoughnessTex = gAssetManager->CreateTexture(baseDir / FilePath(gltfImage->uri), name);
+                                material->metallicRoughnessTextureIndex = gAssetManager->CreateTexture(baseDir / FilePath(gltfImage->uri), name);
                             } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
                                 unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
-                                material->metallicRoughnessTex = gAssetManager->CreateTexture(data, gltfImage->buffer_view->buffer->size, name);
+                                material->metallicRoughnessTextureIndex = gAssetManager->CreateTexture(data, gltfImage->buffer_view->buffer->size, name);
                             }
 
                             material->metallicFactor = gltfMaterial->pbr_metallic_roughness.metallic_factor;
@@ -149,10 +149,10 @@ namespace gltf
                         String name = gltfImage->name ? gltfImage->name : GetUniqueName();
 
                         if (gltfImage->uri) {
-                            material->normalTex = gAssetManager->CreateTexture(baseDir / FilePath(gltfImage->uri), name);
+                            material->normalTextureIndex = gAssetManager->CreateTexture(baseDir / FilePath(gltfImage->uri), name);
                         } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
                             unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
-                            material->normalTex = gAssetManager->CreateTexture(data, gltfImage->buffer_view->buffer->size, name);
+                            material->normalTextureIndex = gAssetManager->CreateTexture(data, gltfImage->buffer_view->buffer->size, name);
                         }
                     }
 
@@ -162,10 +162,10 @@ namespace gltf
                         String name = gltfImage->name ? gltfImage->name : GetUniqueName();
 
                         if (gltfImage->uri) {
-                            material->emissiveTex = gAssetManager->CreateTexture(baseDir / FilePath(gltfImage->uri), name);
+                            material->emissiveTextureIndex = gAssetManager->CreateTexture(baseDir / FilePath(gltfImage->uri), name);
                         } else if (gltfImage->buffer_view && gltfImage->buffer_view->buffer) {
                             unsigned char *data = const_cast<unsigned char *>(cgltf_buffer_view_data(gltfImage->buffer_view));
-                            material->emissiveTex = gAssetManager->CreateTexture(data, gltfImage->buffer_view->buffer->size, name);
+                            material->emissiveTextureIndex = gAssetManager->CreateTexture(data, gltfImage->buffer_view->buffer->size, name);
                         }
                     }
 
@@ -190,8 +190,9 @@ namespace gltf
 
     String Loader::GetUniqueName()
     {
+        static uint32_t uniqueCounter = 0;
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        return std::to_string(ms) + std::to_string(uniqueNumber++);
+        return std::to_string(ms) + std::to_string(uniqueNumber++) + std::to_string(uniqueCounter);
     }
 
     bool Loader::CalculateBounds(Scene &scene)

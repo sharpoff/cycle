@@ -5,24 +5,26 @@
 
 #include "core/containers.h"
 
-#ifdef __linux__
-#include <unistd.h>
+#ifdef _WIN32
+#include <windows.h> //GetModuleFileNameW
+#else
+#include <limits.h>
+#include <unistd.h> //readlink
 #endif
-
-using FilePath = std::filesystem::path;
 
 inline FilePath GetExecutablePath()
 {
     // TODO: add windows support
 #ifdef __linux__
     const int maxPath = 100;
-
     char path[maxPath];
     ssize_t count = readlink("/proc/self/exe", path, maxPath);
     if (count > 0)
         return FilePath(path).parent_path();
 #else
-    LOGE("%s", "getExecutablePath() - platform is not supported!!");
+    wchar_t path[MAX_PATH] = {0};
+    GetModuleFileNameW(NULL, path, MAX_PATH);
+    return path;
 #endif
     return "";
 }

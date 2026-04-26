@@ -11,15 +11,17 @@
 #include "imgui_impl_vulkan.h"
 #include "ktx.h"
 
-static const char *imguiConfigFile = "assets/config/imgui.ini";
-static const char *imguiLogFile = "assets/config/imgui_log.txt";
-
-void RenderDevice::Init(SDL_Window *window)
+bool RenderDevice::Initialize(Window *window)
 {
-    this->window = window;
+    assert(window && "window is NULL!");
+    window_ = window;
+
     CreateInstance();
 
-    SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface);
+    if (!window_->CreateVKSurface(instance, &surface)) {
+        LOGE("Failed to create vulkan surface!", NULL);
+        return false;
+    }
 
     CreateDevice();
 
@@ -40,8 +42,8 @@ void RenderDevice::Init(SDL_Window *window)
     CreateSwapchain();
 
     if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB)
-        LOGI("%s", "Swapchain format: VK_FORMAT_B8G8R8A8_SRGB");
-    LOGI("Present mode: %s", vulkan::ToString(presentMode));
+        LOGI("Swapchain format: VK_FORMAT_B8G8R8A8_SRGB");
+    LOGI("Present mode: {}", vulkan::ToString(presentMode));
 
     CreateSyncObjects();
 
@@ -130,6 +132,8 @@ void RenderDevice::Init(SDL_Window *window)
     }
 
     SetupImGui();
+
+    return true;
 }
 
 void RenderDevice::Shutdown()
@@ -166,7 +170,7 @@ void RenderDevice::Shutdown()
     vkDestroyInstance(instance, nullptr);
 }
 
-Buffer *RenderDevice::CreateBuffer(const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage)
+void RenderDevice::CreateBuffer(Buffer &buffer, const BufferCreateInfo &createInfo, VmaMemoryUsage memoryUsage)
 {
     assert(createInfo.size > 0);
 
@@ -180,21 +184,18 @@ Buffer *RenderDevice::CreateBuffer(const BufferCreateInfo &createInfo, VmaMemory
     allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
     allocInfo.priority = 1.0;
 
-    Buffer *buffer = new Buffer();
-    buffer->size = createInfo.size;
-    buffer->usage = createInfo.usage;
-    VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer->buffer, &buffer->allocation.handle, &buffer->allocation.info));
+    buffer.size = createInfo.size;
+    buffer.usage = createInfo.usage;
+    VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer.buffer, &buffer.allocation.handle, &buffer.allocation.info));
 
     if (bufferInfo.usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
         VkBufferDeviceAddressInfo deviceAddressInfo = {VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_KHR};
-        deviceAddressInfo.buffer = buffer->buffer;
-        buffer->address = vkGetBufferDeviceAddress(device, &deviceAddressInfo);
+        deviceAddressInfo.buffer = buffer.buffer;
+        buffer.address = vkGetBufferDeviceAddress(device, &deviceAddressInfo);
     }
-
-    return buffer;
 }
 
-Texture *RenderDevice::CreateTexture(const TextureCreateInfo &createInfo)
+void RenderDevice::CreateTexture(Texture &texture, const TextureCreateInfo &createInfo)
 {
     assert(createInfo.width != 0 && createInfo.height != 0);
 
@@ -213,45 +214,42 @@ Texture *RenderDevice::CreateTexture(const TextureCreateInfo &createInfo)
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.flags = (imageInfo.arrayLayers == 6) ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0; // cubemap
 
-    Texture *texture = new Texture();
-    texture->width = createInfo.width;
-    texture->height = createInfo.height;
-    texture->arrayLayers = createInfo.arrayLayers;
-    texture->mipLevels = createInfo.mipLevels;
-    texture->sampleCount = createInfo.sampleCount;
-    texture->type = createInfo.type;
-    texture->usage = createInfo.usage;
-    texture->format = createInfo.format;
-    texture->aspect = createInfo.aspect;
+    texture.width = createInfo.width;
+    texture.height = createInfo.height;
+    texture.arrayLayers = createInfo.arrayLayers;
+    texture.mipLevels = createInfo.mipLevels;
+    texture.sampleCount = createInfo.sampleCount;
+    texture.type = createInfo.type;
+    texture.usage = createInfo.usage;
+    texture.format = createInfo.format;
+    texture.aspect = createInfo.aspect;
 
     VmaAllocationCreateInfo allocInfo = {};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
     allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
-    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocInfo, &texture->image, &texture->allocation.handle, &texture->allocation.info));
-    assert(texture->image != VK_NULL_HANDLE);
+    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocInfo, &texture.image, &texture.allocation.handle, &texture.allocation.info));
+    assert(texture.image != VK_NULL_HANDLE);
 
     // Create image view
     VkImageViewCreateInfo imageViewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-    imageViewInfo.image = texture->image;
-    imageViewInfo.viewType = texture->type;
+    imageViewInfo.image = texture.image;
+    imageViewInfo.viewType = texture.type;
     imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
     imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
     imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.format = texture->format;
-    imageViewInfo.subresourceRange = {texture->aspect, 0, texture->mipLevels, 0, texture->arrayLayers};
+    imageViewInfo.format = texture.format;
+    imageViewInfo.subresourceRange = {texture.aspect, 0, texture.mipLevels, 0, texture.arrayLayers};
 
     VkImageView view;
-    VK_CHECK(vkCreateImageView(device, &imageViewInfo, nullptr, &texture->view));
+    VK_CHECK(vkCreateImageView(device, &imageViewInfo, nullptr, &texture.view));
 
     if (createInfo.debugName)
-        vulkan::SetDebugName(device, uint64_t(texture->image), VK_OBJECT_TYPE_IMAGE, createInfo.debugName);
-
-    return texture;
+        vulkan::SetDebugName(device, uint64_t(texture.image), VK_OBJECT_TYPE_IMAGE, createInfo.debugName);
 }
 
-Sampler *RenderDevice::CreateSampler(const SamplerCreateInfo &createInfo)
+void RenderDevice::CreateSampler(Sampler &sampler, const SamplerCreateInfo &createInfo)
 {
     VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     samplerCreateInfo.minFilter = createInfo.minFilter;
@@ -264,24 +262,21 @@ Sampler *RenderDevice::CreateSampler(const SamplerCreateInfo &createInfo)
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerCreateInfo.maxLod = createInfo.maxLod;
 
-    Sampler *sampler = new Sampler();
-    sampler->mipLodBias = createInfo.mipLodBias;
-    sampler->minLod = createInfo.minLod;
-    sampler->maxLod = createInfo.maxLod;
-    sampler->maxAnisotropy = createInfo.maxAnisotropy;
-    sampler->magFilter = createInfo.magFilter;
-    sampler->minFilter = createInfo.minFilter;
-    sampler->mipmapMode = createInfo.mipmapMode;
-    sampler->addressModeU = createInfo.addressModeU;
-    sampler->addressModeV = createInfo.addressModeV;
-    sampler->addressModeW = createInfo.addressModeW;
-    sampler->compareOp = createInfo.compareOp;
-    VK_CHECK(vkCreateSampler(device, &samplerCreateInfo, nullptr, &sampler->sampler));
-
-    return sampler;
+    sampler.mipLodBias = createInfo.mipLodBias;
+    sampler.minLod = createInfo.minLod;
+    sampler.maxLod = createInfo.maxLod;
+    sampler.maxAnisotropy = createInfo.maxAnisotropy;
+    sampler.magFilter = createInfo.magFilter;
+    sampler.minFilter = createInfo.minFilter;
+    sampler.mipmapMode = createInfo.mipmapMode;
+    sampler.addressModeU = createInfo.addressModeU;
+    sampler.addressModeV = createInfo.addressModeV;
+    sampler.addressModeW = createInfo.addressModeW;
+    sampler.compareOp = createInfo.compareOp;
+    VK_CHECK(vkCreateSampler(device, &samplerCreateInfo, nullptr, &sampler.sampler));
 }
 
-RenderPipeline *RenderDevice::CreateRenderPipeline(const RenderPipelineCreateInfo &createInfo)
+void RenderDevice::CreateRenderPipeline(RenderPipeline &renderPipeline, const RenderPipelineCreateInfo &createInfo)
 {
     VkPipelineLayoutCreateInfo vkLayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     vkLayoutCreateInfo.setLayoutCount = 1;
@@ -474,14 +469,11 @@ RenderPipeline *RenderDevice::CreateRenderPipeline(const RenderPipelineCreateInf
     if (tessellationEvaluationModule)
         vkDestroyShaderModule(device, tessellationEvaluationModule, nullptr);
 
-    RenderPipeline *renderPipeline = new RenderPipeline();
-    renderPipeline->layout = vkPipelineLayout;
-    renderPipeline->pipeline = vkPipeline;
-
-    return renderPipeline;
+    renderPipeline.layout = vkPipelineLayout;
+    renderPipeline.pipeline = vkPipeline;
 }
 
-ComputePipeline *RenderDevice::CreateComputePipeline(const ComputePipelineCreateInfo &createInfo)
+void RenderDevice::CreateComputePipeline(ComputePipeline &computePipeline, const ComputePipelineCreateInfo &createInfo)
 {
     VkPipelineLayoutCreateInfo vkLayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     vkLayoutCreateInfo.setLayoutCount = 1;
@@ -515,84 +507,56 @@ ComputePipeline *RenderDevice::CreateComputePipeline(const ComputePipelineCreate
     VkPipeline vkPipeline;
     VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &vkPipeline));
 
-    ComputePipeline *computePipeline = new ComputePipeline();
-    computePipeline->layout = vkPipelineLayout;
-    computePipeline->pipeline = vkPipeline;
-
-    return computePipeline;
+    computePipeline.layout = vkPipelineLayout;
+    computePipeline.pipeline = vkPipeline;
 }
 
-void RenderDevice::DestroyBuffer(Buffer *buffer)
+void RenderDevice::DestroyBuffer(Buffer &buffer)
 {
-    if (!buffer)
-        return;
-
-    if (buffer->buffer != VK_NULL_HANDLE)
-        vmaDestroyBuffer(allocator, buffer->buffer, buffer->allocation.handle);
-
-    delete buffer;
+    if (buffer.buffer != VK_NULL_HANDLE)
+        vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation.handle);
 }
 
-void RenderDevice::DestroyTexture(Texture *texture)
+void RenderDevice::DestroyTexture(Texture &texture)
 {
-    if (!texture)
-        return;
+    if (texture.view != VK_NULL_HANDLE)
+        vkDestroyImageView(device, texture.view, nullptr);
 
-    if (texture->view != VK_NULL_HANDLE)
-        vkDestroyImageView(device, texture->view, nullptr);
-
-    if (texture->image != VK_NULL_HANDLE)
-        vmaDestroyImage(allocator, texture->image, texture->allocation.handle);
-
-    delete texture;
+    if (texture.image != VK_NULL_HANDLE)
+        vmaDestroyImage(allocator, texture.image, texture.allocation.handle);
 }
 
-void RenderDevice::DestroySampler(Sampler *sampler)
+void RenderDevice::DestroySampler(Sampler &sampler)
 {
-    if (!sampler)
-        return;
-
-    if (sampler->sampler != VK_NULL_HANDLE)
-        vkDestroySampler(device, sampler->sampler, nullptr);
-
-    delete sampler;
+    if (sampler.sampler != VK_NULL_HANDLE)
+        vkDestroySampler(device, sampler.sampler, nullptr);
 }
 
-void RenderDevice::DestroyRenderPipeline(RenderPipeline *pipeline)
+void RenderDevice::DestroyRenderPipeline(RenderPipeline &pipeline)
 {
-    if (!pipeline)
-        return;
+    if (pipeline.layout != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(device, pipeline.layout, nullptr);
 
-    if (pipeline->layout != VK_NULL_HANDLE)
-        vkDestroyPipelineLayout(device, pipeline->layout, nullptr);
-
-    if (pipeline->pipeline != VK_NULL_HANDLE)
-        vkDestroyPipeline(device, pipeline->pipeline, nullptr);
-
-    delete pipeline;
+    if (pipeline.pipeline != VK_NULL_HANDLE)
+        vkDestroyPipeline(device, pipeline.pipeline, nullptr);
 }
 
-void RenderDevice::DestroyComputePipeline(ComputePipeline *pipeline)
+void RenderDevice::DestroyComputePipeline(ComputePipeline &pipeline)
 {
-    if (!pipeline)
-        return;
+    if (pipeline.layout != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(device, pipeline.layout, nullptr);
 
-    if (pipeline->layout != VK_NULL_HANDLE)
-        vkDestroyPipelineLayout(device, pipeline->layout, nullptr);
-
-    if (pipeline->pipeline != VK_NULL_HANDLE)
-        vkDestroyPipeline(device, pipeline->pipeline, nullptr);
-
-    delete pipeline;
+    if (pipeline.pipeline != VK_NULL_HANDLE)
+        vkDestroyPipeline(device, pipeline.pipeline, nullptr);
 }
 
-void RenderDevice::UploadBufferData(Buffer *buffer, void *data, uint64_t size)
+void RenderDevice::UploadBufferData(Buffer &buffer, void *data, uint64_t size)
 {
-    assert(buffer && data && size > 0);
+    assert(data && size > 0);
 
     // using mapped data
-    if (buffer->allocation.info.pMappedData) {
-        memcpy(buffer->allocation.info.pMappedData, data, size);
+    if (buffer.allocation.info.pMappedData) {
+        memcpy(buffer.allocation.info.pMappedData, data, size);
         return;
     }
 
@@ -602,28 +566,30 @@ void RenderDevice::UploadBufferData(Buffer *buffer, void *data, uint64_t size)
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     };
 
-    Buffer *staging = CreateBuffer(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
-    memcpy(staging->allocation.info.pMappedData, data, size);
+    Buffer staging;
+    CreateBuffer(staging, createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
+    memcpy(staging.allocation.info.pMappedData, data, size);
 
-    VK_CHECK(vmaFlushAllocation(allocator, staging->allocation.handle, 0, VK_WHOLE_SIZE));
+    VK_CHECK(vmaFlushAllocation(allocator, staging.allocation.handle, 0, VK_WHOLE_SIZE));
 
     ImmediateSubmit([size, &staging, &buffer](VkCommandBuffer cmd) -> void {
         VkBufferCopy copyRegion = {0, 0, size};
-        vkCmdCopyBuffer(cmd, staging->buffer, buffer->buffer, 1, &copyRegion);
+        vkCmdCopyBuffer(cmd, staging.buffer, buffer.buffer, 1, &copyRegion);
     });
 
     DestroyBuffer(staging);
 }
 
-void RenderDevice::UploadTexture(Texture *texture, TextureLoadInfo &info)
+void RenderDevice::UploadTexture(Texture &texture, TextureLoadInfo &info)
 {
-    const uint32_t bufsize = info.textureKTX ? info.size : info.size * texture->arrayLayers;
+    const uint32_t bufsize = info.textureKTX ? info.size : info.size * texture.arrayLayers;
 
     const BufferCreateInfo createInfo = {
         .size = bufsize,
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     };
-    Buffer *staging = CreateBuffer(createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
+    Buffer staging;
+    CreateBuffer(staging, createInfo, VMA_MEMORY_USAGE_CPU_ONLY);
     UploadBufferData(staging, info.data, info.size);
 
     ImmediateSubmit([&staging, &texture, &info](VkCommandBuffer cmd) -> void {
@@ -635,8 +601,8 @@ void RenderDevice::UploadTexture(Texture *texture, TextureLoadInfo &info)
         transferBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         transferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         transferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        transferBarrier.image = texture->image;
-        transferBarrier.subresourceRange = {texture->aspect, 0, texture->mipLevels, 0, texture->arrayLayers};
+        transferBarrier.image = texture.image;
+        transferBarrier.subresourceRange = {texture.aspect, 0, texture.mipLevels, 0, texture.arrayLayers};
 
         vkCmdPipelineBarrier(cmd,
             VK_PIPELINE_STAGE_HOST_BIT,
@@ -653,25 +619,25 @@ void RenderDevice::UploadTexture(Texture *texture, TextureLoadInfo &info)
         // copy
         Vector<VkBufferImageCopy> copyRegions{};
         if (info.textureKTX) { // copy image and all faces and mip levels
-            for (uint32_t j = 0; j < texture->mipLevels; j++) {
+            for (uint32_t j = 0; j < texture.mipLevels; j++) {
                 ktx_size_t offset = 0;
                 KTX_error_code ret = ktxTexture_GetImageOffset(info.textureKTX, j, 0, 0, &offset);
                 assert(ret == KTX_SUCCESS);
 
                 VkBufferImageCopy copyRegion = {};
-                copyRegion.imageSubresource = {texture->aspect, j, 0, texture->arrayLayers};
-                copyRegion.imageExtent = {texture->width >> j, texture->height >> j, 1};
+                copyRegion.imageSubresource = {texture.aspect, j, 0, texture.arrayLayers};
+                copyRegion.imageExtent = {texture.width >> j, texture.height >> j, 1};
                 copyRegion.bufferOffset = offset;
                 copyRegions.push_back(copyRegion);
             }
         } else { // generate mip levels later if needed.
             VkBufferImageCopy copyRegion = {};
-            copyRegion.imageSubresource = {texture->aspect, 0, 0, 1};
-            copyRegion.imageExtent = {texture->width, texture->height, 1};
+            copyRegion.imageSubresource = {texture.aspect, 0, 0, 1};
+            copyRegion.imageExtent = {texture.width, texture.height, 1};
             copyRegions.push_back(copyRegion);
         }
 
-        vkCmdCopyBufferToImage(cmd, staging->buffer, texture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, copyRegions.size(), copyRegions.data());
+        vkCmdCopyBufferToImage(cmd, staging.buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, copyRegions.size(), copyRegions.data());
 
         // transition image to fragment shader
         VkImageMemoryBarrier fragmentBarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
@@ -681,8 +647,8 @@ void RenderDevice::UploadTexture(Texture *texture, TextureLoadInfo &info)
         fragmentBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         fragmentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         fragmentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        fragmentBarrier.image = texture->image;
-        fragmentBarrier.subresourceRange = {texture->aspect, 0, texture->mipLevels, 0, texture->arrayLayers};
+        fragmentBarrier.image = texture.image;
+        fragmentBarrier.subresourceRange = {texture.aspect, 0, texture.mipLevels, 0, texture.arrayLayers};
 
         vkCmdPipelineBarrier(cmd,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -700,7 +666,7 @@ void RenderDevice::UploadTexture(Texture *texture, TextureLoadInfo &info)
     DestroyBuffer(staging);
 }
 
-void RenderDevice::UploadMeshGpuData(Buffer *&vertexBuffer, Vector<Vertex> &vertices, Buffer *&indexBuffer, Vector<uint32_t> &indices)
+void RenderDevice::UploadMeshGpuData(Buffer &vertexBuffer, Vector<Vertex> &vertices, Buffer &indexBuffer, Vector<uint32_t> &indices)
 {
     // vertex buffer
     {
@@ -709,7 +675,7 @@ void RenderDevice::UploadMeshGpuData(Buffer *&vertexBuffer, Vector<Vertex> &vert
             .usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
-        vertexBuffer = CreateBuffer(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+        CreateBuffer(vertexBuffer, createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
         UploadBufferData(vertexBuffer, vertices.data(), createInfo.size);
     }
 
@@ -720,15 +686,15 @@ void RenderDevice::UploadMeshGpuData(Buffer *&vertexBuffer, Vector<Vertex> &vert
             .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         };
 
-        indexBuffer = CreateBuffer(createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
+        CreateBuffer(indexBuffer, createInfo, VMA_MEMORY_USAGE_GPU_ONLY);
         UploadBufferData(indexBuffer, indices.data(), createInfo.size);
     }
 }
 
-void RenderDevice::GenerateMipmaps(Texture *texture)
+void RenderDevice::GenerateMipmaps(Texture &texture)
 {
-    if (texture->mipLevels <= 1) {
-        LOGW("%s", "Failed to generate mipmaps. image->mipLevels <= 1");
+    if (texture.mipLevels <= 1) {
+        LOGW("Failed to generate mipmaps. image->mipLevels <= 1");
         return;
     }
 
@@ -743,8 +709,8 @@ void RenderDevice::GenerateMipmaps(Texture *texture)
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = texture->image,
-                .subresourceRange = {texture->aspect, 0, 1, 0, texture->arrayLayers}};
+                .image = texture.image,
+                .subresourceRange = {texture.aspect, 0, 1, 0, texture.arrayLayers}};
 
             vkCmdPipelineBarrier(cmd,
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
@@ -759,22 +725,22 @@ void RenderDevice::GenerateMipmaps(Texture *texture)
         }
 
         // copy mips from n-1 to n
-        for (uint32_t i = 1; i < texture->mipLevels; i++) {
+        for (uint32_t i = 1; i < texture.mipLevels; i++) {
             VkImageBlit blit{};
 
             // src
-            blit.srcSubresource = {texture->aspect, i - 1, 0, texture->arrayLayers};
-            blit.srcOffsets[1].x = static_cast<int32_t>(texture->width >> (i - 1));
-            blit.srcOffsets[1].y = static_cast<int32_t>(texture->height >> (i - 1));
+            blit.srcSubresource = {texture.aspect, i - 1, 0, texture.arrayLayers};
+            blit.srcOffsets[1].x = static_cast<int32_t>(texture.width >> (i - 1));
+            blit.srcOffsets[1].y = static_cast<int32_t>(texture.height >> (i - 1));
             blit.srcOffsets[1].z = 1;
 
             // dst
-            blit.dstSubresource = {texture->aspect, i, 0, texture->arrayLayers};
-            blit.dstOffsets[1].x = static_cast<int32_t>(texture->width >> i);
-            blit.dstOffsets[1].y = static_cast<int32_t>(texture->height >> i);
+            blit.dstSubresource = {texture.aspect, i, 0, texture.arrayLayers};
+            blit.dstOffsets[1].x = static_cast<int32_t>(texture.width >> i);
+            blit.dstOffsets[1].y = static_cast<int32_t>(texture.height >> i);
             blit.dstOffsets[1].z = 1;
 
-            VkImageSubresourceRange subresourceRange = {texture->aspect, i, 1, 0, texture->arrayLayers};
+            VkImageSubresourceRange subresourceRange = {texture.aspect, i, 1, 0, texture.arrayLayers};
 
             // transition mip level to transfer dst
             VkImageMemoryBarrier barrier0 = {
@@ -785,7 +751,7 @@ void RenderDevice::GenerateMipmaps(Texture *texture)
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = texture->image,
+                .image = texture.image,
                 .subresourceRange = subresourceRange};
 
             vkCmdPipelineBarrier(cmd,
@@ -801,9 +767,9 @@ void RenderDevice::GenerateMipmaps(Texture *texture)
 
             // blit from previous mip level
             vkCmdBlitImage(cmd,
-                texture->image,
+                texture.image,
                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                texture->image,
+                texture.image,
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 1,
                 &blit,
@@ -818,7 +784,7 @@ void RenderDevice::GenerateMipmaps(Texture *texture)
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = texture->image,
+                .image = texture.image,
                 .subresourceRange = subresourceRange};
 
             vkCmdPipelineBarrier(cmd,
@@ -842,8 +808,8 @@ void RenderDevice::GenerateMipmaps(Texture *texture)
             .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = texture->image,
-            .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, texture->mipLevels, 0, texture->arrayLayers}};
+            .image = texture.image,
+            .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, texture.mipLevels, 0, texture.arrayLayers}};
 
         vkCmdPipelineBarrier(cmd,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -888,7 +854,7 @@ VkCommandBuffer RenderDevice::BeginCommandBuffer()
         RecreateSwapchain();
         return VK_NULL_HANDLE;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        LOGE("%s", "Failed to acquire swapchain image.");
+        LOGE("Failed to acquire swapchain image.");
         exit(EXIT_FAILURE);
     }
 
@@ -941,24 +907,24 @@ bool RenderDevice::SwapchainPresent()
     return true;
 }
 
-void RenderDevice::WriteDescriptor(uint32_t binding, Buffer *buffer, VkDescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::WriteDescriptor(uint32_t binding, Buffer &buffer, VkDescriptorType type, uint32_t dstArrayElement)
 {
-    descriptorSetWriter.Write(binding, buffer->buffer, buffer->size, type, dstArrayElement);
+    descriptorSetWriter.Write(binding, buffer.buffer, buffer.size, type, dstArrayElement);
 }
 
-void RenderDevice::WriteDescriptor(uint32_t binding, Texture *texture, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::WriteDescriptor(uint32_t binding, Texture &texture, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement)
 {
-    descriptorSetWriter.Write(binding, texture->view, sampler.sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, type, dstArrayElement);
+    descriptorSetWriter.Write(binding, texture.view, sampler.sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, type, dstArrayElement);
 }
 
-void RenderDevice::WriteDescriptor(uint32_t binding, Texture *texture, VkDescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::WriteDescriptor(uint32_t binding, Texture &texture, VkDescriptorType type, uint32_t dstArrayElement)
 {
-    descriptorSetWriter.Write(binding, texture->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, type, dstArrayElement);
+    descriptorSetWriter.Write(binding, texture.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, type, dstArrayElement);
 }
 
-void RenderDevice::WriteDescriptor(uint32_t binding, Sampler *sampler, VkDescriptorType type, uint32_t dstArrayElement)
+void RenderDevice::WriteDescriptor(uint32_t binding, Sampler &sampler, VkDescriptorType type, uint32_t dstArrayElement)
 {
-    descriptorSetWriter.Write(binding, sampler->sampler, type, dstArrayElement);
+    descriptorSetWriter.Write(binding, sampler.sampler, type, dstArrayElement);
 }
 
 void RenderDevice::UpdateDescriptors()
@@ -1020,126 +986,126 @@ void RenderDevice::CreateDevice()
     vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
     vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
 
-    printf("Selected GPU: %s\n", deviceProperties.deviceName);
+    LOGI("Selected GPU: %s\n", deviceProperties.deviceName);
 
     // Log GPU limits
     if (ENABLE_LOG_DEVICE_LIMITS) {
-        printf("---- deviceProperties.limits ----\n");
-        printf("\tmaxImageDimension1D: %u\n", deviceProperties.limits.maxImageDimension1D);
-        printf("\tmaxImageDimension2D: %u\n", deviceProperties.limits.maxImageDimension2D);
-        printf("\tmaxImageDimension3D: %u\n", deviceProperties.limits.maxImageDimension3D);
-        printf("\tmaxImageDimensionCube: %u\n", deviceProperties.limits.maxImageDimensionCube);
-        printf("\tmaxImageArrayLayers: %u\n", deviceProperties.limits.maxImageArrayLayers);
-        printf("\tmaxTexelBufferElements: %u\n", deviceProperties.limits.maxTexelBufferElements);
-        printf("\tmaxUniformBufferRange: %u\n", deviceProperties.limits.maxUniformBufferRange);
-        printf("\tmaxStorageBufferRange: %u\n", deviceProperties.limits.maxStorageBufferRange);
-        printf("\tmaxPushConstantsSize: %u\n", deviceProperties.limits.maxPushConstantsSize);
-        printf("\tmaxMemoryAllocationCount: %u\n", deviceProperties.limits.maxMemoryAllocationCount);
-        printf("\tmaxSamplerAllocationCount: %u\n", deviceProperties.limits.maxSamplerAllocationCount);
-        printf("\tbufferImageGranularity: %lu\n", deviceProperties.limits.bufferImageGranularity);
-        printf("\tsparseAddressSpaceSize: %lu\n", deviceProperties.limits.sparseAddressSpaceSize);
-        printf("\tmaxBoundDescriptorSets: %u\n", deviceProperties.limits.maxBoundDescriptorSets);
-        printf("\tmaxPerStageDescriptorSamplers: %u\n", deviceProperties.limits.maxPerStageDescriptorSamplers);
-        printf("\tmaxPerStageDescriptorUniformBuffers: %u\n", deviceProperties.limits.maxPerStageDescriptorUniformBuffers);
-        printf("\tmaxPerStageDescriptorStorageBuffers: %u\n", deviceProperties.limits.maxPerStageDescriptorStorageBuffers);
-        printf("\tmaxPerStageDescriptorSampledImages: %u\n", deviceProperties.limits.maxPerStageDescriptorSampledImages);
-        printf("\tmaxPerStageDescriptorStorageImages: %u\n", deviceProperties.limits.maxPerStageDescriptorStorageImages);
-        printf("\tmaxPerStageDescriptorInputAttachments: %u\n", deviceProperties.limits.maxPerStageDescriptorInputAttachments);
-        printf("\tmaxPerStageResources: %u\n", deviceProperties.limits.maxPerStageResources);
-        printf("\tmaxDescriptorSetSamplers: %u\n", deviceProperties.limits.maxDescriptorSetSamplers);
-        printf("\tmaxDescriptorSetUniformBuffers: %u\n", deviceProperties.limits.maxDescriptorSetUniformBuffers);
-        printf("\tmaxDescriptorSetUniformBuffersDynamic: %u\n", deviceProperties.limits.maxDescriptorSetUniformBuffersDynamic);
-        printf("\tmaxDescriptorSetStorageBuffers: %u\n", deviceProperties.limits.maxDescriptorSetStorageBuffers);
-        printf("\tmaxDescriptorSetStorageBuffersDynamic: %u\n", deviceProperties.limits.maxDescriptorSetStorageBuffersDynamic);
-        printf("\tmaxDescriptorSetSampledImages: %u\n", deviceProperties.limits.maxDescriptorSetSampledImages);
-        printf("\tmaxDescriptorSetStorageImages: %u\n", deviceProperties.limits.maxDescriptorSetStorageImages);
-        printf("\tmaxDescriptorSetInputAttachments: %u\n", deviceProperties.limits.maxDescriptorSetInputAttachments);
-        printf("\tmaxVertexInputAttributes: %u\n", deviceProperties.limits.maxVertexInputAttributes);
-        printf("\tmaxVertexInputBindings: %u\n", deviceProperties.limits.maxVertexInputBindings);
-        printf("\tmaxVertexInputAttributeOffset: %u\n", deviceProperties.limits.maxVertexInputAttributeOffset);
-        printf("\tmaxVertexInputBindingStride: %u\n", deviceProperties.limits.maxVertexInputBindingStride);
-        printf("\tmaxVertexOutputComponents: %u\n", deviceProperties.limits.maxVertexOutputComponents);
-        printf("\tmaxTessellationGenerationLevel: %u\n", deviceProperties.limits.maxTessellationGenerationLevel);
-        printf("\tmaxTessellationPatchSize: %u\n", deviceProperties.limits.maxTessellationPatchSize);
-        printf("\tmaxTessellationControlPerVertexInputComponents: %u\n", deviceProperties.limits.maxTessellationControlPerVertexInputComponents);
-        printf("\tmaxTessellationControlPerVertexOutputComponents: %u\n", deviceProperties.limits.maxTessellationControlPerVertexOutputComponents);
-        printf("\tmaxTessellationControlPerPatchOutputComponents: %u\n", deviceProperties.limits.maxTessellationControlPerPatchOutputComponents);
-        printf("\tmaxTessellationControlTotalOutputComponents: %u\n", deviceProperties.limits.maxTessellationControlTotalOutputComponents);
-        printf("\tmaxTessellationEvaluationInputComponents: %u\n", deviceProperties.limits.maxTessellationEvaluationInputComponents);
-        printf("\tmaxTessellationEvaluationOutputComponents: %u\n", deviceProperties.limits.maxTessellationEvaluationOutputComponents);
-        printf("\tmaxGeometryShaderInvocations: %u\n", deviceProperties.limits.maxGeometryShaderInvocations);
-        printf("\tmaxGeometryInputComponents: %u\n", deviceProperties.limits.maxGeometryInputComponents);
-        printf("\tmaxGeometryOutputComponents: %u\n", deviceProperties.limits.maxGeometryOutputComponents);
-        printf("\tmaxGeometryOutputVertices: %u\n", deviceProperties.limits.maxGeometryOutputVertices);
-        printf("\tmaxGeometryTotalOutputComponents: %u\n", deviceProperties.limits.maxGeometryTotalOutputComponents);
-        printf("\tmaxFragmentInputComponents: %u\n", deviceProperties.limits.maxFragmentInputComponents);
-        printf("\tmaxFragmentOutputAttachments: %u\n", deviceProperties.limits.maxFragmentOutputAttachments);
-        printf("\tmaxFragmentDualSrcAttachments: %u\n", deviceProperties.limits.maxFragmentDualSrcAttachments);
-        printf("\tmaxFragmentCombinedOutputResources: %u\n", deviceProperties.limits.maxFragmentCombinedOutputResources);
-        printf("\tmaxComputeSharedMemorySize: %u\n", deviceProperties.limits.maxComputeSharedMemorySize);
-        printf("\tmaxComputeWorkGroupCount[0]: %u\n", deviceProperties.limits.maxComputeWorkGroupCount[0]);
-        printf("\tmaxComputeWorkGroupCount[1]: %u\n", deviceProperties.limits.maxComputeWorkGroupCount[1]);
-        printf("\tmaxComputeWorkGroupCount[2]: %u\n", deviceProperties.limits.maxComputeWorkGroupCount[2]);
-        printf("\tmaxComputeWorkGroupInvocations: %u\n", deviceProperties.limits.maxComputeWorkGroupInvocations);
-        printf("\tmaxComputeWorkGroupSize[0]: %u\n", deviceProperties.limits.maxComputeWorkGroupSize[0]);
-        printf("\tmaxComputeWorkGroupSize[1]: %u\n", deviceProperties.limits.maxComputeWorkGroupSize[1]);
-        printf("\tmaxComputeWorkGroupSize[2]: %u\n", deviceProperties.limits.maxComputeWorkGroupSize[2]);
-        printf("\tsubPixelPrecisionBits: %u\n", deviceProperties.limits.subPixelPrecisionBits);
-        printf("\tsubTexelPrecisionBits: %u\n", deviceProperties.limits.subTexelPrecisionBits);
-        printf("\tmipmapPrecisionBits: %u\n", deviceProperties.limits.mipmapPrecisionBits);
-        printf("\tmaxDrawIndexedIndexValue: %u\n", deviceProperties.limits.maxDrawIndexedIndexValue);
-        printf("\tmaxDrawIndirectCount: %u\n", deviceProperties.limits.maxDrawIndirectCount);
-        printf("\tmaxSamplerLodBias: %f\n", deviceProperties.limits.maxSamplerLodBias);
-        printf("\tmaxSamplerAnisotropy: %f\n", deviceProperties.limits.maxSamplerAnisotropy);
-        printf("\tmaxViewports: %u\n", deviceProperties.limits.maxViewports);
-        printf("\tmaxViewportDimensions[0]: %u\n", deviceProperties.limits.maxViewportDimensions[0]);
-        printf("\tmaxViewportDimensions[1]: %u\n", deviceProperties.limits.maxViewportDimensions[1]);
-        printf("\tviewportBoundsRange[0]: %f\n", deviceProperties.limits.viewportBoundsRange[0]);
-        printf("\tviewportBoundsRange[1]: %f\n", deviceProperties.limits.viewportBoundsRange[1]);
-        printf("\tviewportSubPixelBits: %u\n", deviceProperties.limits.viewportSubPixelBits);
-        printf("\tminMemoryMapAlignment: %lu\n", deviceProperties.limits.minMemoryMapAlignment);
-        printf("\tminTexelBufferOffsetAlignment: %lu\n", deviceProperties.limits.minTexelBufferOffsetAlignment);
-        printf("\tminUniformBufferOffsetAlignment: %lu\n", deviceProperties.limits.minUniformBufferOffsetAlignment);
-        printf("\tminStorageBufferOffsetAlignment: %lu\n", deviceProperties.limits.minStorageBufferOffsetAlignment);
-        printf("\tminTexelOffset: %u\n", deviceProperties.limits.minTexelOffset);
-        printf("\tmaxTexelOffset: %u\n", deviceProperties.limits.maxTexelOffset);
-        printf("\tminTexelGatherOffset: %u\n", deviceProperties.limits.minTexelGatherOffset);
-        printf("\tmaxTexelGatherOffset: %u\n", deviceProperties.limits.maxTexelGatherOffset);
-        printf("\tminInterpolationOffset: %f\n", deviceProperties.limits.minInterpolationOffset);
-        printf("\tmaxInterpolationOffset: %f\n", deviceProperties.limits.maxInterpolationOffset);
-        printf("\tsubPixelInterpolationOffsetBits: %u\n", deviceProperties.limits.subPixelInterpolationOffsetBits);
-        printf("\tmaxFramebufferWidth: %u\n", deviceProperties.limits.maxFramebufferWidth);
-        printf("\tmaxFramebufferHeight: %u\n", deviceProperties.limits.maxFramebufferHeight);
-        printf("\tmaxFramebufferLayers: %u\n", deviceProperties.limits.maxFramebufferLayers);
-        printf("\tframebufferColorSampleCounts: %u\n", deviceProperties.limits.framebufferColorSampleCounts);
-        printf("\tframebufferDepthSampleCounts: %u\n", deviceProperties.limits.framebufferDepthSampleCounts);
-        printf("\tframebufferStencilSampleCounts: %u\n", deviceProperties.limits.framebufferStencilSampleCounts);
-        printf("\tframebufferNoAttachmentsSampleCounts: %u\n", deviceProperties.limits.framebufferNoAttachmentsSampleCounts);
-        printf("\tmaxColorAttachments: %u\n", deviceProperties.limits.maxColorAttachments);
-        printf("\tsampledImageColorSampleCounts: %u\n", deviceProperties.limits.sampledImageColorSampleCounts);
-        printf("\tsampledImageIntegerSampleCounts: %u\n", deviceProperties.limits.sampledImageIntegerSampleCounts);
-        printf("\tsampledImageDepthSampleCounts: %u\n", deviceProperties.limits.sampledImageDepthSampleCounts);
-        printf("\tsampledImageStencilSampleCounts: %u\n", deviceProperties.limits.sampledImageStencilSampleCounts);
-        printf("\tstorageImageSampleCounts: %u\n", deviceProperties.limits.storageImageSampleCounts);
-        printf("\tmaxSampleMaskWords: %u\n", deviceProperties.limits.maxSampleMaskWords);
-        printf("\ttimestampComputeAndGraphics: %s\n", deviceProperties.limits.timestampComputeAndGraphics ? "true" : "false");
-        printf("\ttimestampPeriod: %f\n", deviceProperties.limits.timestampPeriod);
-        printf("\tmaxClipDistances: %u\n", deviceProperties.limits.maxClipDistances);
-        printf("\tmaxCullDistances: %u\n", deviceProperties.limits.maxCullDistances);
-        printf("\tmaxCombinedClipAndCullDistances: %u\n", deviceProperties.limits.maxCombinedClipAndCullDistances);
-        printf("\tdiscreteQueuePriorities: %u\n", deviceProperties.limits.discreteQueuePriorities);
-        printf("\tpointSizeRange[0]: %f\n", deviceProperties.limits.pointSizeRange[0]);
-        printf("\tpointSizeRange[1]: %f\n", deviceProperties.limits.pointSizeRange[1]);
-        printf("\tlineWidthRange[0]: %f\n", deviceProperties.limits.lineWidthRange[0]);
-        printf("\tlineWidthRange[1]: %f\n", deviceProperties.limits.lineWidthRange[1]);
-        printf("\tpointSizeGranularity: %f\n", deviceProperties.limits.pointSizeGranularity);
-        printf("\tlineWidthGranularity: %f\n", deviceProperties.limits.lineWidthGranularity);
-        printf("\tstrictLines: %s\n", deviceProperties.limits.strictLines ? "true" : "false");
-        printf("\tstandardSampleLocations: %s\n", deviceProperties.limits.standardSampleLocations ? "true" : "false");
-        printf("\toptimalBufferCopyOffsetAlignment: %lu\n", deviceProperties.limits.optimalBufferCopyOffsetAlignment);
-        printf("\toptimalBufferCopyRowPitchAlignment: %lu\n", deviceProperties.limits.optimalBufferCopyRowPitchAlignment);
-        printf("\tnonCoherentAtomSize: %lu\n", deviceProperties.limits.nonCoherentAtomSize);
-        printf("---- deviceProperties.limits ----\n");
+        LOGI("---- deviceProperties.limits ----\n");
+        LOGI("\tmaxImageDimension1D: %u\n", deviceProperties.limits.maxImageDimension1D);
+        LOGI("\tmaxImageDimension2D: %u\n", deviceProperties.limits.maxImageDimension2D);
+        LOGI("\tmaxImageDimension3D: %u\n", deviceProperties.limits.maxImageDimension3D);
+        LOGI("\tmaxImageDimensionCube: %u\n", deviceProperties.limits.maxImageDimensionCube);
+        LOGI("\tmaxImageArrayLayers: %u\n", deviceProperties.limits.maxImageArrayLayers);
+        LOGI("\tmaxTexelBufferElements: %u\n", deviceProperties.limits.maxTexelBufferElements);
+        LOGI("\tmaxUniformBufferRange: %u\n", deviceProperties.limits.maxUniformBufferRange);
+        LOGI("\tmaxStorageBufferRange: %u\n", deviceProperties.limits.maxStorageBufferRange);
+        LOGI("\tmaxPushConstantsSize: %u\n", deviceProperties.limits.maxPushConstantsSize);
+        LOGI("\tmaxMemoryAllocationCount: %u\n", deviceProperties.limits.maxMemoryAllocationCount);
+        LOGI("\tmaxSamplerAllocationCount: %u\n", deviceProperties.limits.maxSamplerAllocationCount);
+        LOGI("\tbufferImageGranularity: %lu\n", deviceProperties.limits.bufferImageGranularity);
+        LOGI("\tsparseAddressSpaceSize: %lu\n", deviceProperties.limits.sparseAddressSpaceSize);
+        LOGI("\tmaxBoundDescriptorSets: %u\n", deviceProperties.limits.maxBoundDescriptorSets);
+        LOGI("\tmaxPerStageDescriptorSamplers: %u\n", deviceProperties.limits.maxPerStageDescriptorSamplers);
+        LOGI("\tmaxPerStageDescriptorUniformBuffers: %u\n", deviceProperties.limits.maxPerStageDescriptorUniformBuffers);
+        LOGI("\tmaxPerStageDescriptorStorageBuffers: %u\n", deviceProperties.limits.maxPerStageDescriptorStorageBuffers);
+        LOGI("\tmaxPerStageDescriptorSampledImages: %u\n", deviceProperties.limits.maxPerStageDescriptorSampledImages);
+        LOGI("\tmaxPerStageDescriptorStorageImages: %u\n", deviceProperties.limits.maxPerStageDescriptorStorageImages);
+        LOGI("\tmaxPerStageDescriptorInputAttachments: %u\n", deviceProperties.limits.maxPerStageDescriptorInputAttachments);
+        LOGI("\tmaxPerStageResources: %u\n", deviceProperties.limits.maxPerStageResources);
+        LOGI("\tmaxDescriptorSetSamplers: %u\n", deviceProperties.limits.maxDescriptorSetSamplers);
+        LOGI("\tmaxDescriptorSetUniformBuffers: %u\n", deviceProperties.limits.maxDescriptorSetUniformBuffers);
+        LOGI("\tmaxDescriptorSetUniformBuffersDynamic: %u\n", deviceProperties.limits.maxDescriptorSetUniformBuffersDynamic);
+        LOGI("\tmaxDescriptorSetStorageBuffers: %u\n", deviceProperties.limits.maxDescriptorSetStorageBuffers);
+        LOGI("\tmaxDescriptorSetStorageBuffersDynamic: %u\n", deviceProperties.limits.maxDescriptorSetStorageBuffersDynamic);
+        LOGI("\tmaxDescriptorSetSampledImages: %u\n", deviceProperties.limits.maxDescriptorSetSampledImages);
+        LOGI("\tmaxDescriptorSetStorageImages: %u\n", deviceProperties.limits.maxDescriptorSetStorageImages);
+        LOGI("\tmaxDescriptorSetInputAttachments: %u\n", deviceProperties.limits.maxDescriptorSetInputAttachments);
+        LOGI("\tmaxVertexInputAttributes: %u\n", deviceProperties.limits.maxVertexInputAttributes);
+        LOGI("\tmaxVertexInputBindings: %u\n", deviceProperties.limits.maxVertexInputBindings);
+        LOGI("\tmaxVertexInputAttributeOffset: %u\n", deviceProperties.limits.maxVertexInputAttributeOffset);
+        LOGI("\tmaxVertexInputBindingStride: %u\n", deviceProperties.limits.maxVertexInputBindingStride);
+        LOGI("\tmaxVertexOutputComponents: %u\n", deviceProperties.limits.maxVertexOutputComponents);
+        LOGI("\tmaxTessellationGenerationLevel: %u\n", deviceProperties.limits.maxTessellationGenerationLevel);
+        LOGI("\tmaxTessellationPatchSize: %u\n", deviceProperties.limits.maxTessellationPatchSize);
+        LOGI("\tmaxTessellationControlPerVertexInputComponents: %u\n", deviceProperties.limits.maxTessellationControlPerVertexInputComponents);
+        LOGI("\tmaxTessellationControlPerVertexOutputComponents: %u\n", deviceProperties.limits.maxTessellationControlPerVertexOutputComponents);
+        LOGI("\tmaxTessellationControlPerPatchOutputComponents: %u\n", deviceProperties.limits.maxTessellationControlPerPatchOutputComponents);
+        LOGI("\tmaxTessellationControlTotalOutputComponents: %u\n", deviceProperties.limits.maxTessellationControlTotalOutputComponents);
+        LOGI("\tmaxTessellationEvaluationInputComponents: %u\n", deviceProperties.limits.maxTessellationEvaluationInputComponents);
+        LOGI("\tmaxTessellationEvaluationOutputComponents: %u\n", deviceProperties.limits.maxTessellationEvaluationOutputComponents);
+        LOGI("\tmaxGeometryShaderInvocations: %u\n", deviceProperties.limits.maxGeometryShaderInvocations);
+        LOGI("\tmaxGeometryInputComponents: %u\n", deviceProperties.limits.maxGeometryInputComponents);
+        LOGI("\tmaxGeometryOutputComponents: %u\n", deviceProperties.limits.maxGeometryOutputComponents);
+        LOGI("\tmaxGeometryOutputVertices: %u\n", deviceProperties.limits.maxGeometryOutputVertices);
+        LOGI("\tmaxGeometryTotalOutputComponents: %u\n", deviceProperties.limits.maxGeometryTotalOutputComponents);
+        LOGI("\tmaxFragmentInputComponents: %u\n", deviceProperties.limits.maxFragmentInputComponents);
+        LOGI("\tmaxFragmentOutputAttachments: %u\n", deviceProperties.limits.maxFragmentOutputAttachments);
+        LOGI("\tmaxFragmentDualSrcAttachments: %u\n", deviceProperties.limits.maxFragmentDualSrcAttachments);
+        LOGI("\tmaxFragmentCombinedOutputResources: %u\n", deviceProperties.limits.maxFragmentCombinedOutputResources);
+        LOGI("\tmaxComputeSharedMemorySize: %u\n", deviceProperties.limits.maxComputeSharedMemorySize);
+        LOGI("\tmaxComputeWorkGroupCount[0]: %u\n", deviceProperties.limits.maxComputeWorkGroupCount[0]);
+        LOGI("\tmaxComputeWorkGroupCount[1]: %u\n", deviceProperties.limits.maxComputeWorkGroupCount[1]);
+        LOGI("\tmaxComputeWorkGroupCount[2]: %u\n", deviceProperties.limits.maxComputeWorkGroupCount[2]);
+        LOGI("\tmaxComputeWorkGroupInvocations: %u\n", deviceProperties.limits.maxComputeWorkGroupInvocations);
+        LOGI("\tmaxComputeWorkGroupSize[0]: %u\n", deviceProperties.limits.maxComputeWorkGroupSize[0]);
+        LOGI("\tmaxComputeWorkGroupSize[1]: %u\n", deviceProperties.limits.maxComputeWorkGroupSize[1]);
+        LOGI("\tmaxComputeWorkGroupSize[2]: %u\n", deviceProperties.limits.maxComputeWorkGroupSize[2]);
+        LOGI("\tsubPixelPrecisionBits: %u\n", deviceProperties.limits.subPixelPrecisionBits);
+        LOGI("\tsubTexelPrecisionBits: %u\n", deviceProperties.limits.subTexelPrecisionBits);
+        LOGI("\tmipmapPrecisionBits: %u\n", deviceProperties.limits.mipmapPrecisionBits);
+        LOGI("\tmaxDrawIndexedIndexValue: %u\n", deviceProperties.limits.maxDrawIndexedIndexValue);
+        LOGI("\tmaxDrawIndirectCount: %u\n", deviceProperties.limits.maxDrawIndirectCount);
+        LOGI("\tmaxSamplerLodBias: %f\n", deviceProperties.limits.maxSamplerLodBias);
+        LOGI("\tmaxSamplerAnisotropy: %f\n", deviceProperties.limits.maxSamplerAnisotropy);
+        LOGI("\tmaxViewports: %u\n", deviceProperties.limits.maxViewports);
+        LOGI("\tmaxViewportDimensions[0]: %u\n", deviceProperties.limits.maxViewportDimensions[0]);
+        LOGI("\tmaxViewportDimensions[1]: %u\n", deviceProperties.limits.maxViewportDimensions[1]);
+        LOGI("\tviewportBoundsRange[0]: %f\n", deviceProperties.limits.viewportBoundsRange[0]);
+        LOGI("\tviewportBoundsRange[1]: %f\n", deviceProperties.limits.viewportBoundsRange[1]);
+        LOGI("\tviewportSubPixelBits: %u\n", deviceProperties.limits.viewportSubPixelBits);
+        LOGI("\tminMemoryMapAlignment: %lu\n", deviceProperties.limits.minMemoryMapAlignment);
+        LOGI("\tminTexelBufferOffsetAlignment: %lu\n", deviceProperties.limits.minTexelBufferOffsetAlignment);
+        LOGI("\tminUniformBufferOffsetAlignment: %lu\n", deviceProperties.limits.minUniformBufferOffsetAlignment);
+        LOGI("\tminStorageBufferOffsetAlignment: %lu\n", deviceProperties.limits.minStorageBufferOffsetAlignment);
+        LOGI("\tminTexelOffset: %u\n", deviceProperties.limits.minTexelOffset);
+        LOGI("\tmaxTexelOffset: %u\n", deviceProperties.limits.maxTexelOffset);
+        LOGI("\tminTexelGatherOffset: %u\n", deviceProperties.limits.minTexelGatherOffset);
+        LOGI("\tmaxTexelGatherOffset: %u\n", deviceProperties.limits.maxTexelGatherOffset);
+        LOGI("\tminInterpolationOffset: %f\n", deviceProperties.limits.minInterpolationOffset);
+        LOGI("\tmaxInterpolationOffset: %f\n", deviceProperties.limits.maxInterpolationOffset);
+        LOGI("\tsubPixelInterpolationOffsetBits: %u\n", deviceProperties.limits.subPixelInterpolationOffsetBits);
+        LOGI("\tmaxFramebufferWidth: %u\n", deviceProperties.limits.maxFramebufferWidth);
+        LOGI("\tmaxFramebufferHeight: %u\n", deviceProperties.limits.maxFramebufferHeight);
+        LOGI("\tmaxFramebufferLayers: %u\n", deviceProperties.limits.maxFramebufferLayers);
+        LOGI("\tframebufferColorSampleCounts: %u\n", deviceProperties.limits.framebufferColorSampleCounts);
+        LOGI("\tframebufferDepthSampleCounts: %u\n", deviceProperties.limits.framebufferDepthSampleCounts);
+        LOGI("\tframebufferStencilSampleCounts: %u\n", deviceProperties.limits.framebufferStencilSampleCounts);
+        LOGI("\tframebufferNoAttachmentsSampleCounts: %u\n", deviceProperties.limits.framebufferNoAttachmentsSampleCounts);
+        LOGI("\tmaxColorAttachments: %u\n", deviceProperties.limits.maxColorAttachments);
+        LOGI("\tsampledImageColorSampleCounts: %u\n", deviceProperties.limits.sampledImageColorSampleCounts);
+        LOGI("\tsampledImageIntegerSampleCounts: %u\n", deviceProperties.limits.sampledImageIntegerSampleCounts);
+        LOGI("\tsampledImageDepthSampleCounts: %u\n", deviceProperties.limits.sampledImageDepthSampleCounts);
+        LOGI("\tsampledImageStencilSampleCounts: %u\n", deviceProperties.limits.sampledImageStencilSampleCounts);
+        LOGI("\tstorageImageSampleCounts: %u\n", deviceProperties.limits.storageImageSampleCounts);
+        LOGI("\tmaxSampleMaskWords: %u\n", deviceProperties.limits.maxSampleMaskWords);
+        LOGI("\ttimestampComputeAndGraphics: %s\n", deviceProperties.limits.timestampComputeAndGraphics ? "true" : "false");
+        LOGI("\ttimestampPeriod: %f\n", deviceProperties.limits.timestampPeriod);
+        LOGI("\tmaxClipDistances: %u\n", deviceProperties.limits.maxClipDistances);
+        LOGI("\tmaxCullDistances: %u\n", deviceProperties.limits.maxCullDistances);
+        LOGI("\tmaxCombinedClipAndCullDistances: %u\n", deviceProperties.limits.maxCombinedClipAndCullDistances);
+        LOGI("\tdiscreteQueuePriorities: %u\n", deviceProperties.limits.discreteQueuePriorities);
+        LOGI("\tpointSizeRange[0]: %f\n", deviceProperties.limits.pointSizeRange[0]);
+        LOGI("\tpointSizeRange[1]: %f\n", deviceProperties.limits.pointSizeRange[1]);
+        LOGI("\tlineWidthRange[0]: %f\n", deviceProperties.limits.lineWidthRange[0]);
+        LOGI("\tlineWidthRange[1]: %f\n", deviceProperties.limits.lineWidthRange[1]);
+        LOGI("\tpointSizeGranularity: %f\n", deviceProperties.limits.pointSizeGranularity);
+        LOGI("\tlineWidthGranularity: %f\n", deviceProperties.limits.lineWidthGranularity);
+        LOGI("\tstrictLines: %s\n", deviceProperties.limits.strictLines ? "true" : "false");
+        LOGI("\tstandardSampleLocations: %s\n", deviceProperties.limits.standardSampleLocations ? "true" : "false");
+        LOGI("\toptimalBufferCopyOffsetAlignment: %lu\n", deviceProperties.limits.optimalBufferCopyOffsetAlignment);
+        LOGI("\toptimalBufferCopyRowPitchAlignment: %lu\n", deviceProperties.limits.optimalBufferCopyRowPitchAlignment);
+        LOGI("\tnonCoherentAtomSize: %lu\n", deviceProperties.limits.nonCoherentAtomSize);
+        LOGI("---- deviceProperties.limits ----");
     }
 
     // find queue indices
@@ -1279,7 +1245,6 @@ void RenderDevice::CreateSwapchain()
 
     uint32_t width = 0;
     uint32_t height = 0;
-    SDL_GetWindowSize(window, (int *)&width, (int *)&height);
 
     swapchainExtent.width = glm::clamp(static_cast<uint32_t>(width), capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
     swapchainExtent.height = glm::clamp(static_cast<uint32_t>(height), capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
@@ -1428,8 +1393,8 @@ void RenderDevice::SetupImGui()
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-    io.IniFilename = imguiConfigFile;
-    io.LogFilename = imguiLogFile;
+    io.IniFilename = ImGuiConfigFile;
+    io.LogFilename = ImGuiLogFile;
 
     VkFormat colorFormat = VK_FORMAT_B8G8R8A8_SRGB;
 
@@ -1438,7 +1403,7 @@ void RenderDevice::SetupImGui()
     renderingCreateInfo.pColorAttachmentFormats = &colorFormat;
     renderingCreateInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
 
-    ImGui_ImplSDL3_InitForVulkan(window);
+    ImGui_ImplSDL3_InitForVulkan(window_->GetHandle());
     ImGui_ImplVulkan_InitInfo initInfo = {};
     initInfo.ApiVersion = VULKAN_API_VERSION;
     initInfo.Instance = instance;

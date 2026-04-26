@@ -19,5 +19,6 @@ private:
         bool previous = false;
     };
 
-    UnorderedMap<SDL_Keycode, KeyState> keys{};
+    UnorderedMap<SDL_Keycode, KeyState> m_keys{};
+    UnorderedMap<String, Vector<SDL_Keycode>> m_keyboardActions;
 };
