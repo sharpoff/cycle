@@ -1,10 +1,10 @@
 #version 450
 
 #extension GL_GOOGLE_include_directive : enable
-
 #extension GL_EXT_buffer_reference : require
 
-#include "types.glsl"
+#include "common/constants.glsl"
+#include "common/types.glsl"
 
 layout (buffer_reference) readonly buffer VertexBuffer {
     Vertex vertices[];

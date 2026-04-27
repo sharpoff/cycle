@@ -33,7 +33,8 @@ target_link_libraries(engine
     spdlog
 )
 
-set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")
+# XXX: DON'T FORGET TO CHANGE THAT
+set(SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
 
 #============= compile shaders =============
 file(GLOB_RECURSE GLSL_SOURCE_FILES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.tesc" "${SHADERS_DIR}/*.tese" "${SHADERS_DIR}/*.comp")

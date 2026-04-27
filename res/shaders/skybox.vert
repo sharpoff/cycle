@@ -1,9 +1,10 @@
 #version 450
 
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference : require
 
-#include "mesh_draw_info.glsl"
-#include "scene_info.glsl"
+#include "common/mesh_draw_info.glsl"
+#include "common/scene_info.glsl"
 
 layout (location = 0) out vec3 outUVW;
 

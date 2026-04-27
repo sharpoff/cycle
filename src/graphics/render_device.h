@@ -10,7 +10,7 @@
 #include "core/constants.h"
 
 #define VULKAN_API_VERSION VK_API_VERSION_1_3
-#define ENABLE_LOG_DEVICE_LIMITS true
+#define ENABLE_LOG_DEVICE_LIMITS false
 
 class RenderDevice
 {
@@ -56,7 +56,7 @@ public:
     VkImageView GetSwapchainImageView() { return swapchainImageViews[imageIndex]; };
     VkSurfaceFormatKHR GetSurfaceFormat() { return surfaceFormat; }
     VkDescriptorSet &GetBindlessDescriptor() { return bindlessDescriptorSets[currentFrame]; }
-    uint32_t GetCurrentFrame() { return currentFrame; }
+    uint32_t GetCurrentFrameIndex() { return currentFrame; }
 
     uint32_t CalculateMipLevels(uint32_t width, uint32_t height) { return floor(log2(std::max(width, height))) + 1; }
 

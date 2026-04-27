@@ -4,7 +4,7 @@
 // vma
 #define VK_NO_PROTOTYPES
 #define VMA_IMPLEMENTATION
-#if 1
+#if 0
 #include <core/logger.h>
 #define VMA_DEBUG_LOG_FORMAT(format, ...) LOG_PRINTF((format), __VA_ARGS__) // debug allocations
 #endif

@@ -50,8 +50,10 @@ uint32_t AssetManager::CreateModel(const FilePath &filename, const String &name)
             return InvalidIndex;
     }
 
+    uint32_t id = models.size();
     models.push_back(model);
-    return models.size() - 1;
+    nameModelIndexMap[name] = id;
+    return id;
 }
 
 uint32_t AssetManager::CreateTexture(const FilePath &file, const String &name)
@@ -146,8 +148,7 @@ uint32_t AssetManager::CreateMaterial(const String &name)
 
     uint32_t id = materials.size();
     nameMaterialIndexMap[name] = id;
-    materials.emplace_back();
-
+    materials.push_back(Material{});
     return id;
 }
 

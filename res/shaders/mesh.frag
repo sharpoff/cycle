@@ -1,13 +1,14 @@
 #version 450
 
+#extension GL_EXT_buffer_reference : require
 #extension GL_GOOGLE_include_directive : enable
 
-#include "textures.glsl"
-#include "materials.glsl"
-#include "lights.glsl"
-#include "mesh_draw_info.glsl"
-#include "scene_info.glsl"
-#include "pbr.glsl"
+#include "common/textures.glsl"
+#include "common/materials.glsl"
+#include "common/lights.glsl"
+#include "common/mesh_draw_info.glsl"
+#include "common/scene_info.glsl"
+#include "common/pbr.glsl"
 
 layout(location = 0) in vec2 inUV;
 layout(location = 1) in vec3 inNormal;

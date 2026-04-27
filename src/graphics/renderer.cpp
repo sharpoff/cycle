@@ -232,7 +232,7 @@ void Renderer::RenderFrame()
     barriers.TransitionImage2(m_device.GetSwapchainImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
     barriers.FlushBarriers(cmd);
 
-    const uint32_t currentFrame = m_device.GetCurrentFrame();
+    const uint32_t currentFrame = m_device.GetCurrentFrameIndex();
     VkExtent2D renderArea = {m_device.GetSwapchainWidth(), m_device.GetSwapchainHeight()};
     const float color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 

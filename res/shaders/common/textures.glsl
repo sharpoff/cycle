@@ -2,6 +2,9 @@
 #define TEXTURES_GLSL
 
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "constants.glsl"
 
 layout (set = 0, binding = 1) uniform texture2D textures2D[];
 layout (set = 0, binding = 1) uniform textureCube texturesCube[];
